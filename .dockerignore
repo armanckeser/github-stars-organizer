@@ -1,0 +1,13 @@
+node_modules
+dist
+server/node_modules
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+docker-compose*.yml
+.git
+.publish
+*.md

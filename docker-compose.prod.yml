@@ -1,0 +1,93 @@
+# GitHub Stars Organizer, self-hosted behind a reverse proxy.
+#
+# Only the frontend publishes a host port; Postgres, Electric and the API stay on
+# the compose network. The browser talks to nginx alone, which proxies /api/ to
+# the API container, and the API proxies Electric shapes at /api/electric/*.
+# The one published port is meant for a reverse proxy, not for the LAN.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: github-stars-organizer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    # Runs once, on an empty volume, under a temporary server before the flags
+    # above take effect. Every statement in it is IF NOT EXISTS, so a re-run on a
+    # restored volume is harmless.
+    volumes:
+      - github-stars-organizer-pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "cosmos-stack=github-stars-organizer"
+
+  electric:
+    image: electricsql/electric:latest
+    container_name: github-stars-organizer-electric
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/app?sslmode=disable
+      ELECTRIC_INSECURE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "cosmos-stack=github-stars-organizer"
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: github-stars-organizer-api
+    restart: unless-stopped
+    # GITHUB_TOKEN lives here and nowhere else. Gitignored, and never copied into
+    # an image — the API reads it at runtime.
+    env_file:
+      - ./server/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/app
+      ELECTRIC_URL: http://electric:3000
+      PORT: "4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      electric:
+        condition: service_started
+    labels:
+      - "cosmos-stack=github-stars-organizer"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Empty: the SPA calls /api/... on its own origin. See Dockerfile.
+        VITE_API_URL: ""
+    container_name: github-stars-organizer-frontend
+    restart: unless-stopped
+    ports:
+      - "5184:80"
+    depends_on:
+      - api
+    labels:
+      - "cosmos-stack=github-stars-organizer"
+      - "cosmos-stack-main=github-stars-organizer-frontend"
+      - "cosmos-icon=https://api.iconify.design/lucide:star.svg?color=%23e3b341"
+
+volumes:
+  github-stars-organizer-pgdata:

@@ -1,0 +1,5 @@
+# The Pi builds from a copy of this tree. A CRLF Dockerfile or entrypoint breaks
+# on Linux, and core.autocrlf on a Windows checkout would introduce exactly that.
+* text=auto eol=lf
+*.png binary
+*.svg text eol=lf

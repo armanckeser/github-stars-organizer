@@ -1,35 +1,31 @@
 <p align="center">
-  <img src="img/banner.png" alt="GitHub Stars Organizer - Tame your stars" width="640" />
+  <img src="img/banner.png" alt="Stars Organizer: finally do something with your GitHub stars. Lists synced to GitHub, a health score per repo, tags, ratings and notes." width="100%" />
 </p>
 
----
+**Hundreds of GitHub stars and no way to find anything?** Stars Organizer pulls every repo
+you've starred into one fast table you can search, tag, rate and annotate, sorts them into
+GitHub Lists that sync back to your profile, and scores each repo's health so the abandoned
+ones stand out.
 
-Organize your GitHub stars into Lists and tags, then sync the Lists back to GitHub. A local, reactive UI over your starred repos, backed by Postgres and ElectricSQL so an agent can help you curate.
+<p align="center">
+  <img src="img/hero.gif" alt="Opening a repo's health breakdown, rating it four stars and adding a note, opening the Homelab list, then the Explore dashboard" width="800" />
+</p>
 
-- ⭐ **Import stars** — Pull every starred repo (and your existing GitHub Lists) into a local database.
-- 🗂️ **Curate Lists** — Create Lists, add and remove repos, and delete Lists. Membership changes sync to GitHub.
-- 🏷️ **Tag and rate** — Attach local tags, notes, and a 1-5 usefulness rating to any repo.
-- 📊 **Explore** — A dashboard of languages, health, and activity across your stars.
-- 🔴 **Unstar** — Drop a repo from your stars, synced back to GitHub.
-- ⚡ **Live sync** — ElectricSQL streams changes into a reactive TanStack DB cache; the UI updates on its own.
+- **Lists that sync to GitHub.** New Lists, deleted Lists and repos you add to a List are
+  written back to your GitHub Lists.
+- **A health score for every repo** from commit recency, issue resolution, contributors,
+  star growth and release cadence, so you can tell a living project from a dead one.
+- **Your own layer on top:** tags, a 1–5 usefulness rating and free-form notes, stored locally.
+- **Explore your collection:** how fresh it is, where your repos are weakest, which languages
+  dominate, and when you found them.
+- **Unstar** in one click, synced to GitHub.
+- **Agent-friendly.** An AI agent can read everything over a read-only SQL role and act
+  through the same API as the UI, so "put every archived repo in a *Graveyard* list" is one
+  request.
 
----
-
-## How It Works
-
-**Import.** One call pulls your starred repos and existing GitHub Lists into Postgres via the GitHub GraphQL API.
-
-**Curate.** Build Lists, tag and rate repos, and write notes. List membership, List create/delete, and unstars are written through the API, which runs the GitHub sync so your changes land upstream.
-
-**Watch it update.** ElectricSQL replicates Postgres into the browser, where TanStack DB exposes each table as a live collection. Edits show up without a refresh.
-
-**Let an agent help.** The agent reads the database over a read-only SQL connection and makes changes through the same API the UI uses, so business logic always runs.
-
----
-
-## Screenshots
-
-<p align="center"><em>Screenshots coming soon.</em></p>
+<p align="center">
+  <img src="img/explore.png" alt="The Explore dashboard: totals, collection freshness, a health radar and languages" width="760" />
+</p>
 
 ---
 

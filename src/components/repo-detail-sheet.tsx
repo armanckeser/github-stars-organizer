@@ -125,6 +125,7 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
 
   function handleUnstar() {
     if (!repo) return;
+    if (!window.confirm(`Unstar ${repo.full_name}? Its tags, rating and notes go with it.`)) return;
     repoCollection.delete(repo.id);
     onOpenChange(false);
   }
@@ -199,7 +200,7 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground/60">Not scored yet. Refresh health from the Explore page.</p>
+              <p className="text-sm text-muted-foreground/60">Not scored yet</p>
             )}
           </section>
 
@@ -223,7 +224,7 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
                 <Textarea
                   value={notes}
                   onChange={(e) => handleNotesChange(e.target.value)}
-                  placeholder="Add notes about this repo..."
+                  placeholder="Notes"
                   className="min-h-20 text-sm"
                 />
               </div>
@@ -271,7 +272,7 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
               </a>
             )}
             <Button variant="destructive" size="sm" className="w-full" onClick={handleUnstar}>
-              <Trash2 className="mr-2 h-4 w-4" />Unstar Repository
+              <Trash2 className="mr-2 h-4 w-4" />Unstar
             </Button>
           </section>
         </div>

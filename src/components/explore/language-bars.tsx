@@ -18,7 +18,7 @@ export function LanguageBars({ data }: LanguageBarsProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">What languages define your collection?</CardTitle>
+        <CardTitle className="text-base">Languages</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={data.length * 32 + 16}>

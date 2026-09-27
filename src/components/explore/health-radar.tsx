@@ -27,7 +27,7 @@ export function HealthRadar({ data }: HealthRadarProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Where are your repos weakest?</CardTitle>
+        <CardTitle className="text-base">Health by area</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={240}>

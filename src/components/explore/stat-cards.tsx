@@ -13,8 +13,8 @@ const ICON_CLASS = "h-4 w-4 text-muted-foreground";
 
 export function StatCards({ totalStars, listCount, avgHealth, topLanguage, topLanguagePercent }: StatCardsProps) {
   const stats = [
-    { label: "Total Stars", value: totalStars, detail: "repos tracked", icon: <Star className={ICON_CLASS} /> },
-    { label: "Lists", value: listCount, detail: "collections", icon: <List className={ICON_CLASS} /> },
+    { label: "Stars", value: totalStars, detail: "repos", icon: <Star className={ICON_CLASS} /> },
+    { label: "Lists", value: listCount, detail: "on GitHub", icon: <List className={ICON_CLASS} /> },
     { label: "Avg Health", value: avgHealth != null ? avgHealth.toFixed(1) : "—", detail: avgHealth != null ? "out of 10" : "not scored", icon: <Activity className={ICON_CLASS} /> },
     { label: "Top Language", value: topLanguage, detail: `${topLanguagePercent}% of repos`, icon: <Code className={ICON_CLASS} /> },
   ];

@@ -18,7 +18,7 @@ export function StarringTimeline({ data }: StarringTimelineProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">When did you discover these repos?</CardTitle>
+        <CardTitle className="text-base">Stars over time</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={220}>

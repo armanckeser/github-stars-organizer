@@ -140,6 +140,7 @@ function ListDetailPage() {
   }
 
   function handleDelete() {
+    if (!window.confirm(`Delete "${list!.name}" here and on GitHub? The repos stay starred.`)) return;
     listCollection.delete(list!.id);
     navigate({ to: "/" });
   }
@@ -183,7 +184,7 @@ function ListDetailPage() {
             <Textarea
               value={editDesc}
               onChange={(e) => setEditDesc(e.target.value)}
-              placeholder="Add a description..."
+              placeholder="Description"
               className="min-h-16 text-sm"
             />
             <div className="flex gap-2">

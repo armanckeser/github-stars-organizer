@@ -126,7 +126,9 @@ interface UnstarProps {
 
 function Unstar({ repo }: UnstarProps) {
   return (
-    <DropdownMenuItem variant="destructive" onClick={() => repoCollection.delete(repo.id)}>
+    <DropdownMenuItem variant="destructive" onClick={() => {
+      if (window.confirm(`Unstar ${repo.full_name}? Its tags, rating and notes go with it.`)) repoCollection.delete(repo.id);
+    }}>
       <Trash2 className="mr-2 h-4 w-4" />Unstar
     </DropdownMenuItem>
   );

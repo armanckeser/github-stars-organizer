@@ -366,7 +366,7 @@ function FilterDimensionPage({
       <div>
         <PageHeader title={dimension.label} onBack={onBack} />
         <div className="mb-2 text-xs text-muted-foreground">
-          Tap to include, again to exclude, third to clear
+          Tap: include → exclude → clear
         </div>
         <div className="max-h-64 overflow-y-auto">
           <SelectRow

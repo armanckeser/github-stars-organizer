@@ -191,6 +191,8 @@ function BulkUnstar({
   clearSelection: () => void;
 }) {
   async function handleUnstar() {
+    const count = selectedRepos.length;
+    if (!window.confirm(`Unstar ${count} ${count === 1 ? "repo" : "repos"} on GitHub?`)) return;
     for (const repo of selectedRepos) {
       await fetch(`${API_URL}/api/repos/${repo.id}/unstar`, {
         method: "POST",

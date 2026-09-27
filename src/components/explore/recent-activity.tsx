@@ -31,7 +31,7 @@ export function RecentActivity({ repos }: RecentActivityProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Which starred repos just shipped something?</CardTitle>
+        <CardTitle className="text-base">Recently pushed</CardTitle>
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="divide-y divide-border">

@@ -20,7 +20,7 @@ export function FreshnessChart({ data }: FreshnessChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">How fresh is your collection?</CardTitle>
+        <CardTitle className="text-base">Freshness</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={180}>

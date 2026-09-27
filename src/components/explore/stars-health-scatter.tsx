@@ -42,7 +42,7 @@ export function StarsHealthScatter({ data }: StarsHealthScatterProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Do popular repos tend to be healthy?</CardTitle>
+        <CardTitle className="text-base">Popularity vs. health</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={220}>

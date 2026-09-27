@@ -47,13 +47,13 @@ function RootLayout() {
           <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <ListTree className="w-4 h-4" /> Lists
           </span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setCreating(true)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="New list" title="New list" onClick={() => setCreating(true)}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
         {creating && (
           <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }} className="mb-2">
-            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="List name..." autoFocus
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="List name" autoFocus
               onBlur={() => { if (!newName.trim()) setCreating(false); }} className="h-8 text-sm" />
           </form>
         )}

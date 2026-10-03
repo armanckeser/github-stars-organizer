@@ -24,6 +24,8 @@ import {
 } from "@/components/views/data-table";
 import { createRepoColumns } from "@/components/repo-table/columns";
 import { RepoBulkActions } from "@/components/repo-table/bulk-actions";
+import { RepoMobileRow } from "@/components/repo-table/mobile-row";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import {
   buildRepoRegistry,
   DEFAULT_SORT,
@@ -71,6 +73,7 @@ function AllStarsPage() {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState("");
   const [detailRepo, setDetailRepo] = useState<Repo | null>(null);
+  const isDesktop = useIsDesktop();
 
   const allRepos = repos ?? [];
 
@@ -131,28 +134,33 @@ function AllStarsPage() {
     }
   }
 
+  const renderActions = useCallback(
+    (repo: Repo) => (
+      <RepoActions repo={repo}>
+        <RepoActions.AddToList
+          repo={repo}
+          lists={lists ?? []}
+          listItems={listItems ?? []}
+        />
+        <RepoActions.Rate repo={repo} />
+        <RepoActions.Separator />
+        <RepoActions.OpenOnGithub url={repo.url} />
+        <RepoActions.CopyUrl url={repo.url} />
+        <RepoActions.Separator />
+        <RepoActions.Unstar repo={repo} />
+      </RepoActions>
+    ),
+    [lists, listItems],
+  );
+
   const columns = useMemo(
     () =>
       createRepoColumns({
         selectable: true,
         onPreview: (repo) => setDetailRepo(repo),
-        renderActions: (repo) => (
-          <RepoActions repo={repo}>
-            <RepoActions.AddToList
-              repo={repo}
-              lists={lists ?? []}
-              listItems={listItems ?? []}
-            />
-            <RepoActions.Rate repo={repo} />
-            <RepoActions.Separator />
-            <RepoActions.OpenOnGithub url={repo.url} />
-            <RepoActions.CopyUrl url={repo.url} />
-            <RepoActions.Separator />
-            <RepoActions.Unstar repo={repo} />
-          </RepoActions>
-        ),
+        renderActions,
       }),
-    [lists, listItems],
+    [renderActions],
   );
 
   return (
@@ -193,6 +201,10 @@ function AllStarsPage() {
           columns={columns}
           getRowId={(repo) => repo.id}
           toolbar={<DataTableToolbar />}
+          onRowClick={isDesktop ? undefined : setDetailRepo}
+          renderMobileRow={(repo, state) => (
+            <RepoMobileRow repo={repo} state={state} actions={renderActions(repo)} />
+          )}
           renderBulkActions={(selectedRepos, clearSelection) => (
             <RepoBulkActions
               selectedRepos={selectedRepos}

@@ -1,4 +1,4 @@
-export { DataTable, createSelectColumn } from "./data-table";
+export { DataTable, createSelectColumn, type MobileRowState } from "./data-table";
 export { DataTableToolbar } from "./data-table-toolbar";
 export { FilterProvider, useFilter } from "./filter-context";
 export {

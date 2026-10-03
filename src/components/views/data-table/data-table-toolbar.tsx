@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { cn } from "@/lib/utils";
 import { useFilter } from "./filter-context";
 import { useColumnVisibility } from "./column-visibility-context";
 import { FilterPanel } from "./filter-sheet";
@@ -25,7 +26,7 @@ export function DataTableToolbar() {
   const columnVisibility = useColumnVisibility();
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2 md:gap-3">
       <FilterPopover activeFilterCount={activeFilterCount} />
       <SearchInput
         value={viewState.searchQuery}
@@ -47,7 +48,7 @@ function FilterPopover({ activeFilterCount }: { activeFilterCount: number }) {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="outline" size="sm" className="relative" />
+          <Button variant="outline" size="sm" className="relative h-10 min-w-10 md:h-7 md:min-w-0" aria-label="Filters" />
         }
       >
         <Filter className="h-4 w-4" />
@@ -60,7 +61,7 @@ function FilterPopover({ activeFilterCount }: { activeFilterCount: number }) {
           </Badge>
         )}
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-3">
+      <PopoverContent align="start" className="max-h-[70dvh] w-[min(20rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain p-3">
         <FilterPanel />
       </PopoverContent>
     </Popover>
@@ -70,7 +71,7 @@ function FilterPopover({ activeFilterCount }: { activeFilterCount: number }) {
 function SearchInput({
   value,
   onChange,
-  placeholder = "Search...",
+  placeholder = "Search",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -88,11 +89,12 @@ function SearchInput({
       <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         ref={inputRef}
-        type="text"
+        type="search"
+        enterKeyHint="search"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 pl-8 text-sm"
+        className="h-10 pl-8 md:h-8 md:text-sm"
       />
       {value && (
         <Button
@@ -117,10 +119,10 @@ function ItemCount({
   activeFilterCount: number;
 }) {
   return (
-    <span className="shrink-0 text-sm text-muted-foreground">
+    <span className={cn("shrink-0 text-sm tabular-nums text-muted-foreground", activeFilterCount === 0 && "hidden md:inline")}>
       {activeFilterCount > 0
-        ? `${filteredCount} filtered`
-        : `${filteredCount} items`}
+        ? `${filteredCount} found`
+        : `${filteredCount} repos`}
     </span>
   );
 }
@@ -140,7 +142,7 @@ function ColumnsDropdown({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+      <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="hidden md:inline-flex" />}>
         <SlidersHorizontal className="mr-2 h-4 w-4" />
         Columns
       </DropdownMenuTrigger>

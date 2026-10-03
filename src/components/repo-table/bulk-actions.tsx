@@ -1,5 +1,7 @@
-import { ListPlus, Star, Trash2, X } from "lucide-react";
+import type { ComponentProps } from "react";
+import { ListMinus, ListPlus, Star, StarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,11 +101,11 @@ function BulkAddToList({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-        <ListPlus className="mr-1 h-3.5 w-3.5" />
-        Add to list
+      <DropdownMenuTrigger render={<BarButton aria-label="Add to list" title="Add to list" />}>
+        <ListPlus />
+        <span className="hidden sm:inline">Add to list</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent side="top" align="center" sideOffset={10} className="w-auto min-w-48">
         {lists.map((list) => (
           <DropdownMenuCheckboxItem
             key={list.id}
@@ -135,11 +137,11 @@ function BulkRate({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-        <Star className="mr-1 h-3.5 w-3.5" />
-        Rate
+      <DropdownMenuTrigger render={<BarButton aria-label="Rate" title="Rate" />}>
+        <Star />
+        <span className="hidden sm:inline">Rate</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent side="top" align="center" sideOffset={10} className="w-auto min-w-48">
         {[1, 2, 3, 4, 5].map((rating) => (
           <DropdownMenuCheckboxItem
             key={rating}
@@ -181,10 +183,10 @@ function BulkRemoveFromList({
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleRemove}>
-      <X className="mr-1 h-3.5 w-3.5" />
-      Remove from list
-    </Button>
+    <BarButton aria-label="Remove from list" title="Remove from list" onClick={handleRemove}>
+      <ListMinus />
+      <span className="hidden sm:inline">Remove</span>
+    </BarButton>
   );
 }
 
@@ -211,9 +213,14 @@ function BulkUnstar({
   }
 
   return (
-    <Button variant="destructive" size="sm" onClick={handleUnstar}>
-      <Trash2 className="mr-1 h-3.5 w-3.5" />
-      Unstar
-    </Button>
+    <BarButton aria-label="Unstar" title="Unstar" className="text-destructive hover:text-destructive" onClick={handleUnstar}>
+      <StarOff />
+      <span className="hidden sm:inline">Unstar</span>
+    </BarButton>
   );
+}
+
+// Icon-only in the floating bar on a phone; the label comes back once there is room for it.
+function BarButton({ className, ...props }: ComponentProps<typeof Button>) {
+  return <Button variant="ghost" className={cn("h-10 min-w-10 gap-1.5 px-2.5 sm:px-3", className)} {...props} />;
 }

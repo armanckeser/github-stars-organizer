@@ -132,3 +132,68 @@
     @apply font-sans;
     }
 }
+
+/* Phone baseline: no tap flash, no font inflation, no page-level pull-to-refresh
+   (the app scrolls inside <main>, not the document). */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+html, body {
+  overscroll-behavior: none;
+}
+button, a, [role="button"], [role="menuitem"], [role="checkbox"] {
+  touch-action: manipulation;
+}
+button, [role="button"], [role="menuitem"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* The selection bar rises from the bottom edge it lives on and drops back there. */
+.selection-bar {
+  opacity: 0;
+  transform: translateY(calc(100% + 0.5rem));
+  transition: transform 160ms var(--ease-out), opacity 120ms ease-out;
+}
+.selection-bar[data-open] {
+  opacity: 1;
+  transform: none;
+  transition: transform 260ms var(--ease-out), opacity 160ms ease-out;
+}
+
+.mobile-row {
+  transition: background-color 120ms ease-out;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mobile-row:active {
+  background-color: var(--muted);
+}
+.mobile-row[data-selected] {
+  background-color: color-mix(in oklab, var(--primary) 9%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selection-bar,
+  .selection-bar[data-open] {
+    transform: none;
+    transition: opacity 150ms ease;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .selection-bar [role="toolbar"] {
+    background: var(--popover);
+    backdrop-filter: none;
+  }
+}
+
+/* The search field draws its own clear button. */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}

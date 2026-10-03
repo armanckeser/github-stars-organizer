@@ -20,7 +20,7 @@ export function DemoUserForm() {
       const count = await loadUserStars(name, (n) => setStatus(`Read ${n} stars...`));
       setShowing(name);
       setUsername("");
-      setStatus(`${count} most recent stars. Lists and health scores need a token, so they come with self-hosting.`);
+      setStatus(`${count} recent stars from @${name}.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Couldn't read those stars.");
     } finally {
@@ -32,7 +32,7 @@ export function DemoUserForm() {
     <div className="flex flex-col gap-1.5 sm:items-end">
       <form
         onSubmit={(e) => { e.preventDefault(); handleLoad(); }}
-        className="flex items-center gap-2"
+        className="flex w-full items-center gap-2 sm:w-auto"
       >
         <Input
           value={username}
@@ -42,14 +42,15 @@ export function DemoUserForm() {
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className="h-9 w-48"
+          enterKeyHint="go"
+          className="h-10 min-w-0 flex-1 sm:h-9 sm:w-48 sm:flex-none"
         />
-        <Button type="submit" disabled={loading || !username.trim()}>
-          {loading ? "Loading..." : "Load their stars"}
+        <Button type="submit" className="h-10 sm:h-9" disabled={loading || !username.trim()}>
+          {loading ? "Loading..." : "Load"}
         </Button>
       </form>
       <span className="text-xs text-muted-foreground">
-        {status || (showing ? `Showing @${showing}'s public stars.` : "Load anyone's public stars.")}
+        {status || (showing ? `Showing @${showing}` : "")}
       </span>
     </div>
   );

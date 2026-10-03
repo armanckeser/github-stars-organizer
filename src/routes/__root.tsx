@@ -2,10 +2,11 @@ import { createRootRoute, Outlet, Link, useRouterState } from "@tanstack/react-r
 import { useLiveQuery } from "@tanstack/react-db";
 import { useEffect, useState } from "react";
 import { listCollection, listItemCollection, type StarList } from "../lib/collections";
-import { Star, Compass, ListTree, Plus, Menu } from "lucide-react";
+import { Star, Compass, ListTree, Plus, Menu, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEMO } from "../lib/demo";
 
 export const Route = createRootRoute({ component: RootLayout });
@@ -74,23 +75,32 @@ function RootLayout() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {DEMO && (
-        <p className="shrink-0 border-b border-border bg-sidebar px-4 py-2 text-center text-xs text-muted-foreground">
-          Demo: public stars read from GitHub. Lists, tags and notes you make stay in this tab.{" "}
-          <a href="https://github.com/armanckeser/github-stars-organizer" className="font-medium text-primary underline-offset-4 hover:underline">
-            Self-host it
-          </a>{" "}
-          to sync with your own account.
+        <p className="hidden shrink-0 border-b border-border bg-sidebar px-4 py-2 text-center text-xs text-muted-foreground md:block">
+          <DemoNote />
         </p>
       )}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2 md:hidden">
-          <Button variant="ghost" size="icon" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
-            <Menu className="w-5 h-5" />
+        <header className="flex shrink-0 items-center gap-1 border-b border-border px-2 pt-[env(safe-area-inset-top,0px)] md:hidden">
+          <Button variant="ghost" size="icon-lg" className="size-11" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+            <Menu className="size-5" />
           </Button>
           <span className="font-display text-base font-bold tracking-tight">Stars</span>
+          {DEMO && (
+            <Popover>
+              <PopoverTrigger
+                render={<Button variant="ghost" size="sm" className="ml-auto h-9 gap-1.5 text-muted-foreground" />}
+              >
+                Demo
+                <Info className="size-3.5" />
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[min(18rem,calc(100vw-1.5rem))] text-sm leading-relaxed text-muted-foreground">
+                <DemoNote />
+              </PopoverContent>
+            </Popover>
+          )}
         </header>
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-          <SheetContent side="left" className="w-72 gap-2 bg-sidebar p-2 pt-10">
+          <SheetContent side="left" className="w-72 gap-2 bg-sidebar p-2 pt-[calc(env(safe-area-inset-top,0px)+2.5rem)] pb-[env(safe-area-inset-bottom,0px)]">
             <SheetTitle className="sr-only">Navigation</SheetTitle>
             {navigation}
           </SheetContent>
@@ -98,7 +108,7 @@ function RootLayout() {
         <nav className="hidden w-64 shrink-0 flex-col gap-2 p-2 bg-sidebar md:flex">
           {navigation}
         </nav>
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] md:p-6">
           <Outlet />
         </main>
       </div>
@@ -111,5 +121,17 @@ function NavLink({ to, icon, label }: { to: string; icon: React.ReactNode; label
     <Link to={to} className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors [&.active]:text-primary [&.active]:bg-accent">
       {icon}{label}
     </Link>
+  );
+}
+
+function DemoNote() {
+  return (
+    <>
+      Demo: public stars read from GitHub. Lists, tags and notes you make stay in this tab.{" "}
+      <a href="https://github.com/armanckeser/github-stars-organizer" className="font-medium text-primary underline-offset-4 hover:underline">
+        Self-host it
+      </a>{" "}
+      to sync with your own account.
+    </>
   );
 }

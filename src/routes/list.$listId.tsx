@@ -24,6 +24,8 @@ import {
 } from "@/components/views/data-table";
 import { createRepoColumns } from "@/components/repo-table/columns";
 import { RepoBulkActions } from "@/components/repo-table/bulk-actions";
+import { RepoMobileRow } from "@/components/repo-table/mobile-row";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import {
   buildRepoRegistry,
   DEFAULT_SORT,
@@ -71,6 +73,7 @@ function ListDetailPage() {
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [detailRepo, setDetailRepo] = useState<Repo | null>(null);
+  const isDesktop = useIsDesktop();
 
   const list = (lists ?? []).find((l) => l.id === listId);
 
@@ -145,34 +148,36 @@ function ListDetailPage() {
     navigate({ to: "/" });
   }
 
+  const renderActions = (repo: Repo) => (
+    <RepoActions repo={repo}>
+      {listItemIdByRepoId.get(repo.id) && (
+        <RepoActions.RemoveFromList
+          listItemId={listItemIdByRepoId.get(repo.id)!}
+        />
+      )}
+      <RepoActions.AddToList
+        repo={repo}
+        lists={lists ?? []}
+        listItems={allListItems}
+      />
+      <RepoActions.Rate repo={repo} />
+      <RepoActions.Separator />
+      <RepoActions.OpenOnGithub url={repo.url} />
+      <RepoActions.CopyUrl url={repo.url} />
+      <RepoActions.Separator />
+      <RepoActions.Unstar repo={repo} />
+    </RepoActions>
+  );
+
   const columns = createRepoColumns({
     selectable: true,
     onPreview: (repo) => setDetailRepo(repo),
-    renderActions: (repo) => (
-      <RepoActions repo={repo}>
-        {listItemIdByRepoId.get(repo.id) && (
-          <RepoActions.RemoveFromList
-            listItemId={listItemIdByRepoId.get(repo.id)!}
-          />
-        )}
-        <RepoActions.AddToList
-          repo={repo}
-          lists={lists ?? []}
-          listItems={allListItems}
-        />
-        <RepoActions.Rate repo={repo} />
-        <RepoActions.Separator />
-        <RepoActions.OpenOnGithub url={repo.url} />
-        <RepoActions.CopyUrl url={repo.url} />
-        <RepoActions.Separator />
-        <RepoActions.Unstar repo={repo} />
-      </RepoActions>
-    ),
+    renderActions,
   });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         {editing ? (
           <div className="mr-4 flex-1 space-y-2">
             <Input
@@ -203,8 +208,8 @@ function ListDetailPage() {
             </div>
           </div>
         ) : (
-          <div>
-            <h1 className="font-display text-3xl font-bold tracking-tight">
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
               {list.name}
             </h1>
             {list.description && (
@@ -218,14 +223,12 @@ function ListDetailPage() {
           </div>
         )}
         {!editing && (
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={startEditing}>
-              <Pencil className="mr-1 h-3.5 w-3.5" />
-              Edit
+          <div className="flex shrink-0 gap-1">
+            <Button variant="ghost" size="icon-lg" aria-label="Edit list" title="Edit list" onClick={startEditing}>
+              <Pencil />
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleDelete}>
-              <Trash2 className="mr-1 h-3.5 w-3.5" />
-              Delete
+            <Button variant="ghost" size="icon-lg" aria-label="Delete list" title="Delete list" className="text-destructive hover:text-destructive" onClick={handleDelete}>
+              <Trash2 />
             </Button>
           </div>
         )}
@@ -245,6 +248,10 @@ function ListDetailPage() {
           columns={columns}
           getRowId={(repo) => repo.id}
           toolbar={<DataTableToolbar />}
+          onRowClick={isDesktop ? undefined : setDetailRepo}
+          renderMobileRow={(repo, state) => (
+            <RepoMobileRow repo={repo} state={state} actions={renderActions(repo)} />
+          )}
           renderBulkActions={(selectedRepos, clearSelection) => (
             <RepoBulkActions
               selectedRepos={selectedRepos}

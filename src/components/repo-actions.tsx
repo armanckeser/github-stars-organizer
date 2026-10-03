@@ -16,7 +16,7 @@ interface RepoActionsProps {
 function RepoActions({ children }: RepoActionsProps) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-7 w-7" />}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="size-10 md:size-7" aria-label="Actions" />}>
         <MoreHorizontal className="h-4 w-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Star, GitFork, ExternalLink, Trash2, Check, Globe } from "lucide-react";
 import { repoCollection, listItemCollection, type Repo, type StarList, type ListItem } from "../lib/collections";
 import { apiPatch } from "../lib/api";
+import { useIsDesktop } from "@/hooks/use-media-query";
 
 interface RepoDetailSheetProps {
   repo: Repo | null;
@@ -80,6 +81,7 @@ function formatHealthDate(value: string | number | undefined): string | undefine
 }
 
 export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: RepoDetailSheetProps) {
+  const isDesktop = useIsDesktop();
   const [notes, setNotes] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -141,7 +143,10 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="overflow-y-auto sm:max-w-md">
+      <SheetContent
+        side={isDesktop ? "right" : "bottom"}
+        className={isDesktop ? "overflow-y-auto sm:max-w-md" : "max-h-[88dvh] overflow-y-auto overscroll-contain rounded-t-2xl pb-[env(safe-area-inset-bottom,0px)]"}
+      >
         <SheetHeader>
           <SheetTitle className="font-display text-lg">
             <a href={repo.url} target="_blank" rel="noopener noreferrer" className="hover:underline inline-flex items-center gap-1.5">

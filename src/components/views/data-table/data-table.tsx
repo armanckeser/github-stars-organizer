@@ -9,7 +9,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { type ReactNode, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CheckCheck, ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { useFilter } from "./filter-context";
 import { ColumnVisibilityContext } from "./column-visibility-context";
 
@@ -31,6 +32,15 @@ interface DataTableProps<TData, TValue> {
   getRowId?: (row: TData) => string;
   renderBulkActions?: (selectedRows: TData[], clearSelection: () => void) => ReactNode;
   toolbar?: ReactNode;
+  /** Phones get a one-column list instead of the table; this draws one item of it. */
+  renderMobileRow?: (row: TData, state: MobileRowState) => ReactNode;
+}
+
+export interface MobileRowState {
+  selected: boolean;
+  toggleSelected: () => void;
+  /** Something is selected, so a tap on the row toggles it instead of opening it. */
+  selecting: boolean;
 }
 
 export function createSelectColumn<TData>(): ColumnDef<TData> {
@@ -68,10 +78,13 @@ export function DataTable<TData, TValue>({
   getRowId,
   renderBulkActions,
   toolbar,
+  renderMobileRow,
 }: DataTableProps<TData, TValue>) {
   const { filteredItems, groupedItems, viewState, updatePage } = useFilter<TData>();
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const isDesktop = useIsDesktop();
+  const asList = !isDesktop && renderMobileRow !== undefined;
 
   const isGrouped = viewState.groupBy !== "none" && groupedItems.length > 0;
 
@@ -128,6 +141,7 @@ export function DataTable<TData, TValue>({
   const clearSelection = () => setRowSelection({});
 
   const visibleColumnCount = table.getVisibleFlatColumns().length;
+  const filteredRowCount = table.getFilteredRowModel().rows.length;
 
   const columnVisibilityValue = useMemo(
     () => ({
@@ -145,39 +159,20 @@ export function DataTable<TData, TValue>({
 
   return (
     <ColumnVisibilityContext.Provider value={columnVisibilityValue}>
-    <div className="space-y-4">
-      {selectedRows.length > 0 && renderBulkActions && (
-        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-4 py-2">
-          <span className="text-sm font-medium">
-            {selectedRows.length} selected
-          </span>
-          {!table.getIsAllRowsSelected() && (
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto px-0 text-xs"
-              onClick={() => table.toggleAllRowsSelected(true)}
-            >
-              Select all {table.getFilteredRowModel().rows.length} filtered
-            </Button>
-          )}
-          <div className="flex items-center gap-1">
-            {renderBulkActions(selectedRows, clearSelection)}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearSelection}
-            className="ml-auto"
-          >
-            <X className="mr-1 h-3.5 w-3.5" />
-            Clear
-          </Button>
-        </div>
-      )}
-
+    <div className={cn("space-y-4", selectedRows.length > 0 && "pb-20")}>
       {toolbar}
 
+      {asList ? (
+        <MobileList
+          rows={isGrouped ? null : table.getRowModel().rows}
+          groupedItems={groupedItems}
+          allRows={table.getRowModel().rows}
+          getRowId={getRowId}
+          selecting={selectedRows.length > 0}
+          onRowClick={onRowClick}
+          renderRow={renderMobileRow!}
+        />
+      ) : (
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -240,40 +235,163 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
+      )}
 
-      {!isGrouped && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {selectedRows.length > 0
-              ? `${selectedRows.length} of ${table.getFilteredRowModel().rows.length} row(s) selected`
-              : `${table.getFilteredRowModel().rows.length} row(s)`}
-          </p>
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              Page {table.getState().pagination.pageIndex + 1} of{" "}
-              {table.getPageCount()}
-            </p>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+      {!isGrouped && table.getPageCount() > 1 && (
+        <div className="flex items-center justify-center gap-1 md:justify-end">
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label="Previous page"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <ChevronLeft />
+          </Button>
+          <span className="min-w-16 text-center text-sm tabular-nums text-muted-foreground">
+            {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label="Next page"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            <ChevronRight />
+          </Button>
         </div>
+      )}
+
+      {renderBulkActions && (
+        <SelectionBar
+          count={selectedRows.length}
+          total={filteredRowCount}
+          onSelectAll={
+            table.getIsAllRowsSelected() ? undefined : () => table.toggleAllRowsSelected(true)
+          }
+          onClear={clearSelection}
+        >
+          {selectedRows.length > 0 && renderBulkActions(selectedRows, clearSelection)}
+        </SelectionBar>
       )}
     </div>
     </ColumnVisibilityContext.Provider>
+  );
+}
+
+// Selection actions float over the content in the thumb zone instead of
+// pushing the list down, so checking a box never moves what is under your finger.
+function SelectionBar({
+  count,
+  total,
+  onSelectAll,
+  onClear,
+  children,
+}: {
+  count: number;
+  total: number;
+  onSelectAll?: () => void;
+  onClear: () => void;
+  children: ReactNode;
+}) {
+  const open = count > 0;
+  // The bar keeps its last count and actions while it slides away.
+  const [last, setLast] = useState({ count, children });
+  if (open && (last.count !== count || last.children !== children)) setLast({ count, children });
+
+  return (
+    <div
+      className="selection-bar pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:left-64"
+      data-open={open || undefined}
+      inert={!open}
+    >
+      <div
+        role="toolbar"
+        aria-label="Selected repos"
+        className="pointer-events-auto flex max-w-full items-center gap-0.5 rounded-2xl border border-white/10 bg-popover/85 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl backdrop-saturate-150"
+      >
+        <Button variant="ghost" size="icon-lg" aria-label="Clear selection" onClick={onClear}>
+          <X />
+        </Button>
+        <span className="min-w-7 px-1 text-center font-medium tabular-nums" aria-live="polite">
+          {last.count}
+        </span>
+        {onSelectAll && (
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label={`Select all ${total}`}
+            title={`Select all ${total}`}
+            onClick={onSelectAll}
+          >
+            <CheckCheck />
+          </Button>
+        )}
+        <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-border" />
+        {last.children}
+      </div>
+    </div>
+  );
+}
+
+function MobileList<TData>({
+  rows,
+  groupedItems,
+  allRows,
+  getRowId,
+  selecting,
+  onRowClick,
+  renderRow,
+}: {
+  rows: Row<TData>[] | null;
+  groupedItems: { groupId: string; label: string; items: TData[] }[];
+  allRows: Row<TData>[];
+  getRowId?: (row: TData) => string;
+  selecting: boolean;
+  onRowClick?: (row: TData) => void;
+  renderRow: (row: TData, state: MobileRowState) => ReactNode;
+}) {
+  const rowsById = useMemo(() => new Map(allRows.map((row) => [row.id, row])), [allRows]);
+
+  function item(row: Row<TData>) {
+    const selected = row.getIsSelected();
+    const toggleSelected = () => row.toggleSelected(!selected);
+    return (
+      <li
+        key={row.id}
+        data-selected={selected || undefined}
+        className="mobile-row"
+        onClick={() => (selecting ? toggleSelected() : onRowClick?.(row.original))}
+      >
+        {renderRow(row.original, { selected, toggleSelected, selecting })}
+      </li>
+    );
+  }
+
+  if (rows) {
+    if (rows.length === 0)
+      return <p className="py-12 text-center text-sm text-muted-foreground">No results.</p>;
+    return <ul className="-mx-4 divide-y border-y">{rows.map(item)}</ul>;
+  }
+
+  return (
+    <div className="-mx-4 border-b">
+      {groupedItems.map((group) => (
+        <section key={group.groupId}>
+          <h3 className="sticky top-0 z-10 flex items-baseline gap-2 border-y bg-background/85 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-md">
+            {group.label}
+            <span className="font-normal tabular-nums">{group.items.length}</span>
+          </h3>
+          <ul className="divide-y">
+            {group.items.map((data, index) => {
+              const row = rowsById.get(getRowId ? getRowId(data) : String(index));
+              return row ? item(row) : null;
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 

@@ -30,7 +30,7 @@ my public stars and Lists, and loads anyone else's from a GitHub username.
   <img src="img/explore.png" alt="The Explore dashboard: totals, collection freshness, a health radar and languages" width="760" />
 </p>
 
-If Stars Organizer helps you find something in your stars, starring it helps other people find it.
+If Stars Organizer is useful to you, starring the repo helps other people find it, and [armanckeser.com/subscribe](https://armanckeser.com/subscribe) has ways to hear about new releases.
 
 ---
 

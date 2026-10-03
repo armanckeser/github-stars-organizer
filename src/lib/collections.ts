@@ -1,6 +1,24 @@
-import { createCollection } from "@tanstack/react-db";
-import { electricCollectionOptions } from "@tanstack/electric-db-collection";
+import { createCollection, localOnlyCollectionOptions } from "@tanstack/react-db";
+import { electricCollectionOptions as electricCollectionOptionsReal } from "@tanstack/electric-db-collection";
 import { apiPost, apiDelete, apiPatch, apiCreateList, apiDeleteList, apiUpdateList, apiUnstarRepo, apiAddRepoToList, apiRemoveRepoFromList } from "./api";
+import { DEMO, demoSeed } from "./demo";
+
+// A demo build (VITE_DEMO=1) is a static bundle with no server. Instead of forking
+// every collection below, this shadows `electricCollectionOptions`: in a demo
+// build it returns an in-memory local-only collection seeded from the build-time
+// snapshot (scripts/build-demo-data.ts). Local-only collections confirm writes
+// on their own, so lists, tags, ratings and notes all work and simply reset on
+// reload. `DEMO` is a static false in a normal build, so this branch and the
+// demo data are dropped from it entirely.
+const electricCollectionOptions = (
+  DEMO
+    ? (config: { id?: string; getKey: (item: Record<string, unknown>) => string | number }) =>
+        localOnlyCollectionOptions<Record<string, unknown>>({
+          getKey: config.getKey,
+          initialData: [...(config.id !== undefined ? (demoSeed()[config.id] ?? []) : [])],
+        })
+    : electricCollectionOptionsReal
+) as unknown as typeof electricCollectionOptionsReal;
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 

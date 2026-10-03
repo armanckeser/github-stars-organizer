@@ -7,6 +7,9 @@ you've starred into one fast table you can search, tag, rate and annotate, sorts
 GitHub Lists that sync back to your profile, and scores each repo's health so the abandoned
 ones stand out.
 
+**[Try the demo](https://armanckeser.github.io/github-stars-organizer/)**, no sign-in: it opens on
+my public stars and Lists, and loads anyone else's from a GitHub username.
+
 <p align="center">
   <img src="img/hero.gif" alt="Opening a repo's health breakdown, rating it four stars and adding a note, opening the Homelab list, then the Explore dashboard" width="800" />
 </p>
@@ -26,6 +29,8 @@ ones stand out.
 <p align="center">
   <img src="img/explore.png" alt="The Explore dashboard: totals, collection freshness, a health radar and languages" width="760" />
 </p>
+
+If Stars Organizer helps you find something in your stars, starring it helps other people find it.
 
 ---
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { repoCollection, listCollection } from "../lib/collections";
+import { DEMO } from "../lib/demo";
 import { CHART_COLORS } from "@/components/explore/chart-colors";
 import { InsightBanner } from "@/components/explore/insight-banner";
 import { StatCards } from "@/components/explore/stat-cards";
@@ -164,13 +165,16 @@ function ExplorePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold tracking-tight">Explore</h1>
-        <div className="flex items-center gap-3">
-          {refreshResult && <span className="text-xs text-muted-foreground">{refreshResult}</span>}
-          <Button onClick={handleRefreshHealth} disabled={refreshing} variant="outline" size="sm">
-            <RefreshCw className={`mr-2 h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Scoring..." : "Refresh Health"}
-          </Button>
-        </div>
+        {/* Scoring needs the server and a token; the demo's scores come baked in. */}
+        {!DEMO && (
+          <div className="flex items-center gap-3">
+            {refreshResult && <span className="text-xs text-muted-foreground">{refreshResult}</span>}
+            <Button onClick={handleRefreshHealth} disabled={refreshing} variant="outline" size="sm">
+              <RefreshCw className={`mr-2 h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Scoring..." : "Refresh Health"}
+            </Button>
+          </div>
+        )}
       </div>
 
       <InsightBanner

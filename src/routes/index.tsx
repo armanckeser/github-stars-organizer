@@ -3,6 +3,8 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useState, useMemo, useCallback } from "react";
 import { z } from "zod";
 import { Download } from "lucide-react";
+import { DEMO } from "@/lib/demo";
+import { DemoUserForm } from "@/components/demo-user-form";
 import { Button } from "@/components/ui/button";
 import { RepoActions } from "@/components/repo-actions";
 import { RepoDetailSheet } from "@/components/repo-detail-sheet";
@@ -164,13 +166,17 @@ function AllStarsPage() {
             {allRepos.length} starred repositories
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {progress && <span className="text-xs text-muted-foreground">{progress}</span>}
-          <Button onClick={handleImport} disabled={importing}>
-            <Download className="mr-2 h-4 w-4" />
-            {importing ? "Importing..." : "Import Stars"}
-          </Button>
-        </div>
+        {DEMO ? (
+          <DemoUserForm />
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            {progress && <span className="text-xs text-muted-foreground">{progress}</span>}
+            <Button onClick={handleImport} disabled={importing}>
+              <Download className="mr-2 h-4 w-4" />
+              {importing ? "Importing..." : "Import Stars"}
+            </Button>
+          </div>
+        )}
       </div>
 
       <FilterProvider<Repo, string>

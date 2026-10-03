@@ -30,3 +30,4 @@ dist-ssr
 server/.env
 server/.env.*
 !server/.env.example
+src/lib/demo/demo-data.json

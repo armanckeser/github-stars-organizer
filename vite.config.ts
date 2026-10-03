@@ -5,6 +5,8 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import path from "path";
 
 export default defineConfig({
+  // "/" everywhere except the GitHub Pages demo, which sets VITE_BASE=/<repo>/.
+  base: process.env.VITE_BASE ?? "/",
   plugins: [
     TanStackRouterVite({ autoCodeSplitting: true, target: "react" }),
     react(),

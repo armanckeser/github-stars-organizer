@@ -1,0 +1,62 @@
+name: Deploy demo to Pages
+
+# The public demo: the real app built with VITE_DEMO=1, which swaps the synced
+# collections for in-memory ones seeded from a snapshot of one user's public
+# stars, Lists and health scores (scripts/build-demo-data.ts). No server and no
+# token in the page; visitors can load anyone else's public stars from the
+# browser. The weekly run keeps the snapshot's star counts and scores current.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: Snapshot public stars
+        run: npx --yes tsx scripts/build-demo-data.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEMO_USER: ${{ github.repository_owner }}
+      - name: Build the demo
+        run: npx vite build
+        env:
+          VITE_DEMO: '1'
+          VITE_API_URL: ''
+          VITE_BASE: /${{ github.event.repository.name }}/
+      # Pages has no SPA fallback; serving index.html as the 404 page gives deep
+      # links like /explore a route to land on.
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

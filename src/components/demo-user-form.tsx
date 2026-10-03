@@ -1,0 +1,56 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { demoSnapshotUser } from "@/lib/demo";
+import { loadUserStars } from "@/lib/demo-load-user";
+
+// Demo only: stands in for "Import Stars", which needs the server and a token.
+export function DemoUserForm() {
+  const [username, setUsername] = useState("");
+  const [showing, setShowing] = useState(demoSnapshotUser);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  async function handleLoad() {
+    const name = username.trim().replace(/^@/, "");
+    if (!name) return;
+    setLoading(true);
+    setStatus("Reading stars...");
+    try {
+      const count = await loadUserStars(name, (n) => setStatus(`Read ${n} stars...`));
+      setShowing(name);
+      setUsername("");
+      setStatus(`${count} most recent stars. Lists and health scores need a token, so they come with self-hosting.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Couldn't read those stars.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 sm:items-end">
+      <form
+        onSubmit={(e) => { e.preventDefault(); handleLoad(); }}
+        className="flex items-center gap-2"
+      >
+        <Input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Any GitHub username"
+          aria-label="GitHub username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="h-9 w-48"
+        />
+        <Button type="submit" disabled={loading || !username.trim()}>
+          {loading ? "Loading..." : "Load their stars"}
+        </Button>
+      </form>
+      <span className="text-xs text-muted-foreground">
+        {status || (showing ? `Showing @${showing}'s public stars.` : "Load anyone's public stars.")}
+      </span>
+    </div>
+  );
+}

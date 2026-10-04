@@ -37,16 +37,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEMO_USER: ${{ github.repository_owner }}
+      # base_path is "/<repo>" on github.io and empty on a custom domain, so the
+      # same build works at either address.
+      - id: pages
+        uses: actions/configure-pages@v5
       - name: Build the demo
         run: npx vite build
         env:
           VITE_DEMO: '1'
           VITE_API_URL: ''
-          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_BASE: ${{ steps.pages.outputs.base_path }}/
       # Pages has no SPA fallback; serving index.html as the 404 page gives deep
       # links like /explore a route to land on.
       - run: cp dist/index.html dist/404.html
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

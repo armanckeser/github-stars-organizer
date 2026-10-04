@@ -7,7 +7,7 @@ you've starred into one fast table you can search, tag, rate and annotate, sorts
 GitHub Lists that sync back to your profile, and scores each repo's health so the abandoned
 ones stand out.
 
-**[Try the demo](https://armanckeser.github.io/github-stars-organizer/)**, no sign-in: it opens on
+**[Try the demo](https://stars-demo.armanckeser.com/)**, no sign-in: it opens on
 my public stars and Lists, and loads anyone else's from a GitHub username.
 
 <p align="center">
@@ -40,13 +40,36 @@ I have hundreds of starred repos and no good way to organize them. GitHub's nati
 
 ---
 
+## Self-host
+
+You need Docker and a GitHub token. A [classic personal access token](https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer)
+with the `repo` scope is enough: it covers reading your stars and Lists, and writing Lists and unstars back.
+
+```bash
+git clone https://github.com/armanckeser/github-stars-organizer.git
+cd github-stars-organizer
+cp server/.env.example server/.env    # set GITHUB_TOKEN=ghp_...
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Open http://localhost:5184 and press **Import Stars** to pull in your stars (a few hundred repos take under a minute).
+Postgres applies `schema.sql` on first start, so there is no migration step.
+
+Four containers: Postgres, ElectricSQL, the Hono API and nginx serving the app. Only nginx publishes a
+port (5184); put it behind your reverse proxy (Caddy, Traefik, Nginx Proxy Manager, Cosmos) and add
+auth there, since the app itself has no login: whoever can reach it can act with your token.
+Change the published port in `docker-compose.prod.yml` if 5184 is taken. Updating is `git pull` and
+the same `up -d --build`.
+
+---
+
 ## Development
 
 ### Prerequisites
 
 - Docker (Postgres + ElectricSQL)
 - Node.js 20+
-- A GitHub personal access token with `repo` and `read:user` scopes
+- A GitHub personal access token with the `repo` scope
 
 ### Quick Start
 

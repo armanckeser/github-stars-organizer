@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEMO } from "../lib/demo";
+import { DemoCredit } from "@/components/demo-credit";
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -131,7 +132,10 @@ function DemoNote() {
       <a href="https://github.com/armanckeser/github-stars-organizer" className="font-medium text-primary underline-offset-4 hover:underline">
         Self-host it
       </a>{" "}
-      to sync with your own account.
+      to sync with your own account.{" "}
+      <span className="whitespace-nowrap">
+        <DemoCredit />
+      </span>
     </>
   );
 }

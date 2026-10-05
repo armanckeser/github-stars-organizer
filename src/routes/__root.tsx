@@ -133,7 +133,8 @@ function DemoNote() {
         Self-host it
       </a>{" "}
       to sync with your own account.{" "}
-      <span className="whitespace-nowrap">
+      {/* Its own line in the narrow mobile popover; inline in the desktop bar. */}
+      <span className="mt-2 block md:mt-0 md:inline">
         <DemoCredit />
       </span>
     </>

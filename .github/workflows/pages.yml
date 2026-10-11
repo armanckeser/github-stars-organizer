@@ -47,6 +47,7 @@ jobs:
           VITE_DEMO: '1'
           VITE_API_URL: ''
           VITE_BASE: ${{ steps.pages.outputs.base_path }}/
+          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}/
       # Pages has no SPA fallback; serving index.html as the 404 page gives deep
       # links like /explore a route to land on.
       - run: cp dist/index.html dist/404.html

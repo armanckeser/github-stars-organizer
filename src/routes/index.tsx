@@ -167,7 +167,6 @@ function AllStarsPage() {
     if (APP_MODE !== "local" || launchImportStarted) return;
     launchImportStarted = true;
     void handleImport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per page load, not per render
   }, []);
 
   const renderActions = useCallback(

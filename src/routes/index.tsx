@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useLiveQuery } from "@tanstack/react-db";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { z } from "zod";
 import { Download } from "lucide-react";
 import { DEMO } from "@/lib/demo";
+import { APP_MODE } from "@/lib/mode";
+import { importFromGitHub, scoreHealth } from "@/lib/local-sync";
 import { DemoUserForm } from "@/components/demo-user-form";
 import { Button } from "@/components/ui/button";
 import { RepoActions } from "@/components/repo-actions";
@@ -54,6 +56,36 @@ export const Route = createFileRoute("/")({
 });
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
+let launchImportStarted = false;
+
+async function importFromServer(setProgress: (text: string) => void) {
+  setProgress("Importing stars from GitHub...");
+  const response = await fetch(`${API_URL}/api/import-stars`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  let job = await response.json();
+  if (!response.ok) throw new Error(job.error ?? "Import failed");
+  // The server imports in the background; poll until it settles.
+  while (job.status === "running") {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    job = await (await fetch(`${API_URL}/api/import-stars`)).json();
+    if (job.status === "running") setProgress(`Importing... ${job.imported} repos read`);
+  }
+  if (job.status === "error") throw new Error(job.error ?? "Import failed");
+  setProgress(`Checked ${job.imported} repos and ${job.lists} lists.`);
+}
+
+async function importLocal(setProgress: (text: string) => void) {
+  setProgress("Reading your stars and Lists from GitHub...");
+  const { stars, lists } = await importFromGitHub();
+  const read = `Read ${stars} stars and ${lists} lists.`;
+  setProgress(read);
+  const health = await scoreHealth("missing", ({ scored, total }) => setProgress(`${read} Scoring health ${scored}/${total}...`));
+  if (health.total > 0) setProgress(`${read} Scored ${health.scored} repos.`);
+}
 
 function AllStarsPage() {
   const navigate = Route.useNavigate();
@@ -119,23 +151,8 @@ function AllStarsPage() {
 
   async function handleImport() {
     setImporting(true);
-    setProgress("Importing stars from GitHub...");
     try {
-      const response = await fetch(`${API_URL}/api/import-stars`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      let job = await response.json();
-      if (!response.ok) throw new Error(job.error ?? "Import failed");
-      // The server imports in the background; poll until it settles.
-      while (job.status === "running") {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        job = await (await fetch(`${API_URL}/api/import-stars`)).json();
-        if (job.status === "running") setProgress(`Importing... ${job.imported} repos read`);
-      }
-      if (job.status === "error") throw new Error(job.error ?? "Import failed");
-      setProgress(`Checked ${job.imported} repos and ${job.lists} lists.`);
+      await (APP_MODE === "local" ? importLocal(setProgress) : importFromServer(setProgress));
     } catch (error) {
       setProgress(
         `Error: ${error instanceof Error ? error.message : "Unknown"}`,
@@ -144,6 +161,14 @@ function AllStarsPage() {
       setImporting(false);
     }
   }
+
+  // The npx build opens already up to date: it reads GitHub once per launch.
+  useEffect(() => {
+    if (APP_MODE !== "local" || launchImportStarted) return;
+    launchImportStarted = true;
+    void handleImport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per page load, not per render
+  }, []);
 
   const renderActions = useCallback(
     (repo: Repo) => (

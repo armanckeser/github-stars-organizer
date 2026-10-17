@@ -16,6 +16,8 @@ my public stars and Lists, and loads anyone else's from a GitHub username.
 
 - **Lists that sync to GitHub.** New Lists, deleted Lists and repos you add to a List are
   written back to your GitHub Lists.
+- **See what's not in any List.** Filter or group by List, with "Not in any list" first, so
+  sorting a backlog of stars has a starting pile. GitHub's own stars page can't show this.
 - **A health score for every repo** from commit recency, issue resolution, contributors,
   star growth and release cadence, so you can tell a living project from a dead one.
 - **Your own layer on top:** tags, a 1–5 usefulness rating and free-form notes, stored locally.

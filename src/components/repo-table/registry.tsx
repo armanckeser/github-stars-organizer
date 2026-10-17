@@ -1,4 +1,4 @@
-import type { Repo } from "@/lib/collections";
+import type { Repo, StarList } from "@/lib/collections";
 import type { ItemGroup } from "@/components/views/data-table";
 import {
   createAutoRegistry,
@@ -75,8 +75,45 @@ function groupByLanguage(items: Repo[]): ItemGroup<Repo>[] {
   return result;
 }
 
+// Value used for stars that sit in no List. GitHub's own stars page has no way to show
+// these (community discussions #8611, #49679), which is the gap this filter fills.
+export const NO_LIST = "none";
+
+export type ListContext = {
+  lists: StarList[];
+  // repo id -> ids of the Lists that repo is in; a repo missing from the map is in none
+  listIdsByRepo: Map<string, string[]>;
+};
+
+function repoListValues(repo: Repo, ctx: ListContext): string[] {
+  const ids = ctx.listIdsByRepo.get(repo.id) ?? [];
+  return ids.length > 0 ? ids : [NO_LIST];
+}
+
+function groupByList(ctx: ListContext) {
+  const nameById = new Map(ctx.lists.map((l) => [l.id, l.name]));
+  return (items: Repo[]): ItemGroup<Repo>[] => {
+    const groups = new Map<string, Repo[]>();
+    for (const repo of items) {
+      // A repo in several Lists appears once, under its first List, like topics above
+      const key = repoListValues(repo, ctx)[0];
+      const existing = groups.get(key) ?? [];
+      existing.push(repo);
+      groups.set(key, existing);
+    }
+    const unlisted = groups.get(NO_LIST);
+    groups.delete(NO_LIST);
+    const result: ItemGroup<Repo>[] = Array.from(groups.entries())
+      .sort(([, a], [, b]) => b.length - a.length)
+      .map(([id, repos]) => ({ groupId: id, label: nameById.get(id) ?? id, items: repos }));
+    // Unlisted goes first: it's the pile people open this view to sort through
+    if (unlisted) result.unshift({ groupId: NO_LIST, label: "Not in any list", items: unlisted });
+    return result;
+  };
+}
+
 // Auto-infer filters + sorts from the Repo shape, then override what needs customization
-export function buildRepoRegistry(sampleItems: Repo[]) {
+export function buildRepoRegistry(sampleItems: Repo[], listContext?: ListContext) {
   const auto = createAutoRegistry<Repo>(sampleItems, {
     exclude: [
       "id", "github_id", "node_id", "url", "homepage",
@@ -147,6 +184,37 @@ export function buildRepoRegistry(sampleItems: Repo[]) {
         match: (repo, filter) => matchThreeStateArray(parseTopics(repo), filter),
         groupBy: { grouper: groupByTopics },
       }),
+
+      ...(listContext
+        ? {
+            lists: createThreeStateFilter<Repo>({
+              id: "lists",
+              label: "List",
+              urlParam: "lists",
+              options: {
+                source: "items",
+                derive: (items) => {
+                  const counts = new Map<string, number>();
+                  for (const repo of items) {
+                    for (const id of repoListValues(repo, listContext)) {
+                      counts.set(id, (counts.get(id) ?? 0) + 1);
+                    }
+                  }
+                  const unlisted = counts.get(NO_LIST) ?? 0;
+                  return [
+                    { value: NO_LIST, label: `Not in any list (${unlisted})` },
+                    ...listContext.lists
+                      .map((l) => ({ list: l, count: counts.get(l.id) ?? 0 }))
+                      .sort((a, b) => b.count - a.count)
+                      .map(({ list, count }) => ({ value: list.id, label: `${list.name} (${count})` })),
+                  ];
+                },
+              },
+              match: (repo, filter) => matchThreeStateArray(repoListValues(repo, listContext), filter),
+              groupBy: { grouper: groupByList(listContext) },
+            }),
+          }
+        : {}),
     },
   );
 }

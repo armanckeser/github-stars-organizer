@@ -31,3 +31,7 @@ server/.env
 server/.env.*
 !server/.env.example
 src/lib/demo/demo-data.json
+
+# Demo Lists Worker
+worker/.wrangler
+worker/.dev.vars

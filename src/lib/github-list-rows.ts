@@ -1,10 +1,10 @@
 import type { StarList, ListItem } from "./collections";
-import type { PublicList } from "./github-lists";
+import type { GitHubList } from "./github-lists";
 
 // Shapes Lists like the rows Electric streams from Postgres. Items whose repo was
 // not loaded (older than the stars read) are skipped.
 export function toListRows(
-  lists: PublicList[],
+  lists: GitHubList[],
   repoIdByGithubId: Map<number, string>,
 ): { lists: StarList[]; list_items: ListItem[] } {
   return {
@@ -13,7 +13,7 @@ export function toListRows(
       github_list_id: l.id,
       name: l.name,
       description: l.description,
-      is_private: false,
+      is_private: l.isPrivate,
       created_at: l.createdAt,
       updated_at: l.updatedAt,
     })),

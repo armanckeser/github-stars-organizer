@@ -4,7 +4,8 @@ import { parseArgs, promisify } from "node:util";
 import { serve } from "@hono/node-server";
 import { createGitHubClient, type GitHubClient } from "../../server/github.ts";
 import { LOCAL_APP_SIGNATURE, type PingResponse } from "../../src/lib/local-api.ts";
-import { createLocalServer } from "./server.ts";
+import { defaultHome } from "./backup-store.ts";
+import { BackupFailedError, launch } from "./launch.ts";
 
 // `npx github-stars-organizer`: serves the app on 127.0.0.1 with the user's own
 // GitHub login, opens it, and stops on Ctrl-C. The data lives in the browser,
@@ -102,10 +103,12 @@ async function main() {
   const github = createGitHubClient(await resolveToken());
   const login = await signedInAs(github);
   const appDir = fileURLToPath(new URL("./app/", import.meta.url));
-  const app = createLocalServer({ github, appDir, port });
+  console.log(`Signed in as ${login}. Backing up your stars and Lists before anything else...`);
+  const { app, store, launchBackup } = await launch({ github, login, home: defaultHome(), appDir, port });
+  console.log(`Backed up ${launchBackup.stars} stars and ${launchBackup.lists} Lists to ${store.directory}`);
 
   const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port }, () => {
-    console.log(`Stars Organizer at ${url} as ${login} (Ctrl-C to quit)`);
+    console.log(`Stars Organizer at ${url} (Ctrl-C to quit)`);
     if (shouldOpen) openBrowser(url);
   });
   server.on("error", (error: NodeJS.ErrnoException) => {
@@ -119,6 +122,7 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof CliError ? error.message : error);
+  const expected = error instanceof CliError || error instanceof BackupFailedError;
+  console.error(expected ? error.message : error);
   process.exit(EXIT_FAILURE);
 });

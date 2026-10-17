@@ -12,6 +12,7 @@ import {
   type CreateListRequest, type CreateListResponse, type UpdateListRequest, type MembershipRequest, type MembershipResponse,
   type UnstarRequest, type PingResponse,
 } from "../../src/lib/local-api.ts";
+import type { BackupStore } from "./backup-store.ts";
 
 // The npx CLI's localhost server: the app's static files plus a stateless proxy
 // to GitHub that holds the user's token. The browser owns every row, so each
@@ -21,7 +22,7 @@ const HEALTH_BATCH_SIZE = 20;
 const HEALTH_BATCH_SPACING_MS = 1000;
 const DAY_MS = 86_400_000;
 
-export type LocalServerOptions = { github: GitHubClient; appDir: string; port: number };
+export type LocalServerOptions = { github: GitHubClient; appDir: string; port: number; store: BackupStore; login: string };
 
 // The token can unstar and delete Lists, so only this app's own pages may call
 // the API. Checking Host stops DNS rebinding (a hostile name resolving to

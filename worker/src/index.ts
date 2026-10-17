@@ -13,8 +13,12 @@ const CACHE_SECONDS = 3600;
 
 type GraphQLResponse<T> = { data?: T; errors?: { type?: string; message: string }[] };
 
+// GitHub answers the occasional GraphQL request with a 502 or 504; one retry
+// clears nearly all of them, and more would eat the Worker's subrequest limit.
+const RETRIED_STATUSES = new Set([502, 503, 504]);
+
 function githubGraphQL(token: string): GraphQL {
-  return async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
+  const request = async <T>(query: string, variables: Record<string, unknown>, attempt: number): Promise<T> => {
     const response = await fetch("https://api.github.com/graphql", {
       method: "POST",
       headers: {
@@ -24,6 +28,9 @@ function githubGraphQL(token: string): GraphQL {
       },
       body: JSON.stringify({ query, variables }),
     });
+    if (RETRIED_STATUSES.has(response.status) && attempt === 1) {
+      return request<T>(query, variables, attempt + 1);
+    }
     const json = (await response.json().catch(() => ({}))) as GraphQLResponse<T>;
     const firstError = json.errors?.[0];
     if (firstError?.type === "NOT_FOUND") throw new UserNotFoundError(firstError.message);
@@ -32,6 +39,7 @@ function githubGraphQL(token: string): GraphQL {
     }
     return json.data;
   };
+  return (query, variables) => request(query, variables, 1);
 }
 
 function json(body: unknown, status: number, cacheSeconds = 0): Response {

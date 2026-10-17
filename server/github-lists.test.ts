@@ -18,6 +18,20 @@ afterEach(async () => {
 const range = (length: number) => Array.from({ length }, (_, index) => index);
 
 describe("fetchViewerLists", () => {
+  test("fetchViewerLists_reads_items_one_list_at_a_time_when_an_account_has_dozens_of_lists", async () => {
+    // Regression guarded: one query asking for every List's items timed out with a
+    // 502 on accounts with a couple of dozen Lists, so the import failed outright.
+    const github = await githubWith({
+      repoCount: 30,
+      lists: range(30).map((index) => ({ name: `Study Group ${index}`, repoIndexes: [index] })),
+    });
+
+    const lists = await fetchViewerLists(github.graphql);
+
+    expect(lists).toHaveLength(30);
+    expect(lists[29].repos.map((repo) => repo.githubId)).toEqual([1029]);
+  });
+
   test("fetchViewerLists_reads_every_item_when_a_list_holds_more_than_one_page", async () => {
     // Regression guarded: the self-host import asked for items(first: 100) and never
     // the next page, so a 250-repo List arrived with 100 repos.

@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 
 const PAGE_SIZE = 100;
 const DEFAULT_PORT = 4999;
+const LISTS_BEFORE_TIMEOUT = 24;
 /** A login the fake treats as not existing. */
 export const UNKNOWN_LOGIN = "no-such-greendale-student";
 
@@ -198,6 +199,8 @@ export async function startFakeGitHub(seed: FakeSeed = defaultSeed(), port = 0):
     }
     if (query.includes("lists(")) {
       if (variables.login === UNKNOWN_LOGIN) return { owner: null };
+      // Like GitHub, which times out (502) when one query asks for the items of a couple of dozen Lists.
+      if (query.includes("items(") && lists.length > LISTS_BEFORE_TIMEOUT) throw new FakeGraphQLError("We couldn't respond to your request in time.");
       const { slice, pageInfo } = page(lists, variables.after);
       const owner = { lists: { pageInfo, nodes: slice.map((list) => ({ ...list, items: listItems(list, null) })) } };
       return { owner, viewer: owner };

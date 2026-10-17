@@ -8,8 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Star, GitFork, ExternalLink, Trash2, Check, Globe } from "lucide-react";
 import { repoCollection, listItemCollection, type Repo, type StarList, type ListItem } from "../lib/collections";
-import { apiPatch } from "../lib/api";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { confirmUnstar } from "@/lib/unstar";
 
 interface RepoDetailSheetProps {
   repo: Repo | null;
@@ -93,7 +93,7 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
   const saveNotes = useCallback(async (value: string) => {
     if (!repo) return;
     setSaveStatus("saving");
-    await apiPatch("repos", repo.id, { notes: value });
+    await repoCollection.update(repo.id, (draft) => { draft.notes = value; }).isPersisted.promise;
     setSaveStatus("saved");
     setTimeout(() => setSaveStatus("idle"), 1500);
   }, [repo?.id]);
@@ -106,7 +106,7 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
 
   async function handleRatingChange(rating: number | null) {
     if (!repo) return;
-    await apiPatch("repos", repo.id, { usefulness_rating: rating });
+    await repoCollection.update(repo.id, (draft) => { draft.usefulness_rating = rating; }).isPersisted.promise;
   }
 
   function handleListToggle(list: StarList) {
@@ -127,7 +127,7 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
 
   function handleUnstar() {
     if (!repo) return;
-    if (!window.confirm(`Unstar ${repo.full_name}? Its tags, rating and notes go with it.`)) return;
+    if (!confirmUnstar(`Unstar ${repo.full_name}? Its tags, rating and notes go with it.`)) return;
     repoCollection.delete(repo.id);
     onOpenChange(false);
   }

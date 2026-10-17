@@ -9,7 +9,7 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { HEALTH_BATCH_QUERY, computeHealthScore, type HealthBatchData } from "../server/health.ts";
-import { fetchPublicLists } from "../src/lib/github-lists.ts";
+import { fetchPublicLists, toPublicList } from "../server/github-lists.ts";
 import { toListRows } from "../src/lib/github-list-rows.ts";
 
 const token = process.env.GITHUB_TOKEN;
@@ -122,7 +122,7 @@ for (let i = 0; i < repos.length; i += 20) {
 }
 
 const repoIdByGithubId = new Map(repos.map((r) => [r.github_id, r.id]));
-const { lists, list_items } = toListRows(await fetchPublicLists(graphql, user), repoIdByGithubId);
+const { lists, list_items } = toListRows((await fetchPublicLists(graphql, user)).map(toPublicList), repoIdByGithubId);
 
 mkdirSync("src/lib/demo", { recursive: true });
 writeFileSync(outFile, JSON.stringify({ user, generated_at: now, repos, lists, list_items }));

@@ -9,6 +9,8 @@ ones stand out.
 
 **[Try the demo](https://stars-demo.armanckeser.com/)**, no sign-in: it opens on
 my public stars and Lists, and loads anyone else's from a GitHub username.
+To use it on your own stars, run `npx github-stars-organizer` with the
+[GitHub CLI](https://cli.github.com/) signed in. Nothing to host.
 
 <p align="center">
   <img src="img/hero.gif" alt="Opening a repo's health breakdown, rating it four stars and adding a note, opening the Homelab list, then the Explore dashboard" width="800" />
@@ -39,6 +41,37 @@ If Stars Organizer is useful to you, starring the repo helps other people find i
 ## Why This Exists
 
 I have hundreds of starred repos and no good way to organize them. GitHub's native Lists are barely discoverable and there is no tagging, rating, or bulk curation. I wanted a local surface over my stars that an agent could read and help me tidy: sort into Lists, tag by purpose, rate usefulness, and push the results back to GitHub so the organization survives outside this tool.
+
+---
+
+## Run it on your machine
+
+You need Node.js 20+ and the [GitHub CLI](https://cli.github.com/) signed in (`gh auth login`).
+
+```bash
+npx github-stars-organizer
+```
+
+It opens http://127.0.0.1:5185 in your browser, reads your stars and Lists (private ones too), scores
+their health, and stops when you press Ctrl-C. It uses the token `gh` already has; set `GITHUB_TOKEN`
+to use a different one. Use `--port` if 5185 is taken.
+
+Lists, List membership and unstars are written to GitHub as you make them. Tags, ratings, notes and
+health scores are saved in that browser, for that address, so they are there the next time you run it.
+Using a different browser, or a different `--port`, starts from a fresh copy.
+
+The local server only answers requests from its own page, since it can act with your token.
+
+**Backups.** Before the app opens, it saves your stars and Lists to
+`~/.github-stars-organizer/backups/<your-login>/` (the newest 30 launch backups are kept). The
+Backups page takes one on demand (with your tags, ratings and notes), downloads any as a file, and
+restores one after showing what it would change. A restore only adds back what is missing: it
+re-stars repos, recreates Lists and re-adds repos to them, and never unstars or deletes anything.
+GitHub can't set a star's date, so a re-starred repo is dated the day it was restored.
+
+**Privacy.** The CLI talks only to `api.github.com`, with your token, and the page talks only to the
+CLI. There is no telemetry. Everything it keeps stays on your computer: in that browser's storage
+and in the backups folder.
 
 ---
 
@@ -98,8 +131,36 @@ Then open http://localhost:5173 and import your stars.
 
 ```bash
 npm run lint          # eslint
+npm test              # vitest
 npm run build         # tsc -b && vite build
+npm run build:cli     # the npx package: the app built with VITE_LOCAL=1 + the CLI, into cli/dist
 ```
+
+To try List and unstar writes without touching a real account, run the fake GitHub in
+`scripts/fake-github.ts` and point either server at it:
+
+```bash
+npx tsx scripts/fake-github.ts                                       # :4999, state at /__state
+GITHUB_TOKEN=fake GITHUB_API_URL=http://127.0.0.1:4999 node cli/dist/cli.js
+```
+
+### Releasing
+
+The npm package is `cli/`, built by `npm run build:cli`. Bump `version` in `cli/package.json`, merge
+to `main`, then publish a GitHub release tagged `v<that version>`. `.github/workflows/release.yml`
+tests, builds and publishes it to npm from the tag, with provenance, using npm trusted publishing
+(no npm token anywhere). It refuses a tag that doesn't match the version.
+
+npm can only trust a workflow for a package that already exists, so the very first version is
+published by hand, once:
+
+1. On an up-to-date `main`: `npm login`, then `npm run publish:first`.
+2. On npmjs.com, open the package's Settings, Trusted publishing, and add GitHub Actions with
+   owner `armanckeser`, repository `github-stars-organizer`, workflow `release.yml`. A new trusted
+   publisher expires unless something publishes through it within 2 days, so release the next
+   version soon after.
+3. Optional, once the release workflow has published: set the package's publishing access to
+   disallow tokens, so only the workflow can publish.
 
 ---
 
@@ -112,10 +173,14 @@ github-stars-organizer/
 │   ├── components/        # table, views (dashboard/kanban/list), detail sheet, ui
 │   ├── db/                # PGlite + Electric provider
 │   └── lib/
-│       ├── collections.ts # TanStack DB collections, one per table
+│       ├── mode.ts        # build mode: server (self-host), demo, or local (npx)
+│       ├── collections.ts # TanStack DB collections, one per table, with each mode's writes
+│       ├── import-plan.ts # local mode: folds a GitHub read into what the browser stored
 │       └── api.ts         # browser -> API fetch wrapper
 ├── server/
-│   └── index.ts           # Hono API: GitHub sync + business logic + Electric proxy
+│   ├── index.ts           # Hono API: GitHub sync + business logic + Electric proxy
+│   └── github.ts          # every GitHub call, shared with the CLI
+├── cli/                   # the npx package: localhost server holding the gh token
 ├── schema.sql             # Postgres schema
 └── docker-compose.yml     # Postgres + ElectricSQL
 ```
@@ -123,6 +188,8 @@ github-stars-organizer/
 **Reads and writes are separated.** An agent reads the database directly over a read-only SQL connection. All writes go through the Hono API so the GitHub sync and validation run; nothing writes to Postgres as a superuser.
 
 **Electric drives the UI.** ElectricSQL streams Postgres shapes into the browser through an API proxy. TanStack DB turns each table (`repos`, `lists`, `list_items`, `tags`, `repo_tags`) into a live collection, and the React UI re-renders on change.
+
+**The npx build keeps the data in the browser.** Built with `VITE_LOCAL=1`, the same collections persist in an OPFS SQLite database instead of streaming from Postgres. The CLI's localhost server holds the token and only makes GitHub calls; each launch re-reads GitHub and keeps the browser's tags, ratings and notes.
 
 **The schema is the source of truth.** Tables use UUID primary keys and are defined in `schema.sql`; drizzle-orm config is available for schema tooling.
 
@@ -143,4 +210,11 @@ github-stars-organizer/
 
 ## License
 
-Released under the GNU Affero General Public License v3.0 — see [LICENSE](LICENSE). If you run a modified version where other people can reach it, the AGPL asks you to publish your changes too.
+Copyright (C) 2026 Armanc Keser.
+
+Released under the GNU Affero General Public License, version 3 or (at your option) any later
+version: see [LICENSE](LICENSE). It comes with ABSOLUTELY NO WARRANTY. If you run a modified version
+where other people can reach it, the AGPL asks you to publish your changes too. Builds include
+`THIRD-PARTY-LICENSES.txt`, the licenses of the open source packages bundled into them.
+
+Not affiliated with or endorsed by GitHub. GitHub is a trademark of GitHub, Inc.

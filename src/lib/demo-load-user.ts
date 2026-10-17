@@ -1,5 +1,5 @@
 import { repoCollection, listCollection, listItemCollection, repoTagCollection, type Repo } from "./collections";
-import type { PublicList } from "./github-lists";
+import type { PublicList } from "../../server/github-lists";
 import { toListRows } from "./github-list-rows";
 
 // Unauthenticated requests get 60 an hour per IP, so the demo reads at most the

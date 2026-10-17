@@ -2,12 +2,13 @@ import { createRootRoute, Outlet, Link, useRouterState } from "@tanstack/react-r
 import { useLiveQuery } from "@tanstack/react-db";
 import { useEffect, useState } from "react";
 import { listCollection, listItemCollection, type StarList } from "../lib/collections";
-import { Star, Compass, ListTree, Plus, Menu, Info } from "lucide-react";
+import { Star, Compass, ListTree, Plus, Menu, Info, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEMO } from "../lib/demo";
+import { APP_MODE } from "../lib/mode";
 import { DemoCredit } from "@/components/demo-credit";
 
 export const Route = createRootRoute({ component: RootLayout });
@@ -44,6 +45,7 @@ function RootLayout() {
       <div className="rounded-lg p-3 space-y-0.5">
         <NavLink to="/" icon={<Star className="w-4 h-4" />} label="All Stars" />
         <NavLink to="/explore" icon={<Compass className="w-4 h-4" />} label="Explore" />
+        {APP_MODE === "local" && <NavLink to="/backups" icon={<History className="w-4 h-4" />} label="Backups" />}
       </div>
       <div className="rounded-lg p-3 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-3">
@@ -70,6 +72,7 @@ function RootLayout() {
           ))}
         </div>
       </div>
+      {!DEMO && <AboutLine />}
     </>
   );
 
@@ -122,6 +125,20 @@ function NavLink({ to, icon, label }: { to: string; icon: React.ReactNode; label
     <Link to={to} className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors [&.active]:text-primary [&.active]:bg-accent">
       {icon}{label}
     </Link>
+  );
+}
+
+// Where the source is, for anyone using it over a network (AGPL section 13), and
+// that it isn't GitHub's own app.
+function AboutLine() {
+  return (
+    <p className="px-3 pb-2 text-xs leading-relaxed text-muted-foreground">
+      Stars Organizer v{__APP_VERSION__} ·{" "}
+      <a href="https://github.com/armanckeser/github-stars-organizer" target="_blank" rel="noopener" className="font-medium text-primary underline-offset-4 hover:underline">
+        Source on GitHub
+      </a>
+      <span className="block">Not affiliated with or endorsed by GitHub.</span>
+    </p>
   );
 }
 

@@ -1,5 +1,5 @@
 import type { StarList, ListItem } from "./collections";
-import type { PublicList } from "./github-lists";
+import type { PublicList } from "../../server/github-lists";
 
 // Shapes Lists like the rows Electric streams from Postgres. Items whose repo was
 // not loaded (older than the stars read) are skipped.

@@ -1,4 +1,4 @@
-import { fetchPublicLists, UserNotFoundError, type GraphQL } from "../../src/lib/github-lists.ts";
+import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
 
 type Env = { GITHUB_TOKEN: string };
 
@@ -55,7 +55,7 @@ function json(body: unknown, status: number, cacheSeconds = 0): Response {
 async function listsResponse(login: string, env: Env): Promise<Response> {
   try {
     const lists = await fetchPublicLists(githubGraphQL(env.GITHUB_TOKEN), login);
-    return json({ lists }, 200, CACHE_SECONDS);
+    return json({ lists: lists.map(toPublicList) }, 200, CACHE_SECONDS);
   } catch (error) {
     if (error instanceof UserNotFoundError) return json({ error: `No GitHub user called ${login}.` }, 404, CACHE_SECONDS);
     console.error(error);

@@ -144,6 +144,24 @@ npx tsx scripts/fake-github.ts                                       # :4999, st
 GITHUB_TOKEN=fake GITHUB_API_URL=http://127.0.0.1:4999 node cli/dist/cli.js
 ```
 
+### Releasing
+
+The npm package is `cli/`, built by `npm run build:cli`. Bump `version` in `cli/package.json`, merge
+to `main`, then publish a GitHub release tagged `v<that version>`. `.github/workflows/release.yml`
+tests, builds and publishes it to npm from the tag, with provenance, using npm trusted publishing
+(no npm token anywhere). It refuses a tag that doesn't match the version.
+
+npm can only trust a workflow for a package that already exists, so the very first version is
+published by hand, once:
+
+1. On an up-to-date `main`: `npm login`, then `npm run publish:first`.
+2. On npmjs.com, open the package's Settings, Trusted publishing, and add GitHub Actions with
+   owner `armanckeser`, repository `github-stars-organizer`, workflow `release.yml`. A new trusted
+   publisher expires unless something publishes through it within 2 days, so release the next
+   version soon after.
+3. Optional, once the release workflow has published: set the package's publishing access to
+   disallow tokens, so only the workflow can publish.
+
 ---
 
 ## Architecture

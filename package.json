@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:cli": "tsc -p cli && VITE_LOCAL=1 vite build --outDir cli/dist/app --emptyOutDir && vite build -c cli/vite.config.ts",
+    "publish:first": "npm test && npm run build:cli && npm publish ./cli --access public",
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview",

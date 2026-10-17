@@ -1,5 +1,6 @@
 import type { Repo } from "./collections";
 import type { GitHubList, RepoListChange } from "../../server/github-lists";
+import type { Backup, BackupSummary, RestorePlan } from "./backup";
 
 // The contract between the browser and the npx CLI's localhost server
 // (cli/src/server.ts). The server holds the gh token and only talks to GitHub;
@@ -35,13 +36,24 @@ export type MembershipRequest = RepoListChange;
 export type MembershipResponse = { listIds: string[] };
 export type UnstarRequest = { owner: string; name: string };
 export type PingResponse = { app: typeof LOCAL_APP_SIGNATURE };
+export type BackupsResponse = { directory: string; backups: BackupSummary[] };
+export type RestoreRequest = { backupId: string };
+export type FailedWrite = { what: string; reason: string };
+export type RestoreResult = {
+  restarred: number;
+  recreatedLists: number;
+  /** Memberships attempted; any that failed are in `failed`. */
+  addedToLists: number;
+  failed: FailedWrite[];
+  beforeRestore: BackupSummary;
+};
 export type ErrorResponse = { error: string };
 
 async function call<TResponse>(method: string, path: string, body: unknown): Promise<TResponse> {
   const response = await fetch(`/api/local/${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: method === "GET" ? undefined : JSON.stringify(body),
   });
   const json = (await response.json()) as TResponse | ErrorResponse;
   if (!response.ok) {
@@ -60,4 +72,10 @@ export const localApi = {
     call<Record<string, never>>("DELETE", `lists/${encodeURIComponent(githubListId)}`, {}),
   changeMembership: (request: MembershipRequest) => call<MembershipResponse>("POST", "membership", request),
   unstar: (request: UnstarRequest) => call<Record<string, never>>("POST", "unstar", request),
+  listBackups: () => call<BackupsResponse>("GET", "backups", undefined),
+  backUpNow: () => call<BackupSummary>("POST", "backups", {}),
+  readBackup: (id: string) => call<Backup>("GET", `backups/${encodeURIComponent(id)}`, undefined),
+  uploadBackup: (backup: unknown) => call<BackupSummary>("POST", "backups/upload", backup),
+  planRestore: (request: RestoreRequest) => call<RestorePlan>("POST", "restore/plan", request),
+  applyRestore: (request: RestoreRequest) => call<RestoreResult>("POST", "restore/apply", request),
 };

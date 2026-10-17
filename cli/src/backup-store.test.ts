@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createBackupStore, BackupNotFoundError } from "./backup-store.ts";
-import { BACKUP_FORMAT, BACKUP_VERSION, InvalidBackupError, parseBackup, type Backup, type BackupReason } from "./backup.ts";
+import { BACKUP_FORMAT, BACKUP_VERSION, InvalidBackupError, parseBackup, type Backup, type BackupReason } from "../../src/lib/backup.ts";
 
 let home: string;
 
@@ -95,5 +95,19 @@ describe("parseBackup", () => {
     const withLocal = { ...backup("uploaded", day(0)), local: { repos: [{ githubId: 1000, notes: null, usefulnessRating: 6 }], tags: [], repoTags: [] } };
 
     expect(() => parseBackup(withLocal)).toThrow(InvalidBackupError);
+  });
+});
+
+describe("backup store under concurrent saves", () => {
+  test("store_saves_both_when_two_backups_land_in_the_same_millisecond", async () => {
+    // Regression guarded: a double-clicked "Back up now" wrote both saves through one
+    // temp file, and the second rename failed with ENOENT.
+    const store = createBackupStore(home, "abed-nadir");
+    const createdAt = "2026-10-17T19:00:00.000Z";
+
+    const saved = await Promise.all([store.save(backup("manual", createdAt)), store.save(backup("manual", createdAt))]);
+
+    expect(saved.map((summary) => summary.id)).toEqual(["2026-10-17T19-00-00.000Z-manual", "2026-10-17T19-00-00.000Z-manual"]);
+    expect(await readdir(path.join(home, "backups", "abed-nadir"))).toEqual(["2026-10-17T19-00-00.000Z-manual.json"]);
   });
 });

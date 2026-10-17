@@ -1,6 +1,6 @@
 import { starredPages, type GitHubClient } from "../../server/github.ts";
 import { fetchViewerLists } from "../../server/github-lists.ts";
-import type { GitHubSnapshot } from "./backup.ts";
+import type { GitHubSnapshot } from "../../src/lib/backup.ts";
 
 /** Everything a backup records, read fresh: every star and every List, all pages. */
 export async function readGitHubSnapshot(github: GitHubClient): Promise<GitHubSnapshot> {

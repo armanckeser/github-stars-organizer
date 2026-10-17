@@ -10,9 +10,12 @@ import {
   LOCAL_APP_SIGNATURE,
   type GitHubRepo, type ImportResponse, type HealthRequest, type HealthResponse, type HealthScore,
   type CreateListRequest, type CreateListResponse, type UpdateListRequest, type MembershipRequest, type MembershipResponse,
-  type UnstarRequest, type PingResponse,
+  type UnstarRequest, type PingResponse, type BackupsResponse, type RestoreRequest, type RestoreResult,
 } from "../../src/lib/local-api.ts";
-import type { BackupStore } from "./backup-store.ts";
+import { buildBackup, InvalidBackupError, parseBackup, type BackupSummary, type RestorePlan } from "../../src/lib/backup.ts";
+import { BackupNotFoundError, type BackupStore } from "./backup-store.ts";
+import { applyRestore, previewRestore, refuseOtherAccounts, RestoreRefusedError } from "./restore.ts";
+import { readGitHubSnapshot } from "./snapshot.ts";
 
 // The npx CLI's localhost server: the app's static files plus a stateless proxy
 // to GitHub that holds the user's token. The browser owns every row, so each
@@ -72,12 +75,24 @@ async function scoreHealth(github: GitHubClient, request: HealthRequest): Promis
   return scores;
 }
 
-export function createLocalServer({ github, appDir, port }: LocalServerOptions): Hono {
+const HTTP_BAD_REQUEST = 400;
+const HTTP_NOT_FOUND = 404;
+const HTTP_CONFLICT = 409;
+
+function statusOf(error: Error): number {
+  if (error instanceof GitHubError) return error.status;
+  if (error instanceof InvalidBackupError) return HTTP_BAD_REQUEST;
+  if (error instanceof BackupNotFoundError) return HTTP_NOT_FOUND;
+  if (error instanceof RestoreRefusedError) return HTTP_CONFLICT;
+  return 500;
+}
+
+export function createLocalServer({ github, appDir, port, store, login }: LocalServerOptions): Hono {
   const app = new Hono();
   app.use("*", sameOriginOnly(port));
 
   app.onError((error, c) => {
-    const status = error instanceof GitHubError ? error.status : 500;
+    const status = statusOf(error);
     console.error(`  ${c.req.method} ${c.req.path} failed: ${error.message}`);
     return c.json({ error: error.message }, status >= 400 && status < 600 ? (status as 400) : 500);
   });
@@ -123,6 +138,40 @@ export function createLocalServer({ github, appDir, port }: LocalServerOptions):
     const { owner, name } = await c.req.json<UnstarRequest>();
     await unstar(github, owner, name);
     return c.json({});
+  });
+
+  api.get("/backups", async (c) => c.json<BackupsResponse>({ directory: store.directory, backups: await store.list() }));
+
+  api.post("/backups", async (c) =>
+    c.json<BackupSummary>(await store.save(buildBackup(login, "manual", await readGitHubSnapshot(github), new Date()))));
+
+  api.get("/backups/:id", async (c) => c.json(await store.read(c.req.param("id"))));
+
+  api.post("/backups/upload", async (c) => {
+    const backup = parseBackup(await c.req.json());
+    refuseOtherAccounts(backup, login);
+    return c.json<BackupSummary>(await store.save({ ...backup, reason: "uploaded", createdAt: new Date().toISOString() }));
+  });
+
+  api.post("/restore/plan", async (c) => {
+    const { backupId } = await c.req.json<RestoreRequest>();
+    return c.json<RestorePlan>(await previewRestore(github, login, await store.read(backupId)));
+  });
+
+  // One restore at a time: two at once would both recreate the same deleted List.
+  let restoreRunning: Promise<RestoreResult> | null = null;
+  api.post("/restore/apply", async (c) => {
+    if (restoreRunning) return c.json({ error: "A restore is already running." }, HTTP_CONFLICT);
+    // Claimed before the first await, or two requests arriving together both get past the check.
+    restoreRunning = (async () => {
+      const { backupId } = await c.req.json<RestoreRequest>();
+      return applyRestore(github, store, login, await store.read(backupId));
+    })();
+    try {
+      return c.json<RestoreResult>(await restoreRunning);
+    } finally {
+      restoreRunning = null;
+    }
   });
 
   app.route("/api/local", api);

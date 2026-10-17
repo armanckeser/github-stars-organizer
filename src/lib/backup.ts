@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GitHubList, ListRepo } from "../../server/github-lists.ts";
+import type { GitHubList, ListRepo } from "../../server/github-lists";
 
 // The backup file: what someone's stars and Lists looked like on GitHub at a
 // moment, plus (in a downloaded copy) the tags, ratings and notes the browser
@@ -104,6 +104,7 @@ export function changeCount(plan: RestorePlan): number {
 }
 
 export type BackupEntry = { id: string; reason: BackupReason; createdAt: string };
+export type BackupSummary = BackupEntry & { stars: number; lists: number };
 
 export const LAUNCH_BACKUPS_KEPT = 30;
 

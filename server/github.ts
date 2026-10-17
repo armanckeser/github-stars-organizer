@@ -2,7 +2,7 @@
 // self-host server (index.ts) and the npx CLI's localhost server (cli/). The
 // Docker image is built from server/ alone, so this imports nothing outside it.
 import { HEALTH_BATCH_QUERY, type HealthBatchData } from "./health.ts";
-import { fetchViewerLists, type RepoListChange } from "./github-lists.ts";
+import { fetchViewerLists, type GitHubList, type RepoListChange } from "./github-lists.ts";
 
 // Points both servers at a fake GitHub for testing writes without touching a
 // real account (scripts/fake-github.ts).
@@ -133,9 +133,21 @@ export async function deleteList(client: GitHubClient, listId: string): Promise<
   await client.graphql(`mutation($input: DeleteUserListInput!) { deleteUserList(input: $input) { user { id } } }`, { input: { listId } });
 }
 
-// One change at a time, so two changes to the same repo can't both read the old
-// set and the second overwrite the first.
+// One membership write at a time, so two changes to the same repo can't both
+// read the old set and the second overwrite the first.
 let membershipQueue: Promise<unknown> = Promise.resolve();
+
+function withListLock<T>(write: () => Promise<T>): Promise<T> {
+  const run = membershipQueue.catch(() => undefined).then(write);
+  membershipQueue = run;
+  return run;
+}
+
+const SET_REPO_LISTS = `mutation($input: UpdateUserListsForItemInput!) { updateUserListsForItem(input: $input) { user { id } } }`;
+
+function listsHolding(lists: GitHubList[], repoGithubId: number): string[] {
+  return lists.filter((list) => list.repos.some((repo) => repo.githubId === repoGithubId)).map((list) => list.id);
+}
 
 /**
  * Adds a repo to one List, or removes it from one, leaving its other Lists alone.
@@ -148,12 +160,10 @@ let membershipQueue: Promise<unknown> = Promise.resolve();
  * Returns the repo's Lists after the change.
  */
 export function changeRepoList(client: GitHubClient, request: RepoListChange): Promise<string[]> {
-  const run = membershipQueue.catch(() => undefined).then(async () => {
+  return withListLock(async () => {
     const lists = await fetchViewerLists(client.graphql);
     const target = lists.find((list) => list.id === request.githubListId);
-    const current = lists
-      .filter((list) => list.repos.some((repo) => repo.githubId === request.repoGithubId))
-      .map((list) => list.id);
+    const current = listsHolding(lists, request.repoGithubId);
     if (!target) {
       if (request.change === "remove") return current;
       throw new GitHubError(404, "That List no longer exists on GitHub.");
@@ -161,14 +171,41 @@ export function changeRepoList(client: GitHubClient, request: RepoListChange): P
     const has = current.includes(target.id);
     if ((request.change === "add") === has) return current;
     const next = request.change === "add" ? [...current, target.id] : current.filter((id) => id !== target.id);
-    await client.graphql(
-      `mutation($input: UpdateUserListsForItemInput!) { updateUserListsForItem(input: $input) { user { id } } }`,
-      { input: { itemId: request.repoNodeId, listIds: next } },
-    );
+    await client.graphql(SET_REPO_LISTS, { input: { itemId: request.repoNodeId, listIds: next } });
     return next;
   });
-  membershipQueue = run;
-  return run;
+}
+
+export type ListAddition = { repoNodeId: string; repoGithubId: number; fullName: string; githubListId: string };
+export type FailedWrite = { what: string; reason: string };
+
+/**
+ * Adds many repos to Lists in one pass, for a restore: reads every List once,
+ * then writes each repo's set once (its current Lists plus the new ones), all
+ * under the same lock as changeRepoList so nothing interleaves.
+ */
+export function addReposToLists(client: GitHubClient, additions: ListAddition[]): Promise<FailedWrite[]> {
+  return withListLock(async () => {
+    const lists = await fetchViewerLists(client.graphql);
+    const byRepo = new Map<number, ListAddition[]>();
+    for (const addition of additions) byRepo.set(addition.repoGithubId, [...(byRepo.get(addition.repoGithubId) ?? []), addition]);
+    const failed: FailedWrite[] = [];
+    for (const [repoGithubId, repoAdditions] of byRepo) {
+      const current = listsHolding(lists, repoGithubId);
+      const next = [...new Set([...current, ...repoAdditions.map((addition) => addition.githubListId)])];
+      if (next.length === current.length) continue;
+      try {
+        await client.graphql(SET_REPO_LISTS, { input: { itemId: repoAdditions[0].repoNodeId, listIds: next } });
+      } catch (error) {
+        failed.push({ what: `Add ${repoAdditions[0].fullName} to its Lists`, reason: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return failed;
+  });
+}
+
+export async function addStar(client: GitHubClient, repoNodeId: string): Promise<void> {
+  await client.graphql(`mutation($input: AddStarInput!) { addStar(input: $input) { starrable { id } } }`, { input: { starrableId: repoNodeId } });
 }
 
 export async function unstar(client: GitHubClient, owner: string, name: string): Promise<void> {

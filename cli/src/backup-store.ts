@@ -1,7 +1,8 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import path from "node:path";
-import { backupsToPrune, parseBackup, BACKUP_REASONS, type Backup, type BackupEntry, type BackupReason } from "./backup.ts";
+import { backupsToPrune, parseBackup, BACKUP_REASONS, type Backup, type BackupReason, type BackupSummary } from "../../src/lib/backup.ts";
 
 // Backups live on disk, outside the browser, so clearing site data or switching
 // browsers can't take them. One folder per GitHub account, so a backup can only
@@ -12,8 +13,6 @@ export const HOME_ENV = "GITHUB_STARS_ORGANIZER_HOME";
 export function defaultHome(): string {
   return process.env[HOME_ENV] ?? path.join(homedir(), ".github-stars-organizer");
 }
-
-export type BackupSummary = BackupEntry & { stars: number; lists: number };
 
 export class BackupNotFoundError extends Error {}
 
@@ -78,7 +77,8 @@ export function createBackupStore(home: string, login: string): BackupStore {
     const file = fileOf(id);
     // Written beside the target and renamed into place, so a crash mid-write
     // leaves the previous backups intact rather than a half-written one.
-    const partial = `${file}.partial`;
+    // Unique, so two saves in the same millisecond (a double-click) don't share one temp file.
+    const partial = `${file}.${randomUUID()}.partial`;
     await writeFile(partial, JSON.stringify(backup, null, 2));
     await rename(partial, file);
     const entries = (await list()).map(({ id: entryId, createdAt }) => ({ id: entryId, createdAt, reason: reasonOf(entryId) }));

@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import type { GitHubClient } from "../../server/github.ts";
-import { buildBackup } from "./backup.ts";
-import { createBackupStore, type BackupStore, type BackupSummary } from "./backup-store.ts";
+import { buildBackup, type BackupSummary } from "../../src/lib/backup.ts";
+import { createBackupStore, type BackupStore } from "./backup-store.ts";
 import { createLocalServer } from "./server.ts";
 import { readGitHubSnapshot } from "./snapshot.ts";
 

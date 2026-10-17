@@ -2,7 +2,7 @@
   "name": "github-stars-organizer",
   "version": "0.1.0",
   "description": "Search, tag, rate and sort your GitHub stars into Lists, using your gh login. Runs locally; nothing to host.",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "bin": {
     "github-stars-organizer": "dist/cli.js"

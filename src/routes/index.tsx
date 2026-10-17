@@ -45,6 +45,7 @@ const searchSchema = z.object({
   starsMin: z.coerce.number().optional(),
   starsMax: z.coerce.number().optional(),
   topics: z.string().optional(),
+  lists: z.string().optional(),
 });
 
 export const Route = createFileRoute("/")({
@@ -77,9 +78,19 @@ function AllStarsPage() {
 
   const allRepos = repos ?? [];
 
+  const listIdsByRepo = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const li of listItems ?? []) {
+      const ids = map.get(li.repo_id) ?? [];
+      ids.push(li.list_id);
+      map.set(li.repo_id, ids);
+    }
+    return map;
+  }, [listItems]);
+
   const { registry, sortDefinitions } = useMemo(
-    () => buildRepoRegistry(allRepos),
-    [allRepos],
+    () => buildRepoRegistry(allRepos, { lists: lists ?? [], listIdsByRepo }),
+    [allRepos, lists, listIdsByRepo],
   );
 
   const viewState = useMemo(

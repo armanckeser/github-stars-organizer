@@ -31,6 +31,9 @@ export default defineConfig({
     tailwindcss(),
     sharePreviewUrls(process.env.VITE_SITE_URL),
   ],
+  // The demo's /api/lists is a Cloudflare Worker in production; in dev it is
+  // `npm run dev` in worker/, on wrangler's default port.
+  server: process.env.VITE_DEMO === "1" ? { proxy: { "/api": "http://localhost:8787" } } : undefined,
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

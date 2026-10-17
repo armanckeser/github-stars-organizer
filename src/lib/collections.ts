@@ -208,8 +208,8 @@ export const listItemCollection = createCollection(
       delete: (original) => apiRemoveRepoFromList(original.list_id, original.repo_id),
     },
     local: {
-      insert: (row) => syncRepoLists(row.repo_id),
-      delete: (original) => syncRepoLists(original.repo_id),
+      insert: (row) => syncListChange(row, "add"),
+      delete: (original) => syncListChange(original, "remove"),
     },
   }),
 );
@@ -258,22 +258,13 @@ function deleteChildren<T extends Row>(collection: { toArray: T[]; delete: (keys
   if (keys.length > 0) collection.delete(keys);
 }
 
-// GitHub sets a repo's Lists as one whole set (updateUserListsForItem replaces
-// them), so every membership change sends the repo's full set as the browser now
-// has it. Calls for the same repo run one after another, so a slower earlier
-// call can't overwrite a later one.
-const membershipQueue = new Map<string, Promise<void>>();
-
-function syncRepoLists(repoId: string): Promise<void> {
-  const previous = membershipQueue.get(repoId) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(async () => {
-    const nodeId = repoCollection.get(repoId)?.node_id;
-    if (!nodeId) return;
-    const listIds = listItemCollection.toArray
-      .filter((item) => item.repo_id === repoId)
-      .flatMap((item) => listCollection.get(item.list_id)?.github_list_id ?? []);
-    await localApi.setMembership({ nodeId, listIds });
-  });
-  membershipQueue.set(repoId, next);
-  return next;
+// One List change on GitHub. The server re-reads the repo's Lists before writing
+// (updateUserListsForItem replaces the whole set), so the browser only says which
+// List changed, never which Lists the repo should be in.
+async function syncListChange(item: ListItem, change: "add" | "remove"): Promise<void> {
+  const repo = repoCollection.get(item.repo_id);
+  const githubListId = listCollection.get(item.list_id)?.github_list_id;
+  if (!repo?.node_id) return;
+  if (!githubListId) throw new Error("That List is still being created on GitHub. Try again in a moment.");
+  await localApi.changeMembership({ repoNodeId: repo.node_id, repoGithubId: repo.github_id, githubListId, change });
 }

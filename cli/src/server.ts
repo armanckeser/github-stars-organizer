@@ -3,13 +3,13 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { computeHealthScore } from "../../server/health.ts";
 import {
   GitHubError, starredPages, topicsOf, fetchHealthNodes,
-  createList, updateList, deleteList, setRepoLists, unstar, type GitHubClient,
+  createList, updateList, deleteList, changeRepoList, unstar, type GitHubClient,
 } from "../../server/github.ts";
 import { fetchViewerLists } from "../../server/github-lists.ts";
 import {
   LOCAL_APP_SIGNATURE,
   type GitHubRepo, type ImportResponse, type HealthRequest, type HealthResponse, type HealthScore,
-  type CreateListRequest, type CreateListResponse, type UpdateListRequest, type MembershipRequest,
+  type CreateListRequest, type CreateListResponse, type UpdateListRequest, type MembershipRequest, type MembershipResponse,
   type UnstarRequest, type PingResponse,
 } from "../../src/lib/local-api.ts";
 
@@ -114,9 +114,8 @@ export function createLocalServer({ github, appDir, port }: LocalServerOptions):
   });
 
   api.post("/membership", async (c) => {
-    const { nodeId, listIds } = await c.req.json<MembershipRequest>();
-    await setRepoLists(github, nodeId, listIds);
-    return c.json({});
+    const listIds = await changeRepoList(github, await c.req.json<MembershipRequest>());
+    return c.json<MembershipResponse>({ listIds });
   });
 
   api.post("/unstar", async (c) => {

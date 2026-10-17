@@ -1,5 +1,5 @@
 import type { Repo } from "./collections";
-import type { GitHubList } from "../../server/github-lists";
+import type { GitHubList, RepoListChange } from "../../server/github-lists";
 
 // The contract between the browser and the npx CLI's localhost server
 // (cli/src/server.ts). The server holds the gh token and only talks to GitHub;
@@ -29,7 +29,10 @@ export type HealthResponse = { scores: HealthScore[] };
 export type CreateListRequest = { name: string; description: string | null };
 export type CreateListResponse = { githubListId: string };
 export type UpdateListRequest = { name?: string; description?: string | null };
-export type MembershipRequest = { nodeId: string; listIds: string[] };
+// One List at a time: the server re-reads the repo's Lists from GitHub and changes
+// only this one, so the browser's copy being stale can't drop the others.
+export type MembershipRequest = RepoListChange;
+export type MembershipResponse = { listIds: string[] };
 export type UnstarRequest = { owner: string; name: string };
 export type PingResponse = { app: typeof LOCAL_APP_SIGNATURE };
 export type ErrorResponse = { error: string };
@@ -55,6 +58,6 @@ export const localApi = {
     call<Record<string, never>>("PATCH", `lists/${encodeURIComponent(githubListId)}`, request),
   deleteList: (githubListId: string) =>
     call<Record<string, never>>("DELETE", `lists/${encodeURIComponent(githubListId)}`, {}),
-  setMembership: (request: MembershipRequest) => call<Record<string, never>>("POST", "membership", request),
+  changeMembership: (request: MembershipRequest) => call<MembershipResponse>("POST", "membership", request),
   unstar: (request: UnstarRequest) => call<Record<string, never>>("POST", "unstar", request),
 };

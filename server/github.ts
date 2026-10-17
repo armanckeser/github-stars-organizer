@@ -2,6 +2,7 @@
 // self-host server (index.ts) and the npx CLI's localhost server (cli/). The
 // Docker image is built from server/ alone, so this imports nothing outside it.
 import { HEALTH_BATCH_QUERY, type HealthBatchData } from "./health.ts";
+import { fetchViewerLists, type RepoListChange } from "./github-lists.ts";
 
 // Points both servers at a fake GitHub for testing writes without touching a
 // real account (scripts/fake-github.ts).
@@ -113,10 +114,10 @@ export async function fetchHealthNodes(client: GitHubClient, nodeIds: string[]):
   return client.graphql<HealthBatchData>(HEALTH_BATCH_QUERY, { ids: nodeIds });
 }
 
-export async function createList(client: GitHubClient, name: string, description: string | null): Promise<string> {
+export async function createList(client: GitHubClient, name: string, description: string | null, isPrivate = false): Promise<string> {
   const data = await client.graphql<{ createUserList: { list: { id: string } } }>(
     `mutation($input: CreateUserListInput!) { createUserList(input: $input) { list { id } } }`,
-    { input: { name, description: description ?? "", isPrivate: false } },
+    { input: { name, description: description ?? "", isPrivate } },
   );
   return data.createUserList.list.id;
 }
@@ -132,16 +133,42 @@ export async function deleteList(client: GitHubClient, listId: string): Promise<
   await client.graphql(`mutation($input: DeleteUserListInput!) { deleteUserList(input: $input) { user { id } } }`, { input: { listId } });
 }
 
+// One change at a time, so two changes to the same repo can't both read the old
+// set and the second overwrite the first.
+let membershipQueue: Promise<unknown> = Promise.resolve();
+
 /**
- * Sets every List a repo belongs to. updateUserListsForItem replaces the whole
- * set, so `listIds` must be all of them: passing one List would drop the repo
- * from the others.
+ * Adds a repo to one List, or removes it from one, leaving its other Lists alone.
+ *
+ * updateUserListsForItem replaces a repo's whole set of Lists, and GitHub has no
+ * field listing the Lists a repo is in. So this re-reads every List from GitHub
+ * right before writing, rather than trusting a local copy that may be stale or
+ * cut short, changes the one List, and sends the full set back.
+ *
+ * Returns the repo's Lists after the change.
  */
-export async function setRepoLists(client: GitHubClient, repoNodeId: string, listIds: string[]): Promise<void> {
-  await client.graphql(
-    `mutation($input: UpdateUserListsForItemInput!) { updateUserListsForItem(input: $input) { user { id } } }`,
-    { input: { itemId: repoNodeId, listIds } },
-  );
+export function changeRepoList(client: GitHubClient, request: RepoListChange): Promise<string[]> {
+  const run = membershipQueue.catch(() => undefined).then(async () => {
+    const lists = await fetchViewerLists(client.graphql);
+    const target = lists.find((list) => list.id === request.githubListId);
+    const current = lists
+      .filter((list) => list.repos.some((repo) => repo.githubId === request.repoGithubId))
+      .map((list) => list.id);
+    if (!target) {
+      if (request.change === "remove") return current;
+      throw new GitHubError(404, "That List no longer exists on GitHub.");
+    }
+    const has = current.includes(target.id);
+    if ((request.change === "add") === has) return current;
+    const next = request.change === "add" ? [...current, target.id] : current.filter((id) => id !== target.id);
+    await client.graphql(
+      `mutation($input: UpdateUserListsForItemInput!) { updateUserListsForItem(input: $input) { user { id } } }`,
+      { input: { itemId: request.repoNodeId, listIds: next } },
+    );
+    return next;
+  });
+  membershipQueue = run;
+  return run;
 }
 
 export async function unstar(client: GitHubClient, owner: string, name: string): Promise<void> {

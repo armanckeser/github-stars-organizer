@@ -17,6 +17,14 @@ export type GitHubList = {
   repos: ListRepo[];
 };
 
+// A change to one repo's membership in one List (see changeRepoList in github.ts).
+export type RepoListChange = {
+  repoNodeId: string;
+  repoGithubId: number;
+  githubListId: string;
+  change: "add" | "remove";
+};
+
 // The Lists Worker's response for the demo. Kept to the fields the demo reads, and
 // kept stable: the deployed Worker and the deployed demo update independently.
 export type PublicList = Omit<GitHubList, "isPrivate" | "repos"> & { repoGithubIds: number[] };

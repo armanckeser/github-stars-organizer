@@ -6,7 +6,7 @@ import pg from "pg";
 import { computeHealthScore } from "./health.ts";
 import {
   createGitHubClient, starredPages, topicsOf, fetchHealthNodes,
-  createList, updateList, deleteList, setRepoLists, unstar, type GitHubClient,
+  createList, updateList, deleteList, changeRepoList, unstar, type GitHubClient,
 } from "./github.ts";
 import { fetchViewerLists } from "./github-lists.ts";
 
@@ -213,23 +213,21 @@ app.post("/api/import-lists", async (c) => {
   }
 });
 
-// GitHub replaces a repo's whole set of Lists at once, so after any membership
-// change send every List the repo is now in, as Postgres has it.
-async function syncRepoLists(token: string | null, repoId: string): Promise<void> {
+// Mirrors one membership change onto GitHub. changeRepoList re-reads the repo's
+// Lists from GitHub itself, so a List Postgres hasn't fully imported can't be
+// dropped by accident.
+async function syncListChange(token: string | null, listId: string, repoId: string, change: "add" | "remove"): Promise<void> {
   if (!token) return;
   const { rows } = await pool.query(
-    `SELECT r.node_id, COALESCE(array_agg(l.github_list_id) FILTER (WHERE l.github_list_id IS NOT NULL), '{}') AS list_ids
-     FROM repos r
-     LEFT JOIN list_items li ON li.repo_id = r.id
-     LEFT JOIN lists l ON l.id = li.list_id
-     WHERE r.id = $1
-     GROUP BY r.node_id`,
-    [repoId],
+    "SELECT r.node_id, r.github_id, l.github_list_id FROM repos r, lists l WHERE r.id = $1 AND l.id = $2",
+    [repoId, listId],
   );
-  const nodeId = rows[0]?.node_id;
-  if (!nodeId) return;
+  const row = rows[0];
+  if (!row?.node_id || !row.github_list_id) return;
   try {
-    await setRepoLists(createGitHubClient(token), nodeId, rows[0].list_ids);
+    await changeRepoList(createGitHubClient(token), {
+      repoNodeId: row.node_id, repoGithubId: row.github_id, githubListId: row.github_list_id, change,
+    });
   } catch (error) {
     console.warn("Failed to update the repo's GitHub Lists:", error);
   }
@@ -399,7 +397,7 @@ app.post("/api/lists/:id/add-repo", async (c) => {
     return { item: rows[0] ?? null };
   });
 
-  await syncRepoLists(token, repo_id);
+  await syncListChange(token, listId, repo_id, "add");
 
   return c.json(result);
 });
@@ -414,7 +412,7 @@ app.post("/api/lists/:id/remove-repo", async (c) => {
     await client.query("DELETE FROM list_items WHERE list_id = $1 AND repo_id = $2", [listId, repo_id]);
     return {};
   });
-  await syncRepoLists(token, repo_id);
+  await syncListChange(token, listId, repo_id, "remove");
   return c.json(result);
 });
 

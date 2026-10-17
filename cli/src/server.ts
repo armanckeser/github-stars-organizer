@@ -5,7 +5,7 @@ import {
   GitHubError, starredPages, topicsOf, fetchHealthNodes,
   createList, updateList, deleteList, setRepoLists, unstar, type GitHubClient,
 } from "../../server/github.ts";
-import { fetchViewerLists } from "../../src/lib/github-lists.ts";
+import { fetchViewerLists } from "../../server/github-lists.ts";
 import {
   LOCAL_APP_SIGNATURE,
   type GitHubRepo, type ImportResponse, type HealthRequest, type HealthResponse, type HealthScore,

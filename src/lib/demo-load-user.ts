@@ -1,5 +1,5 @@
 import { repoCollection, listCollection, listItemCollection, repoTagCollection, type Repo } from "./collections";
-import type { GitHubList } from "./github-lists";
+import type { PublicList } from "../../server/github-lists";
 import { toListRows } from "./github-list-rows";
 
 // Unauthenticated requests get 60 an hour per IP, so the demo reads at most the
@@ -12,11 +12,11 @@ export type LoadedUser = { stars: number; lists: number | "unavailable" };
 
 // Null when the Worker can't be reached, as on a copy of the demo without one:
 // the stars still load, just without Lists.
-async function fetchLists(username: string): Promise<GitHubList[] | null> {
+async function fetchLists(username: string): Promise<PublicList[] | null> {
   try {
     const response = await fetch(`${import.meta.env.BASE_URL}api/lists?user=${encodeURIComponent(username)}`);
     if (!response.ok) return null;
-    return ((await response.json()) as { lists: GitHubList[] }).lists;
+    return ((await response.json()) as { lists: PublicList[] }).lists;
   } catch {
     return null;
   }

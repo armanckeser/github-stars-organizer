@@ -92,8 +92,8 @@ export function planImport(stored: StoredRows, incoming: ImportResponse, importe
   const wantedItems = new Map<string, ListItem>();
   for (const github of incoming.lists) {
     const listId = lists.idByGithubId.get(github.id)!;
-    github.repoGithubIds.forEach((repoGithubId, position) => {
-      const repoId = repos.idByGithubId.get(repoGithubId);
+    github.repos.forEach((listRepo, position) => {
+      const repoId = repos.idByGithubId.get(listRepo.githubId);
       if (!repoId) return;
       const key = `${listId}:${repoId}`;
       wantedItems.set(key, { id: key, list_id: listId, repo_id: repoId, position, added_at: github.updatedAt });

@@ -8,16 +8,8 @@ import {
   createGitHubClient, starredPages, topicsOf, fetchHealthNodes,
   createList, updateList, deleteList, setRepoLists, unstar, type GitHubClient,
 } from "./github.ts";
+import { fetchViewerLists } from "./github-lists.ts";
 
-type ListItemNode = { databaseId?: number };
-type ListNode = {
-  id: string;
-  name: string;
-  description: string | null;
-  isPrivate: boolean;
-  items: { nodes: ListItemNode[] };
-};
-type ListsData = { viewer?: { lists?: { nodes?: ListNode[] } } };
 
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgresql://postgres:password@localhost:5433/app";
@@ -160,49 +152,51 @@ app.post("/api/import-stars", async (c) => {
 
 app.get("/api/import-stars", (c) => c.json(importJob ?? { status: "idle" }));
 
+// Makes Postgres match GitHub's Lists: every List and every item (all pages),
+// including Lists deleted and repos removed on GitHub since the last import.
+// Lists created here whose GitHub create failed have no github_list_id and stay.
 async function importGitHubLists(github: GitHubClient, client: pg.PoolClient): Promise<number> {
-  const listsJson = await github.graphql<ListsData>(
-    `{ viewer { lists(first: 100) { nodes { id name description isPrivate items(first: 100) { nodes { ... on Repository { databaseId } } } } } } }`,
-  );
-  const ghLists = listsJson?.viewer?.lists?.nodes ?? [];
-  let listsImported = 0;
-
-  for (const ghList of ghLists) {
-    const { rows: existing } = await client.query(
-      "SELECT id FROM lists WHERE github_list_id = $1", [ghList.id],
+  const ghLists = await fetchViewerLists(github.graphql);
+  await client.query("BEGIN");
+  try {
+    await client.query(
+      "DELETE FROM lists WHERE github_list_id IS NOT NULL AND NOT (github_list_id = ANY($1::text[]))",
+      [ghLists.map((list) => list.id)],
     );
-    let localListId: string;
-    if (existing.length > 0) {
-      localListId = existing[0].id;
-      await client.query(
-        "UPDATE lists SET name = $1, description = $2, is_private = $3, updated_at = NOW() WHERE id = $4",
-        [ghList.name, ghList.description ?? null, ghList.isPrivate, localListId],
+    for (const ghList of ghLists) {
+      // github_list_id has no unique constraint (existing installs keep their
+      // schema), so this looks the List up instead of using ON CONFLICT.
+      const { rows: updated } = await client.query(
+        `UPDATE lists SET name = $1, description = $2, is_private = $3, updated_at = NOW()
+         WHERE github_list_id = $4 RETURNING id`,
+        [ghList.name, ghList.description ?? null, ghList.isPrivate, ghList.id],
       );
-    } else {
-      const { rows } = await client.query(
+      const localListId: string = updated[0]?.id ?? (await client.query(
         "INSERT INTO lists (name, description, github_list_id, is_private) VALUES ($1, $2, $3, $4) RETURNING id",
         [ghList.name, ghList.description ?? null, ghList.id, ghList.isPrivate],
+      )).rows[0].id;
+      const githubIds = ghList.repos.map((repo) => repo.githubId);
+      await client.query(
+        `DELETE FROM list_items li USING repos r
+         WHERE li.repo_id = r.id AND li.list_id = $1 AND NOT (r.github_id = ANY($2::int[]))`,
+        [localListId, githubIds],
       );
-      localListId = rows[0].id;
-    }
-
-    for (const item of ghList.items.nodes) {
-      if (!item?.databaseId) continue;
-      const { rows: repoRows } = await client.query(
-        "SELECT id FROM repos WHERE github_id = $1", [item.databaseId],
-      );
-      if (repoRows.length === 0) continue;
+      // Position follows GitHub's order; repos not starred (so not in repos) are skipped.
       await client.query(
         `INSERT INTO list_items (list_id, repo_id, position)
-         VALUES ($1, $2, COALESCE((SELECT MAX(position) + 1 FROM list_items WHERE list_id = $1), 0))
-         ON CONFLICT (list_id, repo_id) DO NOTHING`,
-        [localListId, repoRows[0].id],
+         SELECT $1, r.id, ordering.position - 1
+         FROM unnest($2::int[]) WITH ORDINALITY AS ordering(github_id, position)
+         JOIN repos r ON r.github_id = ordering.github_id
+         ON CONFLICT (list_id, repo_id) DO UPDATE SET position = EXCLUDED.position`,
+        [localListId, githubIds],
       );
     }
-    listsImported++;
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   }
-
-  return listsImported;
+  return ghLists.length;
 }
 
 app.post("/api/import-lists", async (c) => {

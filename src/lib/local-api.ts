@@ -1,5 +1,5 @@
 import type { Repo } from "./collections";
-import type { GitHubList } from "./github-lists";
+import type { GitHubList } from "../../server/github-lists";
 
 // The contract between the browser and the npx CLI's localhost server
 // (cli/src/server.ts). The server holds the gh token and only talks to GitHub;

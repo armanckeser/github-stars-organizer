@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { planImport, type StoredRows } from "./import-plan";
 import type { Repo, StarList, ListItem, RepoTag } from "./collections";
 import type { GitHubRepo, ImportResponse } from "./local-api";
-import type { GitHubList } from "./github-lists";
+import type { GitHubList } from "../../server/github-lists";
 
 const IMPORTED_AT = "2026-10-17T12:00:00.000Z";
 
@@ -28,7 +28,8 @@ function storedRepo(github: GitHubRepo, overrides: Partial<Repo> = {}): Repo {
 function githubList(id: string, name: string, repoGithubIds: number[]): GitHubList {
   return {
     id, name, description: null, isPrivate: false,
-    createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z", repoGithubIds,
+    createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z",
+    repos: repoGithubIds.map((githubId) => ({ githubId, nodeId: `R_${githubId}`, fullName: `greendale/repo-${githubId}` })),
   };
 }
 

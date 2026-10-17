@@ -1,8 +1,11 @@
 // GitHub Lists exist only in GraphQL, which needs a token, so this runs where a
-// token lives: the demo snapshot script at build time, the demo's Lists Worker
-// (worker/) at request time and the npx CLI's localhost server (cli/). Each
-// caller injects its own transport.
+// token lives: the self-host server, the npx CLI's localhost server (cli/), the
+// demo snapshot script at build time and the demo's Lists Worker (worker/). Each
+// caller injects its own transport. It lives in server/ because the self-host
+// Docker image is built from that directory alone, and imports nothing.
 export type GraphQL = <T>(query: string, variables: Record<string, unknown>) => Promise<T>;
+
+export type ListRepo = { githubId: number; nodeId: string; fullName: string };
 
 export type GitHubList = {
   id: string;
@@ -11,11 +14,24 @@ export type GitHubList = {
   isPrivate: boolean;
   createdAt: string;
   updatedAt: string;
-  repoGithubIds: number[];
+  repos: ListRepo[];
 };
 
+// The Lists Worker's response for the demo. Kept to the fields the demo reads, and
+// kept stable: the deployed Worker and the deployed demo update independently.
+export type PublicList = Omit<GitHubList, "isPrivate" | "repos"> & { repoGithubIds: number[] };
+
+export function toPublicList(list: GitHubList): PublicList {
+  return {
+    id: list.id, name: list.name, description: list.description,
+    createdAt: list.createdAt, updatedAt: list.updatedAt,
+    repoGithubIds: list.repos.map((repo) => repo.githubId),
+  };
+}
+
 type PageInfo = { endCursor: string | null; hasNextPage: boolean };
-type ItemsConnection = { pageInfo: PageInfo; nodes: { databaseId?: number }[] };
+type ItemNode = { databaseId?: number; id?: string; nameWithOwner?: string };
+type ItemsConnection = { pageInfo: PageInfo; nodes: ItemNode[] };
 
 const PAGE_SIZE = 100;
 
@@ -26,7 +42,7 @@ const LISTS_SELECTION = `
       id name description isPrivate createdAt updatedAt
       items(first: ${PAGE_SIZE}) {
         pageInfo { endCursor hasNextPage }
-        nodes { ... on Repository { databaseId } }
+        nodes { ... on Repository { databaseId id nameWithOwner } }
       }
     }
   }
@@ -41,7 +57,7 @@ const LIST_ITEMS_QUERY = `
       ... on UserList {
         items(first: ${PAGE_SIZE}, after: $after) {
           pageInfo { endCursor hasNextPage }
-          nodes { ... on Repository { databaseId } }
+          nodes { ... on Repository { databaseId id nameWithOwner } }
         }
       }
     }
@@ -62,19 +78,23 @@ type ListsPage = {
 
 export class UserNotFoundError extends Error {}
 
-function githubIds(items: ItemsConnection): number[] {
-  return items.nodes.flatMap((item) => (item.databaseId !== undefined ? [item.databaseId] : []));
+function reposOf(items: ItemsConnection): ListRepo[] {
+  return items.nodes.flatMap((item) =>
+    item.databaseId !== undefined && item.id !== undefined && item.nameWithOwner !== undefined
+      ? [{ githubId: item.databaseId, nodeId: item.id, fullName: item.nameWithOwner }]
+      : [],
+  );
 }
 
-async function remainingItems(graphql: GraphQL, listId: string, after: string | null): Promise<number[]> {
-  const ids: number[] = [];
+async function remainingItems(graphql: GraphQL, listId: string, after: string | null): Promise<ListRepo[]> {
+  const repos: ListRepo[] = [];
   let cursor = after;
   while (cursor) {
     const data = await graphql<{ node: { items: ItemsConnection } }>(LIST_ITEMS_QUERY, { id: listId, after: cursor });
-    ids.push(...githubIds(data.node.items));
+    repos.push(...reposOf(data.node.items));
     cursor = data.node.items.pageInfo.hasNextPage ? data.node.items.pageInfo.endCursor : null;
   }
-  return ids;
+  return repos;
 }
 
 async function fetchLists(graphql: GraphQL, query: string, login: string | null): Promise<GitHubList[]> {
@@ -85,7 +105,7 @@ async function fetchLists(graphql: GraphQL, query: string, login: string | null)
     if (!data.owner) throw new UserNotFoundError(`No GitHub user called ${login}.`);
     const page = data.owner.lists;
     for (const list of page.nodes) {
-      const firstPage = githubIds(list.items);
+      const firstPage = reposOf(list.items);
       const rest = list.items.pageInfo.hasNextPage
         ? await remainingItems(graphql, list.id, list.items.pageInfo.endCursor)
         : [];
@@ -96,7 +116,7 @@ async function fetchLists(graphql: GraphQL, query: string, login: string | null)
         isPrivate: list.isPrivate,
         createdAt: list.createdAt,
         updatedAt: list.updatedAt,
-        repoGithubIds: [...firstPage, ...rest],
+        repos: [...firstPage, ...rest],
       });
     }
     after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;

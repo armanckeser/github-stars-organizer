@@ -62,6 +62,17 @@ Using a different browser, or a different `--port`, starts from a fresh copy.
 
 The local server only answers requests from its own page, since it can act with your token.
 
+**Backups.** Before the app opens, it saves your stars and Lists to
+`~/.github-stars-organizer/backups/<your-login>/` (the newest 30 launch backups are kept). The
+Backups page takes one on demand (with your tags, ratings and notes), downloads any as a file, and
+restores one after showing what it would change. A restore only adds back what is missing: it
+re-stars repos, recreates Lists and re-adds repos to them, and never unstars or deletes anything.
+GitHub can't set a star's date, so a re-starred repo is dated the day it was restored.
+
+**Privacy.** The CLI talks only to `api.github.com`, with your token, and the page talks only to the
+CLI. There is no telemetry. Everything it keeps stays on your computer: in that browser's storage
+and in the backups folder.
+
 ---
 
 ## Self-host
@@ -181,4 +192,11 @@ github-stars-organizer/
 
 ## License
 
-Released under the GNU Affero General Public License v3.0 — see [LICENSE](LICENSE). If you run a modified version where other people can reach it, the AGPL asks you to publish your changes too.
+Copyright (C) 2026 Armanc Keser.
+
+Released under the GNU Affero General Public License, version 3 or (at your option) any later
+version: see [LICENSE](LICENSE). It comes with ABSOLUTELY NO WARRANTY. If you run a modified version
+where other people can reach it, the AGPL asks you to publish your changes too. Builds include
+`THIRD-PARTY-LICENSES.txt`, the licenses of the open source packages bundled into them.
+
+Not affiliated with or endorsed by GitHub. GitHub is a trademark of GitHub, Inc.

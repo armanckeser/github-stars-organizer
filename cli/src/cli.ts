@@ -4,7 +4,7 @@ import { parseArgs, promisify } from "node:util";
 import { serve } from "@hono/node-server";
 import { createGitHubClient, type GitHubClient } from "../../server/github.ts";
 import { LOCAL_APP_SIGNATURE, type PingResponse } from "../../src/lib/local-api.ts";
-import { defaultHome } from "./backup-store.ts";
+import { defaultHome, HOME_ENV } from "./backup-store.ts";
 import { BackupFailedError, launch } from "./launch.ts";
 
 // `npx github-stars-organizer`: serves the app on 127.0.0.1 with the user's own
@@ -14,6 +14,14 @@ import { BackupFailedError, launch } from "./launch.ts";
 const DEFAULT_PORT = 5185;
 const EXIT_FAILURE = 1;
 
+const SOURCE_URL = "https://github.com/armanckeser/github-stars-organizer";
+
+// The GPL's recommended notice for interactive programs, shown at every start.
+const NOTICE = `Stars Organizer v${__APP_VERSION__}  Copyright (C) 2026 Armanc Keser
+Free software under the GNU AGPL v3 or later, with ABSOLUTELY NO WARRANTY.
+Source, license and bundled licenses: ${SOURCE_URL}
+Not affiliated with or endorsed by GitHub.`;
+
 const HELP = `Usage: npx github-stars-organizer [--port <number>] [--no-open]
 
 Opens Stars Organizer on http://127.0.0.1:${DEFAULT_PORT} using your GitHub
@@ -22,7 +30,13 @@ saved in this browser; Lists and unstars are written to GitHub.
 
   --port <number>  Serve on another port. Each port keeps its own saved data.
   --no-open        Print the address without opening a browser.
-  --help           Show this message.`;
+  --help           Show this message.
+
+Before opening, it backs up your stars and Lists to
+~/.github-stars-organizer/backups (set ${HOME_ENV} to move it).
+It talks only to api.github.com, with your token; nothing else is sent anywhere.
+
+${NOTICE}`;
 
 class CliError extends Error {}
 
@@ -88,6 +102,7 @@ async function main() {
     console.log(HELP);
     return;
   }
+  console.log(`${NOTICE}\n`);
   const port = parsePort(values.port);
   const url = `http://127.0.0.1:${port}`;
   const shouldOpen = !values["no-open"] && !process.env.CI;

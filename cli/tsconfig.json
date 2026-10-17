@@ -14,5 +14,5 @@
     "noUnusedParameters": true,
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts", "../server/github.ts", "../server/health.ts", "../scripts/fake-github.ts"]
+  "include": ["src", "vite.config.ts", "../src/vite-env.d.ts", "../scripts/third-party-licenses.ts", "../server/github.ts", "../server/health.ts", "../scripts/fake-github.ts"]
 }

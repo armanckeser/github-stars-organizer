@@ -35,3 +35,5 @@ src/lib/demo/demo-data.json
 # Demo Lists Worker
 worker/.wrangler
 worker/.dev.vars
+cli/dist
+cli/*.tgz

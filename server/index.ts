@@ -3,37 +3,11 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import pg from "pg";
-import { HEALTH_BATCH_QUERY, computeHealthScore, type HealthBatchData } from "./health.ts";
-
-type GraphQLError = { message: string };
-type GraphQLResponse<TData> = { data?: TData; errors?: GraphQLError[] };
-
-type StarredRepoNode = {
-  databaseId: number;
-  id: string;
-  name: string;
-  nameWithOwner: string;
-  owner: { login: string };
-  description: string | null;
-  url: string;
-  homepageUrl: string | null;
-  primaryLanguage: { name: string } | null;
-  stargazerCount: number;
-  forkCount: number;
-  repositoryTopics: { nodes: { topic: { name: string } }[] };
-  isArchived?: boolean;
-  pushedAt?: string | null;
-  createdAt?: string | null;
-};
-
-type StarredData = {
-  viewer: {
-    starredRepositories: {
-      edges: { node: StarredRepoNode; starredAt: string }[];
-      pageInfo: { endCursor: string | null; hasNextPage: boolean };
-    };
-  };
-};
+import { computeHealthScore } from "./health.ts";
+import {
+  createGitHubClient, starredPages, topicsOf, fetchHealthNodes,
+  createList, updateList, deleteList, setRepoLists, unstar, type GitHubClient,
+} from "./github.ts";
 
 type ListItemNode = { databaseId?: number };
 type ListNode = {
@@ -113,28 +87,6 @@ async function withTxid(fn: (client: pg.PoolClient) => Promise<Record<string, un
   }
 }
 
-const STARRED_REPOS_QUERY = `
-  query($first: Int!, $after: String) {
-    viewer {
-      starredRepositories(first: $first, after: $after, orderBy: {field: STARRED_AT, direction: DESC}) {
-        totalCount
-        pageInfo { endCursor hasNextPage }
-        edges {
-          starredAt
-          node {
-            id databaseId name nameWithOwner owner { login }
-            description url homepageUrl
-            primaryLanguage { name }
-            stargazerCount forkCount
-            isArchived pushedAt createdAt
-            repositoryTopics(first: 10) { nodes { topic { name } } }
-          }
-        }
-      }
-    }
-  }
-`;
-
 type ImportJob = {
   status: "running" | "done" | "error";
   full: boolean;
@@ -152,25 +104,13 @@ type ImportJob = {
 let importJob: ImportJob | null = null;
 
 async function runStarImport(token: string, full: boolean, job: ImportJob) {
+  const github = createGitHubClient(token);
   const client = await pool.connect();
   try {
-    let cursor: string | null = null;
-    let hasNextPage = true;
-
-    while (hasNextPage) {
-      const response = await fetch("https://api.github.com/graphql", {
-        method: "POST",
-        headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ query: STARRED_REPOS_QUERY, variables: { first: 100, after: cursor } }),
-      });
-      const json = (await response.json()) as GraphQLResponse<StarredData>;
-      if (json.errors?.length) throw new Error(json.errors[0].message);
-
-      const connection = json.data!.viewer.starredRepositories;
+    for await (const edges of starredPages(github)) {
       let reachedKnown = false;
-      for (const edge of connection.edges) {
+      for (const edge of edges) {
         const n = edge.node;
-        const topics = n.repositoryTopics.nodes.map((t) => t.topic.name).join(",");
         const { rows } = await client.query(
           `INSERT INTO repos (github_id, node_id, name, full_name, owner, description, url, homepage, language, stars, forks, topics, starred_at, is_archived, pushed_at, created_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
@@ -181,19 +121,18 @@ async function runStarImport(token: string, full: boolean, job: ImportJob) {
            RETURNING (xmax = 0) AS inserted`,
           [n.databaseId, n.id, n.name, n.nameWithOwner, n.owner.login,
            n.description, n.url, n.homepageUrl, n.primaryLanguage?.name ?? null,
-           n.stargazerCount, n.forkCount, topics, edge.starredAt,
+           n.stargazerCount, n.forkCount, topicsOf(n), edge.starredAt,
            n.isArchived ?? false, n.pushedAt ?? null, n.createdAt ?? null],
         );
         job.imported++;
         if (!rows[0].inserted) reachedKnown = true;
       }
-      cursor = connection.pageInfo.endCursor;
       // Stars come newest first, so once a page holds a repo we already had,
       // everything after it is already stored too. A full import keeps going to
       // refresh star counts and descriptions on the older ones.
-      hasNextPage = connection.pageInfo.hasNextPage && (full || !reachedKnown);
+      if (!full && reachedKnown) break;
     }
-    job.lists = await importGitHubLists(token, client);
+    job.lists = await importGitHubLists(github, client);
     job.status = "done";
   } catch (error) {
     job.status = "error";
@@ -221,16 +160,11 @@ app.post("/api/import-stars", async (c) => {
 
 app.get("/api/import-stars", (c) => c.json(importJob ?? { status: "idle" }));
 
-async function importGitHubLists(token: string, client: pg.PoolClient): Promise<number> {
-  const listsResponse = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query: `{ viewer { lists(first: 100) { nodes { id name description isPrivate items(first: 100) { nodes { ... on Repository { databaseId } } } } } } }`,
-    }),
-  });
-  const listsJson = (await listsResponse.json()) as GraphQLResponse<ListsData>;
-  const ghLists = listsJson.data?.viewer?.lists?.nodes ?? [];
+async function importGitHubLists(github: GitHubClient, client: pg.PoolClient): Promise<number> {
+  const listsJson = await github.graphql<ListsData>(
+    `{ viewer { lists(first: 100) { nodes { id name description isPrivate items(first: 100) { nodes { ... on Repository { databaseId } } } } } } }`,
+  );
+  const ghLists = listsJson?.viewer?.lists?.nodes ?? [];
   let listsImported = 0;
 
   for (const ghList of ghLists) {
@@ -278,22 +212,33 @@ app.post("/api/import-lists", async (c) => {
 
   const client = await pool.connect();
   try {
-    const listsImported = await importGitHubLists(token, client);
+    const listsImported = await importGitHubLists(createGitHubClient(token), client);
     return c.json({ lists: listsImported });
   } finally {
     client.release();
   }
 });
 
-async function githubGraphQL<TData>(token: string, query: string, variables?: Record<string, unknown>): Promise<TData | undefined> {
-  const response = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
-  const json = (await response.json()) as GraphQLResponse<TData>;
-  if (json.errors?.length) throw new Error(json.errors[0].message);
-  return json.data;
+// GitHub replaces a repo's whole set of Lists at once, so after any membership
+// change send every List the repo is now in, as Postgres has it.
+async function syncRepoLists(token: string | null, repoId: string): Promise<void> {
+  if (!token) return;
+  const { rows } = await pool.query(
+    `SELECT r.node_id, COALESCE(array_agg(l.github_list_id) FILTER (WHERE l.github_list_id IS NOT NULL), '{}') AS list_ids
+     FROM repos r
+     LEFT JOIN list_items li ON li.repo_id = r.id
+     LEFT JOIN lists l ON l.id = li.list_id
+     WHERE r.id = $1
+     GROUP BY r.node_id`,
+    [repoId],
+  );
+  const nodeId = rows[0]?.node_id;
+  if (!nodeId) return;
+  try {
+    await setRepoLists(createGitHubClient(token), nodeId, rows[0].list_ids);
+  } catch (error) {
+    console.warn("Failed to update the repo's GitHub Lists:", error);
+  }
 }
 
 app.post("/api/refresh-health", async (c) => {
@@ -301,6 +246,7 @@ app.post("/api/refresh-health", async (c) => {
   const token = resolveGitHubToken(body);
   if (!token) return c.json({ error: "Token required" }, 400);
 
+  const github = createGitHubClient(token);
   const client = await pool.connect();
   try {
     const forceAll = body.force === true;
@@ -318,21 +264,13 @@ app.post("/api/refresh-health", async (c) => {
 
       if (i > 0) await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      const response = await fetch("https://api.github.com/graphql", {
-        method: "POST",
-        headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ query: HEALTH_BATCH_QUERY, variables: { ids: nodeIds } }),
-      });
-      const json = (await response.json()) as GraphQLResponse<HealthBatchData>;
-      if (!response.ok) {
-        console.warn(`Health batch ${i / batchSize + 1} HTTP ${response.status}: ${JSON.stringify(json).slice(0, 200)}`);
+      let nodes;
+      try {
+        nodes = (await fetchHealthNodes(github, nodeIds)).nodes ?? [];
+      } catch (error) {
+        console.warn(`Health batch ${i / batchSize + 1} failed: ${error instanceof Error ? error.message : error}`);
         continue;
       }
-      if (json.errors?.length) {
-        console.warn(`Health batch ${i / batchSize + 1} GraphQL error: ${json.errors[0]?.message}`);
-      }
-
-      const nodes = json.data?.nodes ?? [];
       for (let j = 0; j < batch.length; j++) {
         const node = nodes[j];
         const dbRepo = batch[j];
@@ -370,11 +308,7 @@ app.post("/api/lists/create", async (c) => {
   let githubListId: string | null = null;
   if (token) {
     try {
-      const data = await githubGraphQL<{ createUserList: { list: { id: string; name: string } } }>(token,
-        `mutation($input: CreateUserListInput!) { createUserList(input: $input) { list { id name } } }`,
-        { input: { name, description: description ?? "", isPrivate: false } },
-      );
-      githubListId = data?.createUserList.list.id ?? null;
+      githubListId = await createList(createGitHubClient(token), name, description ?? null);
     } catch (error) {
       console.warn("Failed to create GitHub List:", error);
     }
@@ -402,10 +336,7 @@ app.delete("/api/lists/:id/delete", async (c) => {
 
     if (token && githubListId) {
       try {
-        await githubGraphQL(token,
-          `mutation($input: DeleteUserListInput!) { deleteUserList(input: $input) { user { id } } }`,
-          { input: { listId: githubListId } },
-        );
+        await deleteList(createGitHubClient(token), githubListId);
       } catch (error) {
         console.warn("Failed to delete GitHub List:", error);
       }
@@ -434,10 +365,7 @@ app.patch("/api/lists/:id/update", async (c) => {
 
     if (token && githubListId) {
       try {
-        await githubGraphQL(token,
-          `mutation($input: UpdateUserListInput!) { updateUserList(input: $input) { list { id } } }`,
-          { input: { listId: githubListId, name, description: description ?? "" } },
-        );
+        await updateList(createGitHubClient(token), githubListId, { name, description });
       } catch (error) {
         console.warn("Failed to update GitHub List:", error);
       }
@@ -477,40 +405,22 @@ app.post("/api/lists/:id/add-repo", async (c) => {
     return { item: rows[0] ?? null };
   });
 
-  if (token) {
-    const client = await pool.connect();
-    try {
-      const { rows: listRows } = await client.query("SELECT github_list_id FROM lists WHERE id = $1", [listId]);
-      const { rows: repoRows } = await client.query("SELECT node_id FROM repos WHERE id = $1", [repo_id]);
-      const githubListId = listRows[0]?.github_list_id;
-      const nodeId = repoRows[0]?.node_id;
-
-      if (githubListId && nodeId) {
-        try {
-          await githubGraphQL(token,
-            `mutation($input: UpdateUserListsForItemInput!) { updateUserListsForItem(input: $input) { user { id } } }`,
-            { input: { itemId: nodeId, listIds: [githubListId] } },
-          );
-        } catch (error) {
-          console.warn("Failed to add repo to GitHub List:", error);
-        }
-      }
-    } finally {
-      client.release();
-    }
-  }
+  await syncRepoLists(token, repo_id);
 
   return c.json(result);
 });
 
 app.post("/api/lists/:id/remove-repo", async (c) => {
   const listId = c.req.param("id");
-  const { repo_id } = await c.req.json();
+  const body = await c.req.json();
+  const { repo_id } = body;
+  const token = resolveGitHubToken(body);
 
   const result = await withTxid(async (client) => {
     await client.query("DELETE FROM list_items WHERE list_id = $1 AND repo_id = $2", [listId, repo_id]);
     return {};
   });
+  await syncRepoLists(token, repo_id);
   return c.json(result);
 });
 
@@ -525,10 +435,7 @@ app.post("/api/repos/:id/unstar", async (c) => {
       const { rows } = await client.query("SELECT owner, name FROM repos WHERE id = $1", [repoId]);
       if (rows[0]) {
         try {
-          await fetch(`https://api.github.com/user/starred/${rows[0].owner}/${rows[0].name}`, {
-            method: "DELETE",
-            headers: { Authorization: `token ${token}` },
-          });
+          await unstar(createGitHubClient(token), rows[0].owner, rows[0].name);
         } catch (error) {
           console.warn("Failed to unstar on GitHub:", error);
         }

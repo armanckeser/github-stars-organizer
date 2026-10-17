@@ -81,4 +81,19 @@ describe("planRestore", () => {
 
     expect(changeCount(planRestore(backup, now))).toBe(0);
   });
+
+  test("planRestore_reuses_a_list_with_the_same_name_when_its_id_changed_in_an_earlier_restore", () => {
+    // Regression guarded: a restore recreates a deleted List under a new id, so every
+    // older backup still asked to recreate it, and restoring one made a second copy.
+    const backup = backupOf({
+      stars: [star(STUDY_GROUP), star(EL_TIGRE)],
+      lists: [list("UL_2", "Darkest Timeline", [STUDY_GROUP, EL_TIGRE], true)],
+    });
+    const now: GitHubSnapshot = { stars: [star(STUDY_GROUP), star(EL_TIGRE)], lists: [list("UL_4", "Darkest Timeline", [STUDY_GROUP], true)] };
+
+    const plan = planRestore(backup, now);
+
+    expect(plan.recreateLists).toEqual([]);
+    expect(plan.addToLists).toEqual([{ repo: EL_TIGRE, listId: "UL_4", listName: "Darkest Timeline" }]);
+  });
 });

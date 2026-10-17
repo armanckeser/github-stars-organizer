@@ -12,7 +12,7 @@ import {
   type CreateListRequest, type CreateListResponse, type UpdateListRequest, type MembershipRequest, type MembershipResponse,
   type UnstarRequest, type PingResponse, type BackupsResponse, type RestoreRequest, type RestoreResult,
 } from "../../src/lib/local-api.ts";
-import { buildBackup, InvalidBackupError, parseBackup, type BackupSummary, type RestorePlan } from "../../src/lib/backup.ts";
+import { buildBackup, InvalidBackupError, parseBackup, parseBackUpRequest, type BackupSummary, type RestorePlan } from "../../src/lib/backup.ts";
 import { BackupNotFoundError, type BackupStore } from "./backup-store.ts";
 import { applyRestore, previewRestore, refuseOtherAccounts, RestoreRefusedError } from "./restore.ts";
 import { readGitHubSnapshot } from "./snapshot.ts";
@@ -142,15 +142,19 @@ export function createLocalServer({ github, appDir, port, store, login }: LocalS
 
   api.get("/backups", async (c) => c.json<BackupsResponse>({ directory: store.directory, backups: await store.list() }));
 
-  api.post("/backups", async (c) =>
-    c.json<BackupSummary>(await store.save(buildBackup(login, "manual", await readGitHubSnapshot(github), new Date()))));
+  // The browser sends its tags, ratings and notes along, so a backup taken here can bring them back too.
+  api.post("/backups", async (c) => {
+    const { local } = parseBackUpRequest(await c.req.json());
+    return c.json<BackupSummary>(await store.save(buildBackup(login, "manual", await readGitHubSnapshot(github), new Date(), local)));
+  });
 
   api.get("/backups/:id", async (c) => c.json(await store.read(c.req.param("id"))));
 
   api.post("/backups/upload", async (c) => {
     const backup = parseBackup(await c.req.json());
     refuseOtherAccounts(backup, login);
-    return c.json<BackupSummary>(await store.save({ ...backup, reason: "uploaded", createdAt: new Date().toISOString() }));
+    // Keeps the date it was taken, which is what someone restoring it is choosing by.
+    return c.json<BackupSummary>(await store.save({ ...backup, reason: "uploaded" }));
   });
 
   api.post("/restore/plan", async (c) => {

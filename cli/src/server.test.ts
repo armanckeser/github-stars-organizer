@@ -145,14 +145,16 @@ describe("restore", () => {
 });
 
 describe("backups", () => {
-  test("backups_saves_an_uploaded_file_as_uploaded_and_lists_it_newest_first", async () => {
+  test("backups_keeps_an_uploaded_files_own_date_and_saves_it_beside_the_original", async () => {
+    // Regression guarded: an uploaded backup took the upload's time, so the restore
+    // dialog named the wrong moment for the state it would bring back.
     const { json: launchCopy } = await call<Backup>("GET", `backups/${launchBackup.id}`);
 
     const upload = await call<BackupSummary>("POST", "backups/upload", launchCopy);
     const { json } = await call<BackupsResponse>("GET", "backups");
 
-    expect(upload.json).toMatchObject({ reason: "uploaded", stars: 230, lists: 2 });
-    expect(json.backups.map((backup) => backup.reason)).toEqual(["uploaded", "launch"]);
+    expect(upload.json).toMatchObject({ reason: "uploaded", createdAt: launchBackup.createdAt, stars: 230, lists: 2 });
+    expect(json.backups.map((backup) => backup.reason).sort()).toEqual(["launch", "uploaded"]);
   });
 
   test("backups_answers_400_when_the_upload_is_not_a_backup", async () => {
@@ -168,5 +170,23 @@ describe("backups", () => {
     const manual = await call<BackupSummary>("POST", "backups", {});
 
     expect(manual.json).toMatchObject({ reason: "manual", stars: 229, lists: 1 });
+  });
+
+  test("backups_keeps_the_browsers_tags_ratings_and_notes_when_sent_with_a_manual_backup", async () => {
+    // Regression guarded: an unstar drops the repo's notes from the browser, and a
+    // backup holding only GitHub's side couldn't bring them back.
+    const local = { repos: [{ githubId: 1000, notes: "Cool cool cool", usefulnessRating: 5 }], tags: [], repoTags: [] };
+
+    const manual = await call<BackupSummary>("POST", "backups", { local });
+    const saved = await call<Backup>("GET", `backups/${manual.json.id}`);
+
+    expect(saved.json.local).toEqual(local);
+  });
+
+  test("backups_answers_400_and_saves_nothing_when_the_browser_layer_is_malformed", async () => {
+    const manual = await call("POST", "backups", { local: { repos: [{ githubId: "not-a-number" }] } });
+
+    expect(manual.status).toBe(400);
+    expect((await call<BackupsResponse>("GET", "backups")).json.backups).toHaveLength(1);
   });
 });

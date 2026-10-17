@@ -16,6 +16,7 @@ import {
   type StarList,
   type ListItem,
 } from "@/lib/collections";
+import { confirmUnstar } from "@/lib/unstar";
 
 interface RepoBulkActionsProps {
   selectedRepos: Repo[];
@@ -188,7 +189,7 @@ function BulkUnstar({
 }) {
   async function handleUnstar() {
     const count = selectedRepos.length;
-    if (!window.confirm(`Unstar ${count} ${count === 1 ? "repo" : "repos"} on GitHub?`)) return;
+    if (!confirmUnstar(`Unstar ${count} ${count === 1 ? "repo" : "repos"} on GitHub?`)) return;
     for (const repo of selectedRepos) {
       repoCollection.delete(repo.id);
     }

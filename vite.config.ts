@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import path from "path";
+import cliPackage from "./cli/package.json" with { type: "json" };
 
 // Link previews need absolute URLs, so og:url and og:image come from the
 // deployment's own address, which the Pages workflow passes in as
@@ -34,6 +35,8 @@ export default defineConfig({
   // The demo's /api/lists is a Cloudflare Worker in production; in dev it is
   // `npm run dev` in worker/, on wrangler's default port.
   server: process.env.VITE_DEMO === "1" ? { proxy: { "/api": "http://localhost:8787" } } : undefined,
+  // The version the npx package publishes, shown in the app's footer.
+  define: { __APP_VERSION__: JSON.stringify(cliPackage.version) },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

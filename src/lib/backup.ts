@@ -20,7 +20,7 @@ const backupListSchema = z.object({
   repos: z.array(listRepoSchema),
 });
 
-const localLayerSchema = z.object({
+export const localLayerSchema = z.object({
   repos: z.array(z.object({ githubId: z.number().int(), notes: z.string().nullable(), usefulnessRating: z.number().int().min(1).max(5).nullable() })),
   tags: z.array(z.object({ id: z.string(), name: z.string(), color: z.string() })),
   repoTags: z.array(z.object({ githubId: z.number().int(), tagId: z.string() })),
@@ -49,16 +49,19 @@ export class InvalidBackupError extends Error {}
 
 export function parseBackup(json: unknown): Backup {
   const result = backupSchema.safeParse(json);
-  if (!result.success) {
-    const issue = result.error.issues[0];
-    throw new InvalidBackupError(`Not a Stars Organizer backup (${issue.path.join(".") || "file"}: ${issue.message}).`);
+  if (result.success) return result.data;
+  const header = json as { format?: unknown; version?: unknown } | null;
+  if (header?.format !== BACKUP_FORMAT) throw new InvalidBackupError("This file isn't a Stars Organizer backup.");
+  if (typeof header.version === "number" && header.version > BACKUP_VERSION) {
+    throw new InvalidBackupError("This backup was made by a newer version. Update with `npx github-stars-organizer@latest`.");
   }
-  return result.data;
+  const issue = result.error.issues[0];
+  throw new InvalidBackupError(`This backup is damaged (${issue.path.join(".")}: ${issue.message}).`);
 }
 
 export type GitHubSnapshot = { stars: BackupStar[]; lists: GitHubList[] };
 
-export function buildBackup(login: string, reason: BackupReason, snapshot: GitHubSnapshot, createdAt: Date): Backup {
+export function buildBackup(login: string, reason: BackupReason, snapshot: GitHubSnapshot, createdAt: Date, local?: LocalLayer): Backup {
   return {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
@@ -69,6 +72,7 @@ export function buildBackup(login: string, reason: BackupReason, snapshot: GitHu
     lists: snapshot.lists.map((list) => ({
       id: list.id, name: list.name, description: list.description, isPrivate: list.isPrivate, repos: list.repos,
     })),
+    ...(local ? { local } : {}),
   };
 }
 
@@ -81,22 +85,37 @@ export type RestoreAddition = { repo: ListRepo; listId: string; listName: string
 export type RestorePlan = {
   restar: BackupStar[];
   recreateLists: BackupList[];
-  /** listId is the backup's List id, which for a recreated List is replaced when it is made. */
+  /** The List's id on GitHub now, or for a List to recreate, the backup's id (replaced once it is made). */
   addToLists: RestoreAddition[];
 };
 
 export function planRestore(backup: Backup, current: GitHubSnapshot): RestorePlan {
   const starredNow = new Set(current.stars.map((star) => star.githubId));
-  const listsNow = new Map(current.lists.map((list) => [list.id, list]));
+  const listsById = new Map(current.lists.map((list) => [list.id, list]));
+  const listsByName = new Map(current.lists.map((list) => [list.name, list]));
+  // By id first, so a List renamed since still counts as itself. Then by name: a
+  // restore recreates a deleted List under a new id, and an older backup must find
+  // that copy rather than make another.
+  const listNow = (list: BackupList) => listsById.get(list.id) ?? listsByName.get(list.name);
   const restar = backup.stars.filter((star) => !starredNow.has(star.githubId));
-  const recreateLists = backup.lists.filter((list) => !listsNow.has(list.id));
+  const recreateLists = backup.lists.filter((list) => !listNow(list));
   const addToLists = backup.lists.flatMap((list) => {
-    const membersNow = new Set(listsNow.get(list.id)?.repos.map((repo) => repo.githubId) ?? []);
+    const existing = listNow(list);
+    const membersNow = new Set(existing?.repos.map((repo) => repo.githubId) ?? []);
     return list.repos
       .filter((repo) => !membersNow.has(repo.githubId))
-      .map((repo) => ({ repo, listId: list.id, listName: list.name }));
+      .map((repo) => ({ repo, listId: existing?.id ?? list.id, listName: list.name }));
   });
   return { restar, recreateLists, addToLists };
+}
+
+export const backUpRequestSchema = z.object({ local: localLayerSchema.optional() });
+export type BackUpRequest = z.infer<typeof backUpRequestSchema>;
+
+export function parseBackUpRequest(json: unknown): BackUpRequest {
+  const result = backUpRequestSchema.safeParse(json);
+  if (!result.success) throw new InvalidBackupError(`Couldn't read this browser's tags, ratings and notes (${result.error.issues[0].message}).`);
+  return result.data;
 }
 
 export function changeCount(plan: RestorePlan): number {

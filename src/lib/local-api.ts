@@ -1,6 +1,6 @@
 import type { Repo } from "./collections";
 import type { GitHubList, RepoListChange } from "../../server/github-lists";
-import type { Backup, BackupSummary, RestorePlan } from "./backup";
+import type { Backup, BackUpRequest, BackupSummary, RestorePlan } from "./backup";
 
 // The contract between the browser and the npx CLI's localhost server
 // (cli/src/server.ts). The server holds the gh token and only talks to GitHub;
@@ -73,7 +73,7 @@ export const localApi = {
   changeMembership: (request: MembershipRequest) => call<MembershipResponse>("POST", "membership", request),
   unstar: (request: UnstarRequest) => call<Record<string, never>>("POST", "unstar", request),
   listBackups: () => call<BackupsResponse>("GET", "backups", undefined),
-  backUpNow: () => call<BackupSummary>("POST", "backups", {}),
+  backUpNow: (request: BackUpRequest) => call<BackupSummary>("POST", "backups", request),
   readBackup: (id: string) => call<Backup>("GET", `backups/${encodeURIComponent(id)}`, undefined),
   uploadBackup: (backup: unknown) => call<BackupSummary>("POST", "backups/upload", backup),
   planRestore: (request: RestoreRequest) => call<RestorePlan>("POST", "restore/plan", request),

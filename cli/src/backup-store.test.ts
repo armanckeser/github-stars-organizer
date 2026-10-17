@@ -89,6 +89,13 @@ describe("backup store", () => {
 describe("parseBackup", () => {
   test("parseBackup_raises_InvalidBackupError_when_the_file_is_not_a_backup", () => {
     expect(() => parseBackup({ format: "something-else" })).toThrow(InvalidBackupError);
+    expect(() => parseBackup(null)).toThrow("This file isn't a Stars Organizer backup.");
+  });
+
+  test("parseBackup_names_the_newer_version_when_a_backup_comes_from_a_later_release", () => {
+    // Regression guarded: a backup from a newer release was called "not a backup",
+    // which reads as a broken file rather than an out-of-date app.
+    expect(() => parseBackup({ ...backup("manual", day(0)), version: BACKUP_VERSION + 1 })).toThrow("made by a newer version");
   });
 
   test("parseBackup_raises_InvalidBackupError_when_a_rating_is_out_of_range", () => {

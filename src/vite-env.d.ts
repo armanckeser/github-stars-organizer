@@ -7,3 +7,6 @@ interface ImportMetaEnv {
   // "1" builds the app the npx CLI serves (see src/lib/mode.ts).
   readonly VITE_LOCAL?: string;
 }
+
+/** cli/package.json's version, set by vite.config.ts. */
+declare const __APP_VERSION__: string;

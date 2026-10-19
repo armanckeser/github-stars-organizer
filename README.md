@@ -21,6 +21,8 @@ Or **[try the demo](https://stars-demo.armanckeser.com/)**, no sign-in.
 - **Backups before every launch**, and a restore that only adds back what's missing.
 - **Private:** talks only to GitHub with your token. No telemetry.
 
+Works with AI agents: they can read your stars, suggest Lists and sort repos into them over a local HTTP API. [Guide and copy-paste prompt](AGENT-API.md).
+
 <details>
 <summary>Self-host with Docker</summary>
 
@@ -32,7 +34,7 @@ cp server/.env.example server/.env    # set GITHUB_TOKEN=ghp_...
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Open http://localhost:5184 and press **Import Stars**. There's no login, so put it behind your reverse proxy's auth. An AI agent can read the data over a read-only SQL role and act through the same API as the UI.
+Open http://localhost:5184 and press **Import Stars**. There's no login, so put it behind your reverse proxy's auth. An AI agent can act through the same API as the UI (`/api/*` on port 5184); [AGENT-API.md](AGENT-API.md) covers the `npx` version's API.
 </details>
 
 Developing: [CONTRIBUTING.md](CONTRIBUTING.md). Like it? A star helps others find it.

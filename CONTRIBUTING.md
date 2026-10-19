@@ -85,7 +85,7 @@ github-stars-organizer/
 └── docker-compose.yml     # Postgres + ElectricSQL
 ```
 
-**Reads and writes are separated.** An agent reads the database directly over a read-only SQL connection. All writes go through the Hono API so the GitHub sync and validation run; nothing writes to Postgres as a superuser.
+**Writes go through the API.** All writes go through the Hono API so the GitHub sync and validation run. An agent uses the same API; [AGENT-API.md](AGENT-API.md) documents the `npx` version's.
 
 **Electric drives the UI.** ElectricSQL streams Postgres shapes into the browser through an API proxy. TanStack DB turns each table (`repos`, `lists`, `list_items`, `tags`, `repo_tags`) into a live collection, and the React UI re-renders on change.
 

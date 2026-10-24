@@ -12,7 +12,7 @@ description: |
 
   Explore finds repos you starred and forgot, and the ones that went quiet or were archived, so you can unstar them in bulk.
 
-  Needs a classic GitHub token with the repo scope, which you paste into the install form. Tags, ratings and notes stay in this server's database; Lists and unstars are written to GitHub. Not affiliated with GitHub.
+  Needs a classic GitHub token with the repo scope, which you paste into the install form. Create one at https://github.com/settings/tokens/new?scopes=repo Tags, ratings and notes stay in this server's database; Lists and unstars are written to GitHub. Not affiliated with GitHub.
 category: developer
 developer: Armanc Keser
 website: https://github.com/armanckeser/github-stars-organizer
@@ -32,7 +32,7 @@ env:
     label: GitHub token (classic, repo scope)
     type: password
     required: true
-    help: Create one at https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer
+    help: Create one at https://github.com/settings/tokens/new?scopes=repo
 # Umbrel installs take no settings, and the token has nowhere else to go yet.
 stores:
   umbrel: false

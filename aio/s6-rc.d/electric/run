@@ -1,0 +1,9 @@
+#!/command/with-contenv sh
+# Electric listens on 3000 inside the container only (the image publishes 8080, the app). The secret means
+# even a neighbour on the same Docker network cannot read shapes without going through the app.
+PASSWORD="$(cat /data/secrets/postgres-password)"
+export DATABASE_URL="postgresql://postgres:${PASSWORD}@127.0.0.1:5432/app?sslmode=disable"
+export ELECTRIC_SECRET="$(cat /data/secrets/electric-secret)"
+export ELECTRIC_STORAGE_DIR=/data/electric
+export HOME=/data/home
+exec s6-setuidgid app /opt/electric/bin/entrypoint start

@@ -1,0 +1,38 @@
+# Store listing for Stars Organizer. armanckeser/selfhost-apps reads this file from the latest release and
+# generates every store package from it (Cosmos, Umbrel, CasaOS/ZimaOS, Runtipi, Unraid, Portainer).
+# Paths are relative to the repo root.
+
+id: github-stars-organizer
+name: Stars Organizer
+stack: agent-first
+auth: builtin
+tagline: Search, tag, rate and sort your GitHub stars into GitHub Lists.
+description: |
+  Stars Organizer imports every repo you have starred on GitHub into one searchable table, with language, stars, last push and a health score. Tag repos, rate them, write notes, and sort them into GitHub Lists. Lists you make here are real GitHub Lists, so they show on your profile.
+
+  Explore finds repos you starred and forgot, and the ones that went quiet or were archived, so you can unstar them in bulk.
+
+  Needs a classic GitHub token with the repo scope, which you paste into the install form. Tags, ratings and notes stay in this server's database; Lists and unstars are written to GitHub. Not affiliated with GitHub.
+category: developer
+developer: Armanc Keser
+website: https://github.com/armanckeser/github-stars-organizer
+repo: https://github.com/armanckeser/github-stars-organizer
+support: https://github.com/armanckeser/github-stars-organizer/issues
+license: AGPL-3.0-or-later
+icon: selfhost/icon.png
+screenshots:
+  - img/cover.png
+  - img/explore.png
+image: ghcr.io/armanckeser/github-stars-organizer
+compose: docker-compose.selfhost.yml
+port: 8080
+host_port: 5184
+env:
+  - name: GITHUB_TOKEN
+    label: GitHub token (classic, repo scope)
+    type: password
+    required: true
+    help: Create one at https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer
+# Umbrel installs take no settings, and the token has nowhere else to go yet.
+stores:
+  umbrel: false

@@ -26,15 +26,23 @@ Works with AI agents: they can read your stars, suggest Lists and sort repos int
 <details>
 <summary>Self-host with Docker</summary>
 
-Needs Docker and a [classic token](https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer) with `repo` scope.
+Needs Docker and a [classic token](https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer) with `repo` scope. No clone:
 
 ```bash
-git clone https://github.com/armanckeser/github-stars-organizer.git && cd github-stars-organizer
-cp server/.env.example server/.env    # set GITHUB_TOKEN=ghp_...
-docker compose -f docker-compose.prod.yml up -d --build
+GITHUB_TOKEN=ghp_... docker compose -f oci://ghcr.io/armanckeser/github-stars-organizer-stack:latest up -d
 ```
 
-Open http://localhost:5184 and press **Import Stars**. There's no login, so put it behind your reverse proxy's auth. An AI agent can act through the same API as the UI (`/api/*` on port 5184); [AGENT-API.md](AGENT-API.md) covers the `npx` version's API.
+Open http://localhost:8080 and press **Import Stars**. That runs three containers (the app, Postgres and Electric); `ghcr.io/armanckeser/github-stars-organizer:aio` is all three in one, with its data under `/data`:
+
+```bash
+docker run -d -p 8080:8080 -v stars-data:/data -e GITHUB_TOKEN=ghp_... ghcr.io/armanckeser/github-stars-organizer:aio
+```
+
+The token can unstar repos and edit your Lists, so anyone who can reach the port can too. Set `AUTH_PASSWORD` to require a password, or sign in through your OIDC provider (Authentik, Authelia, Pocket ID...) with `AUTH_ENABLED=1` and the `OIDC_*` settings in [docker-compose.selfhost.yml](docker-compose.selfhost.yml). Or leave both unset behind a proxy that already checks who gets in.
+
+Cosmos, CasaOS, Runtipi, Unraid and Portainer can install it from their app stores: add [armanckeser/selfhost-apps](https://github.com/armanckeser/selfhost-apps) as a source.
+
+An AI agent can act through the same API as the UI (`/api/*`). With sign-in on, it sends `Authorization: Bearer <AGENT_API_TOKEN>`; set that yourself, or read the one generated on first start from the `instance_secret` table. [AGENT-API.md](AGENT-API.md) covers the `npx` version's API.
 </details>
 
 Developing: [CONTRIBUTING.md](CONTRIBUTING.md). Like it? A star helps others find it.

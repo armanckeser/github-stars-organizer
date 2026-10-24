@@ -5,6 +5,7 @@ import { apiPost, apiDelete, apiPatch, apiCreateList, apiDeleteList, apiUpdateLi
 import { demoSeed } from "./demo";
 import { localApi } from "./local-api";
 import { APP_MODE } from "./mode";
+import { reportingFailure } from "./write-errors";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -127,13 +128,13 @@ function collectionOptions<T extends Row>(id: Table, writes: Writes<T>): Collect
       persistence: browserStore.persistence,
       schemaVersion: LOCAL_SCHEMA_VERSION,
       onInsert: local.insert && (async ({ transaction }) => {
-        for (const mutation of transaction.mutations) await local.insert!(mutation.modified, transaction);
+        for (const mutation of transaction.mutations) await reportingFailure(() => local.insert!(mutation.modified, transaction));
       }),
       onUpdate: local.update && (async ({ transaction }) => {
-        for (const mutation of transaction.mutations) await local.update!(mutation.original, mutation.changes);
+        for (const mutation of transaction.mutations) await reportingFailure(() => local.update!(mutation.original, mutation.changes));
       }),
       onDelete: local.delete && (async ({ transaction }) => {
-        for (const mutation of transaction.mutations) await local.delete!(mutation.original, transaction);
+        for (const mutation of transaction.mutations) await reportingFailure(() => local.delete!(mutation.original, transaction));
       }),
     }) as CollectionConfig<T, string>;
   }
@@ -144,17 +145,17 @@ function collectionOptions<T extends Row>(id: Table, writes: Writes<T>): Collect
     getKey,
     onInsert: server.insert && (async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations) {
-        await collection.utils.awaitTxId((await server.insert!(mutation.modified)).txid);
+        await reportingFailure(async () => collection.utils.awaitTxId((await server.insert!(mutation.modified)).txid));
       }
     }),
     onUpdate: server.update && (async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations) {
-        await collection.utils.awaitTxId((await server.update!(mutation.original, mutation.changes)).txid);
+        await reportingFailure(async () => collection.utils.awaitTxId((await server.update!(mutation.original, mutation.changes)).txid));
       }
     }),
     onDelete: server.delete && (async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations) {
-        await collection.utils.awaitTxId((await server.delete!(mutation.original)).txid);
+        await reportingFailure(async () => collection.utils.awaitTxId((await server.delete!(mutation.original)).txid));
       }
     }),
   }) as CollectionConfig<T, string>;

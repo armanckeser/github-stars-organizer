@@ -26,16 +26,21 @@ export type GitHubClient = {
 
 export function createGitHubClient(token: string, apiUrl: string = process.env.GITHUB_API_URL ?? DEFAULT_API_URL): GitHubClient {
   const headers = { Authorization: `bearer ${token}`, "Content-Type": "application/json", "User-Agent": "github-stars-organizer" };
+  // fetch rejects with a bare "fetch failed" when GitHub can't be reached at all,
+  // which is what the person would otherwise see in the error toast.
+  const request = (url: string, init: RequestInit) => fetch(url, init).catch(() => {
+    throw new GitHubError(502, "GitHub can't be reached. Check your internet connection.");
+  });
   return {
     async graphql<TData>(query: string, variables?: Record<string, unknown>): Promise<TData> {
-      const response = await fetch(`${apiUrl}/graphql`, { method: "POST", headers, body: JSON.stringify({ query, variables }) });
+      const response = await request(`${apiUrl}/graphql`, { method: "POST", headers, body: JSON.stringify({ query, variables }) });
       const json = (await response.json().catch(() => ({}))) as GraphQLResponse<TData>;
       if (!response.ok) throw new GitHubError(response.status, json.message ?? `GitHub returned ${response.status}.`);
       if (json.errors?.length) throw new GitHubError(502, json.errors[0].message);
       return json.data as TData;
     },
     async rest(method: string, path: string): Promise<void> {
-      const response = await fetch(`${apiUrl}${path}`, { method, headers });
+      const response = await request(`${apiUrl}${path}`, { method, headers });
       if (!response.ok) {
         const json = (await response.json().catch(() => ({}))) as { message?: string };
         throw new GitHubError(response.status, json.message ?? `GitHub returned ${response.status}.`);

@@ -93,7 +93,13 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
   const saveNotes = useCallback(async (value: string) => {
     if (!repo) return;
     setSaveStatus("saving");
-    await repoCollection.update(repo.id, (draft) => { draft.notes = value; }).isPersisted.promise;
+    try {
+      await repoCollection.update(repo.id, (draft) => { draft.notes = value; }).isPersisted.promise;
+    } catch {
+      // The write rolled back and a toast says why; don't claim it saved.
+      setSaveStatus("idle");
+      return;
+    }
     setSaveStatus("saved");
     setTimeout(() => setSaveStatus("idle"), 1500);
   }, [repo?.id]);
@@ -106,7 +112,8 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
 
   async function handleRatingChange(rating: number | null) {
     if (!repo) return;
-    await repoCollection.update(repo.id, (draft) => { draft.usefulness_rating = rating; }).isPersisted.promise;
+    // A failure has already been shown as a toast and rolled back.
+    await repoCollection.update(repo.id, (draft) => { draft.usefulness_rating = rating; }).isPersisted.promise.catch(() => {});
   }
 
   function handleListToggle(list: StarList) {

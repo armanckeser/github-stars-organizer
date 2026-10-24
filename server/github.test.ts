@@ -26,7 +26,8 @@ function listsHolding(nodeId: string): string[] {
 }
 
 afterEach(async () => {
-  await fake.close();
+  // A test that takes GitHub offline has closed it already.
+  await fake.close().catch(() => {});
 });
 
 describe("changeRepoList", () => {
@@ -90,5 +91,18 @@ describe("changeRepoList", () => {
 
     await changeRepoList(github, { ...DEEP_REPO, githubListId: fake.listNamed("Pillow Fort").id, change: "add" });
     expect(listsHolding("R_1140")).toEqual(["Darkest Timeline", "Paintball", "Pillow Fort"]);
+  });
+});
+
+describe("createGitHubClient", () => {
+  test("createGitHubClient_says_github_cant_be_reached_instead_of_fetch_failed_when_offline", async () => {
+    // Regression guarded: the error toast read "fetch failed" when GitHub was unreachable.
+    const github = await start();
+    await fake.close();
+
+    const error = await github.graphql("query { viewer { login } }").catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(GitHubError);
+    expect((error as GitHubError).message).toBe("GitHub can't be reached. Check your internet connection.");
   });
 });

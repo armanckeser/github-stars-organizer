@@ -2,11 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { z } from "zod";
-import { Download } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import { DEMO } from "@/lib/demo";
 import { APP_MODE } from "@/lib/mode";
 import { importFromGitHub, scoreHealth } from "@/lib/local-sync";
 import { DemoUserForm } from "@/components/demo-user-form";
+import { AstralImportDialog } from "@/components/astral-import-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { RepoActions } from "@/components/repo-actions";
 import { RepoDetailSheet } from "@/components/repo-detail-sheet";
@@ -104,6 +106,7 @@ function AllStarsPage() {
   );
 
   const [importing, setImporting] = useState(false);
+  const [astralOpen, setAstralOpen] = useState(false);
   const [progress, setProgress] = useState("");
   const [detailRepo, setDetailRepo] = useState<Repo | null>(null);
   const isDesktop = useIsDesktop();
@@ -214,10 +217,26 @@ function AllStarsPage() {
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             {progress && <span className="text-xs text-muted-foreground">{progress}</span>}
-            <Button onClick={handleImport} disabled={importing}>
-              <Download className="mr-2 h-4 w-4" />
-              {importing ? "Importing..." : "Import Stars"}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button disabled={importing} />}>
+                <Download className="mr-2 h-4 w-4" />
+                {importing ? "Importing..." : "Import Stars"}
+                <ChevronDown className="ml-1 h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-auto min-w-48">
+                <DropdownMenuItem onClick={handleImport}>From GitHub</DropdownMenuItem>
+                {/* Astral tags attach to starred repos, so there is nothing to attach them to before a GitHub import. */}
+                <DropdownMenuItem disabled={allRepos.length === 0} onClick={() => setAstralOpen(true)}>
+                  From an Astral export
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {astralOpen && (
+              <AstralImportDialog
+                stored={{ repos: allRepos, lists: lists ?? [], list_items: listItems ?? [] }}
+                onClose={() => setAstralOpen(false)}
+              />
+            )}
           </div>
         )}
       </div>

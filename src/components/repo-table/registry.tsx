@@ -236,5 +236,6 @@ export function repoSearchFields(repo: Repo): string[] {
     repo.language ?? "",
     repo.topics ?? "",
     repo.owner,
+    repo.notes ?? "",
   ];
 }

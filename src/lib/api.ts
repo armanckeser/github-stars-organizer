@@ -6,20 +6,26 @@ interface ApiResponse {
   [key: string]: unknown;
 }
 
+// The server answers a refused write with `{ error }`, often GitHub's own reason,
+// which says more than the status code.
+async function readResponse(response: Response): Promise<ApiResponse> {
+  if (response.ok) return response.json();
+  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  throw new Error(body?.error ?? `API error: ${response.status}`);
+}
+
 export async function apiPost(table: string, data: Record<string, unknown>): Promise<ApiResponse> {
   const response = await fetch(`${API_URL}/api/${table}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiDelete(table: string, id: string): Promise<ApiResponse> {
   const response = await fetch(`${API_URL}/api/${table}/${id}`, { method: "DELETE" });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiPatch(table: string, id: string, data: Record<string, unknown>): Promise<ApiResponse> {
@@ -28,8 +34,7 @@ export async function apiPatch(table: string, id: string, data: Record<string, u
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiCreateList(data: Record<string, unknown>): Promise<ApiResponse> {
@@ -38,14 +43,12 @@ export async function apiCreateList(data: Record<string, unknown>): Promise<ApiR
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiDeleteList(id: string): Promise<ApiResponse> {
   const response = await fetch(`${API_URL}/api/lists/${id}/delete`, { method: "DELETE" });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiUpdateList(id: string, data: Record<string, unknown>): Promise<ApiResponse> {
@@ -54,8 +57,7 @@ export async function apiUpdateList(id: string, data: Record<string, unknown>): 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiUnstarRepo(id: string): Promise<ApiResponse> {
@@ -64,8 +66,7 @@ export async function apiUnstarRepo(id: string): Promise<ApiResponse> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiAddRepoToList(listId: string, data: Record<string, unknown>): Promise<ApiResponse> {
@@ -74,8 +75,7 @@ export async function apiAddRepoToList(listId: string, data: Record<string, unkn
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }
 
 export async function apiRemoveRepoFromList(listId: string, repoId: string): Promise<ApiResponse> {
@@ -84,6 +84,5 @@ export async function apiRemoveRepoFromList(listId: string, repoId: string): Pro
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ repo_id: repoId }),
   });
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  return response.json();
+  return readResponse(response);
 }

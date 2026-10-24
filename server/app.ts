@@ -39,6 +39,9 @@ export type AppOptions = {
 const WRITABLE_TABLES = new Set(["repos", "lists", "list_items", "tags", "repo_tags"]);
 const COLUMN = /^[a-z_]+$/;
 
+// The app turns `code` into a link that creates the token (src/routes/index.tsx).
+const NO_TOKEN = { error: "No GitHub token. Set GITHUB_TOKEN to a classic token with the repo scope and restart.", code: "no_token" };
+
 export function createApp(options: AppOptions): Hono {
   const pool = options.db;
   const GITHUB_TOKEN = options.githubToken;
@@ -171,7 +174,7 @@ export function createApp(options: AppOptions): Hono {
   app.post("/api/import-stars", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const token = resolveGitHubToken(body);
-    if (!token) return c.json({ error: "Token required — set GITHUB_TOKEN in server/.env or pass in request body" }, 400);
+    if (!token) return c.json(NO_TOKEN, 400);
 
     if (importJob?.status !== "running") {
       importJob = { status: "running", full: Boolean(body.full), imported: 0, lists: 0, startedAt: new Date().toISOString() };
@@ -235,7 +238,7 @@ export function createApp(options: AppOptions): Hono {
   app.post("/api/import-lists", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const token = resolveGitHubToken(body);
-    if (!token) return c.json({ error: "Token required" }, 400);
+    if (!token) return c.json(NO_TOKEN, 400);
 
     const client = await pool.connect();
     try {
@@ -260,8 +263,6 @@ export function createApp(options: AppOptions): Hono {
   /** The write can't be sent at all, so GitHub was never asked. */
   class NotOnGitHubError extends Error {}
 
-  const TOKEN_REQUIRED = "Token required — set GITHUB_TOKEN in server/.env or pass in request body";
-
   // Mirrors one membership change onto GitHub. changeRepoList re-reads the repo's
   // Lists from GitHub itself, so a List Postgres hasn't fully imported can't be
   // dropped by accident.
@@ -282,7 +283,7 @@ export function createApp(options: AppOptions): Hono {
   app.post("/api/refresh-health", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const token = resolveGitHubToken(body);
-    if (!token) return c.json({ error: "Token required" }, 400);
+    if (!token) return c.json(NO_TOKEN, 400);
 
     const github = createGitHubClient(token, options.githubApiUrl);
     const client = await pool.connect();
@@ -342,7 +343,7 @@ export function createApp(options: AppOptions): Hono {
     const { name, description } = body;
     const token = resolveGitHubToken(body);
     if (!name) return c.json({ error: "name required" }, 400);
-    if (!token) return c.json({ error: TOKEN_REQUIRED }, 400);
+    if (!token) return c.json(NO_TOKEN, 400);
 
     let githubListId: string;
     try {
@@ -373,7 +374,7 @@ export function createApp(options: AppOptions): Hono {
 
       // A List that never reached GitHub can go without asking it.
       if (githubListId) {
-        if (!token) return c.json({ error: TOKEN_REQUIRED }, 400);
+        if (!token) return c.json(NO_TOKEN, 400);
         try {
           await deleteList(createGitHubClient(token, options.githubApiUrl), githubListId);
         } catch (error) {
@@ -403,7 +404,7 @@ export function createApp(options: AppOptions): Hono {
       const githubListId = rows[0]?.github_list_id;
 
       if (githubListId) {
-        if (!token) return c.json({ error: TOKEN_REQUIRED }, 400);
+        if (!token) return c.json(NO_TOKEN, 400);
         try {
           await updateList(createGitHubClient(token, options.githubApiUrl), githubListId, { name, description });
         } catch (error) {
@@ -434,7 +435,7 @@ export function createApp(options: AppOptions): Hono {
     const body = await c.req.json();
     const { repo_id } = body;
     const token = resolveGitHubToken(body);
-    if (!token) return c.json({ error: TOKEN_REQUIRED }, 400);
+    if (!token) return c.json(NO_TOKEN, 400);
     try {
       await changeOnGitHub(token, listId, repo_id, "add");
     } catch (error) {
@@ -458,7 +459,7 @@ export function createApp(options: AppOptions): Hono {
     const body = await c.req.json();
     const { repo_id } = body;
     const token = resolveGitHubToken(body);
-    if (!token) return c.json({ error: TOKEN_REQUIRED }, 400);
+    if (!token) return c.json(NO_TOKEN, 400);
     try {
       await changeOnGitHub(token, listId, repo_id, "remove");
     } catch (error) {
@@ -477,7 +478,7 @@ export function createApp(options: AppOptions): Hono {
     const body = await c.req.json().catch(() => ({}));
     const token = resolveGitHubToken(body);
 
-    if (!token) return c.json({ error: TOKEN_REQUIRED }, 400);
+    if (!token) return c.json(NO_TOKEN, 400);
     const { rows } = await pool.query("SELECT owner, name FROM repos WHERE id = $1", [repoId]);
     if (rows[0]) {
       try {

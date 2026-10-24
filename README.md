@@ -26,7 +26,7 @@ Works with AI agents: they can read your stars, suggest Lists and sort repos int
 <details>
 <summary>Self-host with Docker</summary>
 
-Needs Docker and a [classic token](https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer) with `repo` scope. No clone:
+Needs Docker and a [classic token](https://github.com/settings/tokens/new?scopes=repo) with `repo` scope. No clone:
 
 ```bash
 GITHUB_TOKEN=ghp_... docker compose -f oci://ghcr.io/armanckeser/github-stars-organizer-stack:latest up -d

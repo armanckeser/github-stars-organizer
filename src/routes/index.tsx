@@ -61,6 +61,11 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 let launchImportStarted = false;
 
+class MissingTokenError extends Error {}
+
+// GitHub ticks the scopes from the link; the token's name is typed by hand.
+const NEW_TOKEN_URL = "https://github.com/settings/tokens/new?scopes=repo";
+
 async function importFromServer(setProgress: (text: string) => void) {
   setProgress("Importing stars from GitHub...");
   const response = await fetch(`${API_URL}/api/import-stars`, {
@@ -69,6 +74,7 @@ async function importFromServer(setProgress: (text: string) => void) {
     body: JSON.stringify({}),
   });
   let job = await response.json();
+  if (!response.ok && job.code === "no_token") throw new MissingTokenError();
   if (!response.ok) throw new Error(job.error ?? "Import failed");
   // The server imports in the background; poll until it settles.
   while (job.status === "running") {
@@ -108,6 +114,7 @@ function AllStarsPage() {
   const [importing, setImporting] = useState(false);
   const [astralOpen, setAstralOpen] = useState(false);
   const [progress, setProgress] = useState("");
+  const [needsToken, setNeedsToken] = useState(false);
   const [detailRepo, setDetailRepo] = useState<Repo | null>(null);
   const isDesktop = useIsDesktop();
 
@@ -154,9 +161,15 @@ function AllStarsPage() {
 
   async function handleImport() {
     setImporting(true);
+    setNeedsToken(false);
     try {
       await (APP_MODE === "local" ? importLocal(setProgress) : importFromServer(setProgress));
     } catch (error) {
+      if (error instanceof MissingTokenError) {
+        setProgress("");
+        setNeedsToken(true);
+        return;
+      }
       setProgress(
         `Error: ${error instanceof Error ? error.message : "Unknown"}`,
       );
@@ -217,6 +230,15 @@ function AllStarsPage() {
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             {progress && <span className="text-xs text-muted-foreground">{progress}</span>}
+            {needsToken && (
+              <span className="text-xs text-muted-foreground">
+                Needs a GitHub token.{" "}
+                <a href={NEW_TOKEN_URL} target="_blank" rel="noopener" className="font-medium text-primary underline-offset-4 hover:underline">
+                  Create one
+                </a>{" "}
+                (classic, repo scope), set it as GITHUB_TOKEN in the app's settings, and restart the app.
+              </span>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button disabled={importing} />}>
                 <Download className="mr-2 h-4 w-4" />

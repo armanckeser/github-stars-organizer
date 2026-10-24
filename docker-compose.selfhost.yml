@@ -1,0 +1,81 @@
+# Stars Organizer for anyone self-hosting it. One command, no clone:
+#
+#   GITHUB_TOKEN=ghp_... docker compose -f oci://ghcr.io/armanckeser/github-stars-organizer-stack:latest up -d
+#
+# (Compose 2.34+; or download this file and run `docker compose -f docker-compose.selfhost.yml up -d`, with
+# GITHUB_TOKEN in a .env file beside it.) Then open http://<host>:8080 and import your stars. The schema and
+# keys are set up on first start; there is nothing to run by hand. One container instead of three:
+# `ghcr.io/armanckeser/github-stars-organizer:aio`.
+#
+# Only the app publishes a port. Postgres and Electric are reachable only on this stack's own network.
+# The store packages (armanckeser/selfhost-apps) are generated from this shape, so keep it free of bind
+# mounts, env_file and build:.
+
+name: github-stars-organizer
+
+services:
+  app:
+    image: ghcr.io/armanckeser/github-stars-organizer:${TAG:-latest}
+    restart: unless-stopped
+    # Long syntax: Compose 5 `publish` rejects the short "host:container" string.
+    ports:
+      - target: 8080
+        published: "${PORT:-8080}"
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres}@postgres:5432/app
+      ELECTRIC_URL: http://electric:3000
+      # A classic token with the `repo` scope: https://github.com/settings/tokens/new?scopes=repo
+      # Stars Organizer reads your stars and writes your Lists with it.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # The token can unstar repos and edit your Lists. Set a password unless something in front of Stars
+      # Organizer (Authelia, Cosmos, a VPN-only port) already decides who gets in.
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      # Or sign in with your OIDC provider instead (Authentik, Authelia, Pocket ID...): AUTH_ENABLED=1 and
+      # the OIDC_* below. OIDC_REDIRECT_URI is <your URL>/auth/callback.
+      AUTH_ENABLED: ${AUTH_ENABLED:-0}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+      OIDC_AUTH_EXTERNAL_URL: ${OIDC_AUTH_EXTERNAL_URL:-}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid email profile}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      electric:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: postgres
+      # Postgres is never published, so the default is only reachable from this stack. Set DB_PASSWORD
+      # before the FIRST start to use your own.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=10", "-c", "max_wal_senders=10"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  electric:
+    image: electricsql/electric:1.7.6
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres}@postgres:5432/app?sslmode=disable
+      ELECTRIC_INSECURE: "true"
+      ELECTRIC_STORAGE_DIR: /var/lib/electric/persistent
+    volumes:
+      - electricdata:/var/lib/electric/persistent
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  electricdata:

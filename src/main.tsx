@@ -4,6 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
+import "./lib/session";
 import "./lib/collections";
 
 // BASE_URL is Vite's `base`: "/" normally, "/github-stars-organizer/" for the

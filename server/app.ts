@@ -1,5 +1,7 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { createAuth, type Auth } from "./auth.ts";
 import { computeHealthScore } from "./health.ts";
 import {
   createGitHubClient, starredPages, topicsOf, fetchHealthNodes,
@@ -22,9 +24,20 @@ export type AppOptions = {
   db: Db;
   githubToken: string | null;
   electricUrl: string;
+  /** Electric's ELECTRIC_SECRET, when it runs with one (the all-in-one image). */
+  electricSecret?: string;
   /** Defaults to GITHUB_API_URL or api.github.com. */
   githubApiUrl?: string;
+  /** Sign-in (auth.ts). Omitted: every route is open, as in development. */
+  auth?: Auth;
+  /** The built web app (dist/), served on the same origin as the API. Omitted: API only. */
+  webRoot?: string;
 };
+
+// The tables the app writes through the generic routes below. Anything else in the
+// database (instance_secret holds the session key) is out of reach of /api/:table.
+const WRITABLE_TABLES = new Set(["repos", "lists", "list_items", "tags", "repo_tags"]);
+const COLUMN = /^[a-z_]+$/;
 
 export function createApp(options: AppOptions): Hono {
   const pool = options.db;
@@ -35,8 +48,15 @@ export function createApp(options: AppOptions): Hono {
     return (body.token as string | undefined) ?? GITHUB_TOKEN;
   }
 
+  const auth = options.auth ?? createAuth({});
+
   const app = new Hono();
-  app.use(cors());
+  // Cross-origin calls are only the Vite dev server's; a signed-in install serves the
+  // app on its own origin and keeps other sites out.
+  if (!auth.enabled) app.use(cors());
+  auth.register(app);
+
+  app.get("/api/health", (c) => c.json({ ok: true }));
 
   const ELECTRIC_PARAMS = new Set([
     "offset", "handle", "live", "cursor", "shape_id",
@@ -54,6 +74,7 @@ export function createApp(options: AppOptions): Hono {
         }
       });
       originUrl.searchParams.set("table", table);
+      if (options.electricSecret) originUrl.searchParams.set("secret", options.electricSecret);
 
       const response = await fetch(originUrl.toString());
       const headers = new Headers(response.headers);
@@ -476,8 +497,10 @@ export function createApp(options: AppOptions): Hono {
   // Generic CRUD (no GitHub side effects)
   app.post("/api/:table", async (c) => {
     const table = c.req.param("table");
+    if (!WRITABLE_TABLES.has(table)) return c.json({ error: `No table called ${table}.` }, 404);
     const body = await c.req.json();
     const keys = Object.keys(body);
+    if (!keys.every((key) => COLUMN.test(key))) return c.json({ error: "Unknown column." }, 400);
     const values = Object.values(body);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
     const columns = keys.map((k) => `"${k}"`).join(", ");
@@ -494,6 +517,7 @@ export function createApp(options: AppOptions): Hono {
 
   app.delete("/api/:table/:id", async (c) => {
     const { table, id } = c.req.param();
+    if (!WRITABLE_TABLES.has(table)) return c.json({ error: `No table called ${table}.` }, 404);
     const result = await withTxid(async (client) => {
       await client.query(`DELETE FROM "${table}" WHERE id = $1`, [id]);
       return {};
@@ -503,8 +527,10 @@ export function createApp(options: AppOptions): Hono {
 
   app.patch("/api/:table/:id", async (c) => {
     const { table, id } = c.req.param();
+    if (!WRITABLE_TABLES.has(table)) return c.json({ error: `No table called ${table}.` }, 404);
     const body = await c.req.json();
     const keys = Object.keys(body);
+    if (!keys.every((key) => COLUMN.test(key))) return c.json({ error: "Unknown column." }, 400);
     const values = Object.values(body);
     const sets = keys.map((k, i) => `"${k}" = $${i + 2}`).join(", ");
 
@@ -517,6 +543,19 @@ export function createApp(options: AppOptions): Hono {
     });
     return c.json(result);
   });
+
+  if (options.webRoot !== undefined) {
+    const root = options.webRoot;
+    // A page load (not a script or image) without a session goes to sign in first.
+    app.get("*", async (c, next) => {
+      const isPage = !/\.[a-z0-9]+$/i.test(c.req.path) || c.req.path.endsWith(".html");
+      if (isPage && !c.req.path.startsWith("/api/") && !(await auth.isSignedIn(c))) return c.redirect("/auth/login");
+      return next();
+    });
+    app.use("*", serveStatic({ root }));
+    // Every other path is a route of the single-page app.
+    app.get("*", serveStatic({ root, path: "index.html" }));
+  }
 
   return app;
 }

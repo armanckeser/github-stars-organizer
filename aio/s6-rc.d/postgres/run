@@ -1,0 +1,6 @@
+#!/command/with-contenv sh
+# Loopback only: nothing outside this container talks to Postgres. Logical replication is what Electric's
+# shapes ride on.
+exec s6-setuidgid postgres postgres -D /data/postgres \
+  -c listen_addresses=127.0.0.1 \
+  -c wal_level=logical -c max_replication_slots=10 -c max_wal_senders=10

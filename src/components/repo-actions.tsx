@@ -7,7 +7,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, ListPlus, ExternalLink, Trash2, Eye, Link2, X, Star } from "lucide-react";
 import { listItemCollection, repoCollection, type Repo, type StarList, type ListItem } from "@/lib/collections";
-import { confirmUnstar } from "@/lib/unstar";
 
 interface RepoActionsProps {
   repo: Repo;
@@ -128,7 +127,7 @@ interface UnstarProps {
 function Unstar({ repo }: UnstarProps) {
   return (
     <DropdownMenuItem variant="destructive" onClick={() => {
-      if (confirmUnstar(`Unstar ${repo.full_name}? Its tags, rating and notes go with it.`)) repoCollection.delete(repo.id);
+      if (window.confirm(`Unstar ${repo.full_name}? Its tags, rating and notes go with it.`)) repoCollection.delete(repo.id);
     }}>
       <Trash2 className="mr-2 h-4 w-4" />Unstar
     </DropdownMenuItem>

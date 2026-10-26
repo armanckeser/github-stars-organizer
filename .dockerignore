@@ -1,9 +1,6 @@
 node_modules
 dist
 server/node_modules
-cli/dist
-cli/node_modules
-worker
 .env
 .env.*
 !.env.example
@@ -12,6 +9,5 @@ server/.env.*
 !server/.env.example
 docker-compose*.yml
 .git
-.github
+.publish
 *.md
-img

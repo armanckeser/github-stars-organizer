@@ -1,26 +1,9 @@
 import { repoCollection, listCollection, listItemCollection, repoTagCollection, type Repo } from "./collections";
-import type { PublicList } from "../../server/github-lists";
-import { toListRows } from "./github-list-rows";
 
 // Unauthenticated requests get 60 an hour per IP, so the demo reads at most the
-// 500 most recent stars (5 requests). Lists and the health score both need
-// GraphQL, which needs a token: Lists come from the demo's Worker (worker/),
-// which holds one, and the health score is left out.
+// 500 most recent stars (5 requests). GitHub Lists and the health score both
+// need GraphQL, which needs a token, so a loaded user arrives without them.
 const MAX_PAGES = 5;
-
-export type LoadedUser = { stars: number; lists: number | "unavailable" };
-
-// Null when the Worker can't be reached, as on a copy of the demo without one:
-// the stars still load, just without Lists.
-async function fetchLists(username: string): Promise<PublicList[] | null> {
-  try {
-    const response = await fetch(`${import.meta.env.BASE_URL}api/lists?user=${encodeURIComponent(username)}`);
-    if (!response.ok) return null;
-    return ((await response.json()) as { lists: PublicList[] }).lists;
-  } catch {
-    return null;
-  }
-}
 
 type RestStar = {
   starred_at: string;
@@ -32,9 +15,7 @@ type RestStar = {
   };
 };
 
-export async function loadUserStars(username: string, onProgress: (status: string) => void): Promise<LoadedUser> {
-  // Started first and awaited last: GitHub takes seconds to answer the Lists query.
-  const listsRequest = fetchLists(username);
+export async function loadUserStars(username: string, onProgress: (count: number) => void): Promise<number> {
   const stars: RestStar[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const response = await fetch(
@@ -48,7 +29,7 @@ export async function loadUserStars(username: string, onProgress: (status: strin
     if (!response.ok) throw new Error(`GitHub returned ${response.status}.`);
     const pageStars = (await response.json()) as RestStar[];
     stars.push(...pageStars);
-    onProgress(`Read ${stars.length} stars...`);
+    onProgress(stars.length);
     if (pageStars.length < 100) break;
   }
   if (stars.length === 0) throw new Error(`${username} hasn't starred anything public.`);
@@ -86,12 +67,5 @@ export async function loadUserStars(username: string, onProgress: (status: strin
     if (keys.length > 0) collection.delete(keys);
   }
   repoCollection.insert(repos);
-
-  onProgress("Reading Lists...");
-  const publicLists = await listsRequest;
-  if (publicLists === null) return { stars: repos.length, lists: "unavailable" };
-  const rows = toListRows(publicLists, new Map(repos.map((r) => [r.github_id, r.id])));
-  if (rows.lists.length > 0) listCollection.insert(rows.lists);
-  if (rows.list_items.length > 0) listItemCollection.insert(rows.list_items);
-  return { stars: repos.length, lists: rows.lists.length };
+  return repos.length;
 }

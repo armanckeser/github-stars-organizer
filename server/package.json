@@ -6,7 +6,6 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
-    "@hono/oidc-auth": "^1.10.0",
     "dotenv": "^17.4.2",
     "hono": "^4.6.0",
     "pg": "^8.13.0"

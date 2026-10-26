@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { repoCollection, listCollection } from "../lib/collections";
 import { DEMO } from "../lib/demo";
-import { APP_MODE } from "../lib/mode";
-import { scoreHealth } from "../lib/local-sync";
 import { CHART_COLORS } from "@/components/explore/chart-colors";
 import { InsightBanner } from "@/components/explore/insight-banner";
 import { StatCards } from "@/components/explore/stat-cards";
@@ -18,17 +16,6 @@ import { StarsHealthScatter } from "@/components/explore/stars-health-scatter";
 import { RecentActivity } from "@/components/explore/recent-activity";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-
-async function refreshHealthOnServer(): Promise<{ scored: number; total: number }> {
-  const response = await fetch(`${API_URL}/api/refresh-health`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Refresh failed");
-  return result;
-}
 const DAYS_MS = 86_400_000;
 
 export const Route = createFileRoute("/explore")({ component: ExplorePage });
@@ -48,9 +35,13 @@ function ExplorePage() {
     setRefreshing(true);
     setRefreshResult("Scoring repos...");
     try {
-      const result = APP_MODE === "local"
-        ? await scoreHealth("all", ({ scored, total }) => setRefreshResult(`Scoring ${scored}/${total}...`))
-        : await refreshHealthOnServer();
+      const response = await fetch(`${API_URL}/api/refresh-health`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Refresh failed");
       setRefreshResult(`Scored ${result.scored}/${result.total} repos.`);
     } catch (error) {
       setRefreshResult(`Error: ${error instanceof Error ? error.message : "Unknown"}`);

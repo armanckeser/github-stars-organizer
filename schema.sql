@@ -55,10 +55,3 @@ CREATE TABLE IF NOT EXISTS repo_tags (
   tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
   UNIQUE(repo_id, tag_id)
 );
-
--- Keys this install generates for itself on first start (server/boot.ts). Not synced
--- to the browser, and out of reach of the API's generic routes.
-CREATE TABLE IF NOT EXISTS instance_secret (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);

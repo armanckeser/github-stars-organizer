@@ -17,14 +17,10 @@ export function DemoUserForm() {
     setLoading(true);
     setStatus("Reading stars...");
     try {
-      const loaded = await loadUserStars(name, setStatus);
+      const count = await loadUserStars(name, (n) => setStatus(`Read ${n} stars...`));
       setShowing(name);
       setUsername("");
-      setStatus(
-        loaded.lists === "unavailable"
-          ? `${loaded.stars} recent stars from @${name}. Couldn't read their Lists.`
-          : `${loaded.stars} recent stars and ${loaded.lists} Lists from @${name}.`,
-      );
+      setStatus(`${count} recent stars from @${name}.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Couldn't read those stars.");
     } finally {

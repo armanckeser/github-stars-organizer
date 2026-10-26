@@ -16,7 +16,9 @@ import {
   type StarList,
   type ListItem,
 } from "@/lib/collections";
-import { confirmUnstar } from "@/lib/unstar";
+import { DEMO } from "@/lib/demo";
+
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 interface RepoBulkActionsProps {
   selectedRepos: Repo[];
@@ -81,7 +83,15 @@ function BulkAddToList({
     );
 
     for (const repo of reposToAdd) {
-      listItemCollection.insert({ id: crypto.randomUUID(), list_id: list.id, repo_id: repo.id, position: 0, added_at: new Date().toISOString() });
+      if (DEMO) {
+        listItemCollection.insert({ id: crypto.randomUUID(), list_id: list.id, repo_id: repo.id, position: 0, added_at: new Date().toISOString() });
+        continue;
+      }
+      await fetch(`${API_URL}/api/lists/${list.id}/add-repo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_id: repo.id }),
+      });
     }
 
     clearSelection();
@@ -189,9 +199,15 @@ function BulkUnstar({
 }) {
   async function handleUnstar() {
     const count = selectedRepos.length;
-    if (!confirmUnstar(`Unstar ${count} ${count === 1 ? "repo" : "repos"} on GitHub?`)) return;
+    if (!window.confirm(`Unstar ${count} ${count === 1 ? "repo" : "repos"} on GitHub?`)) return;
     for (const repo of selectedRepos) {
-      repoCollection.delete(repo.id);
+      if (DEMO) {
+        repoCollection.delete(repo.id);
+        continue;
+      }
+      await fetch(`${API_URL}/api/repos/${repo.id}/unstar`, {
+        method: "POST",
+      });
     }
     clearSelection();
   }

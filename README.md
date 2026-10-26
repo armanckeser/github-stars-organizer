@@ -12,7 +12,8 @@ Or **[try the demo](https://stars-demo.armanckeser.com/)**, no sign-in.
 </p>
 
 - **Lists that sync to GitHub**, plus a "Not in any list" pile to sort.
-- **A health score per repo**, so dead projects stand out.
+- **A health score per repo**, so dead projects stand out. Click a bar on Explore to see those repos.
+- **Similar repos** for any star, and active alternatives for the ones nobody maintains anymore.
 - **Tags, ratings and notes** on top of your stars.
 - **Backups before every launch**, and a restore that only adds back what's missing.
 - **Private:** talks only to GitHub with your token. No telemetry.
@@ -22,7 +23,9 @@ Or **[try the demo](https://stars-demo.armanckeser.com/)**, no sign-in.
   <br><sub><b>Lists.</b> The same table inside a List, with a health score on every repo. Lists sync back to GitHub.</sub>
 </p>
 
-Works with AI agents: they can read your stars, suggest Lists and sort repos into them over a local HTTP API. [Guide and copy-paste prompt](AGENT-API.md).
+**Sort hundreds of stars with an AI agent.** Claude Code, Codex or any agent that can run `curl` reads your stars, suggests Lists and sorts repos into them once you agree. The app's **AI agents & token** page gives you the prompt to paste; [AGENT-API.md](AGENT-API.md) has the API for both the `npx` version and a self-hosted install.
+
+**GitHub token:** the `npx` version uses your GitHub CLI login. Self-hosted needs a [classic token](https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer) with the `repo` scope, which is what lets it edit your Lists and unstar repos. Stars Organizer never reads or changes code; the **AI agents & token** page shows which account and scopes the app is using.
 
 <details>
 <summary>Self-host with Docker</summary>
@@ -54,7 +57,7 @@ Unraid's Community Apps doesn't list it yet; [selfhost-apps](https://github.com/
 
 Umbrel isn't listed: Umbrel installs take no settings, and Stars Organizer needs the token.
 
-An AI agent can act through the same API as the UI (`/api/*`). With sign-in on, it sends `Authorization: Bearer <AGENT_API_TOKEN>`; set that yourself, or read the one generated on first start from the `instance_secret` table. [AGENT-API.md](AGENT-API.md) covers the `npx` version's API.
+An AI agent can act through the same API as the UI (`/api/*`). With sign-in on, it sends `Authorization: Bearer <AGENT_API_TOKEN>`; set that yourself, or read the one generated on first start from the `instance_secret` table. [AGENT-API.md](AGENT-API.md#self-hosted) lists the routes.
 </details>
 
 Developing: [CONTRIBUTING.md](CONTRIBUTING.md). Like it? A star helps others find it.

@@ -237,6 +237,16 @@ describe("similar repos and the token", () => {
     expect((await call("GET", "/api/github-token")).json).toEqual({ connected: true, login: "abed-nadir", scopes: ["repo", "read:org"] });
   });
 
+  test("agentStars_lists_every_repo_with_the_lists_it_is_in", async () => {
+    const { call, listId } = await setUp();
+    const { json } = await call("GET", "/api/agent/stars");
+    const repos = json.repos as { full_name: string; list_ids: string[] }[];
+    const paintball = await listId("Paintball");
+    expect(repos).toHaveLength(5);
+    expect(repos.filter((r) => r.list_ids.includes(paintball!))).toHaveLength(1);
+    expect(json.lists).toEqual([expect.objectContaining({ name: "Paintball" })]);
+  });
+
   test("githubToken_says_not_connected_without_a_token", async () => {
     const { call } = await setUp({ token: null });
     expect((await call("GET", "/api/github-token")).json).toEqual({ connected: false });

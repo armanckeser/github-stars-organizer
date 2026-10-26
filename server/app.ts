@@ -496,6 +496,20 @@ export function createApp(options: AppOptions): Hono {
     return c.json(result);
   });
 
+  // Everything an AI agent needs to suggest Lists, in one read: each repo with
+  // the ids the write routes take and the Lists it is in (AGENT-API.md).
+  app.get("/api/agent/stars", async (c) => {
+    const { rows: lists } = await pool.query("SELECT id, name, description FROM lists ORDER BY name");
+    const { rows: repos } = await pool.query(
+      `SELECT r.id, r.full_name, r.description, r.language, r.topics, r.stars, r.pushed_at, r.is_archived,
+              r.health_score, r.usefulness_rating, r.notes,
+              COALESCE(array_agg(i.list_id) FILTER (WHERE i.list_id IS NOT NULL), '{}') AS list_ids
+         FROM repos r LEFT JOIN list_items i ON i.repo_id = r.id
+        GROUP BY r.id ORDER BY r.starred_at DESC NULLS LAST`,
+    );
+    return c.json({ repos, lists });
+  });
+
   // Who the token signs in as and what it may do, so the app can say so (Settings).
   app.get("/api/github-token", async (c) => {
     if (!GITHUB_TOKEN) return c.json({ connected: false });

@@ -10,6 +10,7 @@ import { Star, GitFork, ExternalLink, Trash2, Check, Globe } from "lucide-react"
 import { repoCollection, listItemCollection, type Repo, type StarList, type ListItem } from "../lib/collections";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { confirmUnstar } from "@/lib/unstar";
+import { SimilarRepos } from "./similar-repos";
 
 interface RepoDetailSheetProps {
   repo: Repo | null;
@@ -215,6 +216,9 @@ export function RepoDetailSheet({ repo, lists, listItems, open, onOpenChange }: 
               <p className="text-sm text-muted-foreground/60">Not scored yet</p>
             )}
           </section>
+
+          {/* Similar — "Is there something like this, or better?" */}
+          <SimilarRepos repo={repo} />
 
           {/* Your Assessment — "How do I feel about this?" */}
           <section>

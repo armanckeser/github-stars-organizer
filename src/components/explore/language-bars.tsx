@@ -27,10 +27,6 @@ export function LanguageBars({ data, onSelect }: LanguageBarsProps) {
             data={data}
             layout="vertical"
             margin={{ left: 4, right: 40, top: 4, bottom: 4 }}
-            onClick={(state) => {
-              const entry = data[Number(state.activeTooltipIndex)];
-              if (entry && onSelect) onSelect(entry.language);
-            }}
             style={onSelect ? { cursor: "pointer" } : undefined}
           >
             <XAxis type="number" hide />
@@ -43,7 +39,13 @@ export function LanguageBars({ data, onSelect }: LanguageBarsProps) {
               tickLine={false}
             />
             <Tooltip content={<ExploreTooltip formatter={(value) => `${value} repos`} />} />
-            <Bar dataKey="count" fill={CHART_COLORS.teal} radius={[0, 4, 4, 0]} barSize={18}>
+            <Bar dataKey="count" fill={CHART_COLORS.teal} radius={[0, 4, 4, 0]} barSize={18}
+              // The whole row is the target, not only the bar: a short bar is a small one.
+              // A tap on a phone has no hover first, so this reads the row it lands on,
+              // never the tooltip's last position.
+              background={onSelect ? { fill: "transparent" } : undefined}
+              onClick={onSelect ? (entry) => onSelect((entry as unknown as { payload: { language: string } }).payload.language) : undefined}
+            >
               <LabelList
                 dataKey="count"
                 position="right"

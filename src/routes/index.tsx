@@ -30,6 +30,7 @@ import { createRepoColumns } from "@/components/repo-table/columns";
 import { RepoBulkActions } from "@/components/repo-table/bulk-actions";
 import { RepoMobileRow } from "@/components/repo-table/mobile-row";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { AgentSortCard } from "@/components/agent-sort-card";
 import {
   buildRepoRegistry,
   DEFAULT_SORT,
@@ -263,6 +264,8 @@ function AllStarsPage() {
           </div>
         )}
       </div>
+
+      <AgentSortCard unlisted={allRepos.filter((r) => !listIdsByRepo.has(r.id)).length} />
 
       <FilterProvider<Repo, string>
         items={allRepos}

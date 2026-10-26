@@ -3,7 +3,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { computeHealthScore } from "../../server/health.ts";
 import {
   GitHubError, starredPages, topicsOf, fetchHealthNodes,
-  createList, updateList, deleteList, changeRepoList, unstar, type GitHubClient,
+  createList, updateList, deleteList, changeRepoList, unstar, similarTo, tokenInfo, type GitHubClient,
 } from "../../server/github.ts";
 import { fetchViewerLists } from "../../server/github-lists.ts";
 import {
@@ -11,6 +11,7 @@ import {
   type GitHubRepo, type ImportResponse, type HealthRequest, type HealthResponse, type HealthScore,
   type CreateListRequest, type CreateListResponse, type UpdateListRequest, type MembershipRequest, type MembershipResponse,
   type UnstarRequest, type PingResponse, type BackupsResponse, type RestoreRequest, type RestoreResult,
+  type TokenResponse, type SimilarRequest, type SimilarResponse,
 } from "../../src/lib/local-api.ts";
 import { buildBackup, InvalidBackupError, parseBackup, parseBackUpRequest, type BackupSummary, type RestorePlan } from "../../src/lib/backup.ts";
 import { BackupNotFoundError, type BackupStore } from "./backup-store.ts";
@@ -138,6 +139,15 @@ export function createLocalServer({ github, appDir, port, store, login }: LocalS
     const { owner, name } = await c.req.json<UnstarRequest>();
     await unstar(github, owner, name);
     return c.json({});
+  });
+
+  api.get("/token", async (c) => c.json<TokenResponse>({ connected: true, ...(await tokenInfo(github)) }));
+
+  // The browser sends the repo's own fields, since the rows live there.
+  api.post("/similar", async (c) => {
+    const { repo } = await c.req.json<SimilarRequest>();
+    if (!repo?.full_name) return c.json({ error: "Which repo?" }, 400);
+    return c.json<SimilarResponse>({ similar: await similarTo(github, repo) });
   });
 
   api.get("/backups", async (c) => c.json<BackupsResponse>({ directory: store.directory, backups: await store.list() }));

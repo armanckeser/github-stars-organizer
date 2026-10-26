@@ -31,7 +31,9 @@ async function setUp({ token = "fake-token" as string | null } = {}) {
   const app = createApp({ db: pgliteDb(pglite), githubToken: token, electricUrl: "http://127.0.0.1:9", githubApiUrl: fake.url });
 
   const call = async (method: string, path: string, body: unknown = {}) => {
-    const response = await app.request(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const response = await app.request(path, method === "GET"
+      ? { method }
+      : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     return { status: response.status, json: (await response.json()) as Record<string, unknown> };
   };
   const rows = async (sql: string, values: unknown[] = []) => (await pglite.query<Record<string, unknown>>(sql, values)).rows;
@@ -210,5 +212,33 @@ describe("unstarring", () => {
     expect(status).toBe(502);
     expect(json.error).toMatch(/^Couldn't unstar .*project-3 on GitHub: /);
     expect(await rows("SELECT 1 FROM repos WHERE github_id = 1003")).toHaveLength(1);
+  });
+});
+
+describe("similar repos and the token", () => {
+  test("similar_returns_ranked_repos_without_the_repo_itself", async () => {
+    const { fake, call, rows } = await setUp();
+    const [{ id, full_name: self }] = await rows("SELECT id, full_name FROM repos ORDER BY github_id LIMIT 1");
+    const { status, json } = await call("GET", `/api/repos/${id}/similar`);
+    expect(status).toBe(200);
+    const names = (json.similar as { full_name: string }[]).map((r) => r.full_name);
+    expect(names.length).toBeGreaterThan(0);
+    expect(names).not.toContain(self);
+    expect(fake.writes.filter((w) => w.startsWith("search ")).length).toBeLessThanOrEqual(3);
+  });
+
+  test("similar_asks_for_a_token_when_there_is_none", async () => {
+    const { call } = await setUp({ token: null });
+    expect((await call("GET", "/api/repos/00000000-0000-0000-0000-000000000000/similar")).json).toMatchObject({ code: "no_token" });
+  });
+
+  test("githubToken_reports_the_login_and_the_classic_scopes", async () => {
+    const { call } = await setUp();
+    expect((await call("GET", "/api/github-token")).json).toEqual({ connected: true, login: "abed-nadir", scopes: ["repo", "read:org"] });
+  });
+
+  test("githubToken_says_not_connected_without_a_token", async () => {
+    const { call } = await setUp({ token: null });
+    expect((await call("GET", "/api/github-token")).json).toEqual({ connected: false });
   });
 });

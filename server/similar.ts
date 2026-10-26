@@ -110,7 +110,7 @@ function ownNames(source: SimilarSource): string[] {
 
 function mentionsOwnName(text: string, names: string[]): boolean {
   const lower = text.toLowerCase();
-  return names.some((n) => new RegExp(`(^|[^a-z0-9])${n.replace(/[.]/g, "\.")}([^a-z0-9]|$)`).test(lower));
+  return names.some((n) => new RegExp(`(^|[^a-z0-9])${n.replace(/[.]/g, "\\.")}([^a-z0-9]|$)`).test(lower));
 }
 
 function hasWord(words: string[], part: string): number {

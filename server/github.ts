@@ -3,6 +3,7 @@
 // Docker image is built from server/ alone, so this imports nothing outside it.
 import { HEALTH_BATCH_QUERY, type HealthBatchData } from "./health.ts";
 import { fetchViewerLists, type GitHubList, type RepoListChange } from "./github-lists.ts";
+import { findSimilar, readmeLead, type SearchItem, type SimilarRepo, type SimilarSource } from "./similar.ts";
 
 // Points both servers at a fake GitHub for testing writes without touching a
 // real account (scripts/fake-github.ts).
@@ -22,6 +23,8 @@ type GraphQLResponse<TData> = { data?: TData; errors?: { message: string }[]; me
 export type GitHubClient = {
   graphql: <TData>(query: string, variables?: Record<string, unknown>) => Promise<TData>;
   rest: (method: string, path: string) => Promise<void>;
+  /** A GET whose response the caller reads, headers included; throws only when GitHub can't be reached. */
+  get: (path: string, accept?: string) => Promise<Response>;
 };
 
 export function createGitHubClient(token: string, apiUrl: string = process.env.GITHUB_API_URL ?? DEFAULT_API_URL): GitHubClient {
@@ -38,6 +41,9 @@ export function createGitHubClient(token: string, apiUrl: string = process.env.G
       if (!response.ok) throw new GitHubError(response.status, json.message ?? `GitHub returned ${response.status}.`);
       if (json.errors?.length) throw new GitHubError(502, json.errors[0].message);
       return json.data as TData;
+    },
+    get(path: string, accept = "application/vnd.github+json"): Promise<Response> {
+      return request(`${apiUrl}${path}`, { headers: { ...headers, Accept: accept } });
     },
     async rest(method: string, path: string): Promise<void> {
       const response = await request(`${apiUrl}${path}`, { method, headers });
@@ -215,4 +221,46 @@ export async function addStar(client: GitHubClient, repoNodeId: string): Promise
 
 export async function unstar(client: GitHubClient, owner: string, name: string): Promise<void> {
   await client.rest("DELETE", `/user/starred/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`);
+}
+
+export type TokenInfo = {
+  login: string;
+  /** The classic token's scopes; null for tokens that don't list them (fine-grained, GitHub App). */
+  scopes: string[] | null;
+};
+
+// GitHub lists a classic token's scopes in a header on any authenticated call.
+export async function tokenInfo(client: GitHubClient): Promise<TokenInfo> {
+  const response = await client.get("/user");
+  const json = (await response.json().catch(() => ({}))) as { login?: string; message?: string };
+  if (!response.ok) throw new GitHubError(response.status, json.message ?? `GitHub returned ${response.status}.`);
+  const header = response.headers.get("x-oauth-scopes");
+  return { login: json.login ?? "", scopes: header === null ? null : header.split(",").map((s) => s.trim()).filter(Boolean) };
+}
+
+const SEARCH_PAGE_SIZE = 30;
+
+export async function searchRepositories(client: GitHubClient, q: string, sort: "stars" | "best-match"): Promise<SearchItem[]> {
+  const params = new URLSearchParams({ q, per_page: String(SEARCH_PAGE_SIZE) });
+  if (sort === "stars") params.set("sort", "stars");
+  const response = await client.get(`/search/repositories?${params}`);
+  const json = (await response.json().catch(() => ({}))) as { items?: SearchItem[]; message?: string };
+  if (response.status === 403 || response.status === 429) {
+    throw new GitHubError(429, "GitHub allows 30 searches a minute. Try again in a minute.");
+  }
+  if (!response.ok) throw new GitHubError(response.status, json.message ?? `GitHub returned ${response.status}.`);
+  return json.items ?? [];
+}
+
+/** The README's opening prose, or null when the repo has none. */
+export async function readmeOpening(client: GitHubClient, fullName: string): Promise<string | null> {
+  const response = await client.get(`/repos/${fullName}/readme`, "application/vnd.github.raw");
+  if (!response.ok) return null;
+  return readmeLead(await response.text());
+}
+
+// One README read (the core API's 5,000 an hour) and up to three searches.
+export async function similarTo(client: GitHubClient, source: SimilarSource): Promise<SimilarRepo[]> {
+  const readme = await readmeOpening(client, source.full_name);
+  return findSimilar({ ...source, readme }, (q, sort) => searchRepositories(client, q, sort));
 }

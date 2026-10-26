@@ -23,9 +23,9 @@ Or **[try the demo](https://stars-demo.armanckeser.com/)**, no sign-in.
   <br><sub><b>Lists.</b> The same table inside a List, with a health score on every repo. Lists sync back to GitHub.</sub>
 </p>
 
-**Sort hundreds of stars with an AI agent.** Claude Code, Codex or any agent that can run `curl` reads your stars, suggests Lists and sorts repos into them once you agree. The app's **AI agents & token** page gives you the prompt to paste; [AGENT-API.md](AGENT-API.md) has the API for both the `npx` version and a self-hosted install.
+**Sort hundreds of stars with an AI agent.** Claude Code, Codex or any agent that can run `curl` reads your stars, suggests Lists and sorts repos into them once you agree. The robot icon beside **Import Stars** gives you the prompt to paste; [AGENT-API.md](AGENT-API.md) has the API for both the `npx` version and a self-hosted install.
 
-**GitHub token:** the `npx` version uses your GitHub CLI login. Self-hosted needs a [classic token](https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer) with the `repo` scope, which is what lets it edit your Lists and unstar repos. Stars Organizer never reads or changes code; the **AI agents & token** page shows which account and scopes the app is using.
+**GitHub token:** the `npx` version uses your GitHub CLI login. Self-hosted needs a [classic token](https://github.com/settings/tokens/new?scopes=repo&description=Stars%20Organizer) with the `repo` scope, which is what lets it edit your Lists and unstar repos. Stars Organizer never reads or changes code; the key icon beside **Import Stars** shows which account and scopes the app is using.
 
 <details>
 <summary>Self-host with Docker</summary>

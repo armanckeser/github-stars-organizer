@@ -74,7 +74,7 @@ adding back anything that's missing without removing what you've added since.
 ## Self-hosted
 
 A self-hosted install (Docker, the all-in-one image or an app store) serves the same
-kind of API on its own address, under `/api`. The app's **AI agents & token** page
+kind of API on its own address, under `/api`. The robot icon beside **Import Stars**
 shows a copy-paste prompt with the right address filled in.
 
 With sign-in on (`AUTH_PASSWORD` or OIDC), send `Authorization: Bearer <AGENT_API_TOKEN>`

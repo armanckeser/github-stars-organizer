@@ -1,6 +1,6 @@
 import { APP_MODE } from "./mode";
 
-// The copy-paste prompt that points an AI agent at this install's API.
+// The copy-paste prompt (the robot icon beside Import Stars) that points an AI agent at this install's API.
 // AGENT-API.md documents both versions; the prompt names the right one.
 
 export const AGENT_GUIDE_URL = "https://github.com/armanckeser/github-stars-organizer/blob/main/AGENT-API.md";

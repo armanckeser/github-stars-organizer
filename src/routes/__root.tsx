@@ -2,7 +2,7 @@ import { createRootRoute, Outlet, Link, useRouterState } from "@tanstack/react-r
 import { useLiveQuery } from "@tanstack/react-db";
 import { useEffect, useState } from "react";
 import { listCollection, listItemCollection, type StarList } from "../lib/collections";
-import { Star, Compass, ListTree, Plus, Menu, Info, History, Bot } from "lucide-react";
+import { Star, Compass, ListTree, Plus, Menu, Info, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -48,7 +48,6 @@ function RootLayout() {
         <NavLink to="/" icon={<Star className="w-4 h-4" />} label="All Stars" />
         <NavLink to="/explore" icon={<Compass className="w-4 h-4" />} label="Explore" />
         {APP_MODE === "local" && <NavLink to="/backups" icon={<History className="w-4 h-4" />} label="Backups" />}
-        <NavLink to="/settings" icon={<Bot className="w-4 h-4" />} label="AI agents & token" />
       </div>
       <div className="rounded-lg p-3 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-3">

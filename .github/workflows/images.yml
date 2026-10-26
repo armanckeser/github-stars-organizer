@@ -1,0 +1,142 @@
+name: Images
+
+# Publishing a GitHub release vX.Y.Z also publishes, beside the npm package (release.yml):
+#   1. the image, ghcr.io/armanckeser/github-stars-organizer:X.Y.Z (and X.Y, latest), amd64 + arm64;
+#   2. the all-in-one image, the same tags with -aio (and `aio`), built FROM that image;
+#   3. the compose stack as an OCI artifact, github-stars-organizer-stack (docker-compose.selfhost.yml).
+#
+# Store packages (armanckeser/selfhost-apps: Cosmos, CasaOS, Runtipi, Unraid, Portainer) reference these
+# by version, so a release is all the store listings need to pick up the update. The ghcr packages are
+# Public, so the stores pull without credentials.
+#
+# A separate file from release.yml on purpose: npm's trusted publisher is tied to that file's name.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version to publish, e.g. v1.2.3'
+        required: true
+
+env:
+  IMAGE: ghcr.io/armanckeser/github-stars-organizer
+  VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event.inputs.tag }}
+  SOURCE_URL: https://github.com/${{ github.repository }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.VERSION }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=raw,value=latest
+      # Every stage but the last runs on the runner's own platform (see Dockerfile), so the arm64 image
+      # needs no emulation and one job builds both.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ env.SOURCE_URL }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+          # The index annotation is what ghcr shows as the package description.
+          annotations: |
+            index:org.opencontainers.image.source=${{ env.SOURCE_URL }}
+            index:org.opencontainers.image.description=Search, tag, rate and sort your GitHub stars into GitHub Lists.
+            index:org.opencontainers.image.licenses=AGPL-3.0-or-later
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+          provenance: false
+
+  # One container for Unraid and plain `docker run`: Postgres, Electric and the app (Dockerfile.aio).
+  aio:
+    needs: image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.VERSION }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: version
+        run: echo "semver=${VERSION#v}" >> "$GITHUB_OUTPUT"
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: suffix=-aio,onlatest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=raw,value=aio,suffix=
+      # Mostly COPY steps on top of the app image, so emulating arm64 here is cheap; only apt-get runs
+      # under QEMU.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.aio
+          platforms: linux/amd64,linux/arm64
+          build-args: APP_IMAGE=${{ env.IMAGE }}:${{ steps.version.outputs.semver }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ env.SOURCE_URL }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+          annotations: |
+            index:org.opencontainers.image.source=${{ env.SOURCE_URL }}
+            index:org.opencontainers.image.description=Search, tag, rate and sort your GitHub stars into GitHub Lists. All-in-one: Postgres, Electric and the app in one container.
+          cache-from: type=gha,scope=aio
+          cache-to: type=gha,mode=max,scope=aio
+          provenance: false
+
+  # The compose file as a versioned OCI artifact. `docker compose -f oci://... up -d` needs no checkout.
+  stack:
+    needs: image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.VERSION }}
+      # `publish` needs Compose >= 2.34.0, and the runner's preinstalled version trails that.
+      - uses: docker/setup-compose-action@v2
+        with:
+          version: v5.3.1
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # -y is mandatory in CI: publish otherwise asks to confirm the environment declarations. --with-env
+      # is deliberately absent: it would upload real values. Only the ${VAR} placeholders ship.
+      - name: Publish the self-host stack
+        run: |
+          export TAG="${VERSION#v}"
+          docker compose -f docker-compose.selfhost.yml publish --resolve-image-digests -y "$IMAGE-stack:$TAG"
+          docker compose -f docker-compose.selfhost.yml publish --resolve-image-digests -y "$IMAGE-stack:latest"
+      - run: docker compose -f "oci://$IMAGE-stack:latest" config

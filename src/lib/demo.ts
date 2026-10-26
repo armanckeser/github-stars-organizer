@@ -3,7 +3,9 @@
 // (scripts/build-demo-data.ts) and can swap in anyone else's public stars,
 // read straight from GitHub's REST API in the browser.
 
-export const DEMO = import.meta.env.VITE_DEMO === "1";
+import { APP_MODE } from "./mode";
+
+export const DEMO = APP_MODE === "demo";
 
 type DemoSnapshot = {
   user: string;

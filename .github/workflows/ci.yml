@@ -17,4 +17,29 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
+      - run: npm run build:cli
+
+  # The self-host stack from this checkout's image, started with only a token: the page, the API and an
+  # Electric shape answer, and a password turns sign-in on.
+  selfhost-stack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ghcr.io/armanckeser/github-stars-organizer:latest .
+      - run: docker compose -f docker-compose.selfhost.yml up -d --wait
+        env:
+          GITHUB_TOKEN: placeholder
+          AUTH_PASSWORD: ci-password
+      - name: Health, sign-in, page and shape
+        run: |
+          curl -fsS http://localhost:8080/api/health
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/electric/repos?offset=-1)" = 401
+          curl -fsS -c jar -o /dev/null -d password=ci-password http://localhost:8080/auth/login
+          curl -fsS -b jar -o /dev/null http://localhost:8080/
+          curl -fsS -b jar 'http://localhost:8080/api/electric/repos?offset=-1'
+      - run: docker compose -f docker-compose.selfhost.yml logs app
+        if: failure()
+      - run: docker compose -f docker-compose.selfhost.yml down -v
+        if: always()

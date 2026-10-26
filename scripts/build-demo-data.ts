@@ -9,6 +9,8 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { HEALTH_BATCH_QUERY, computeHealthScore, type HealthBatchData } from "../server/health.ts";
+import { fetchPublicLists, toPublicList } from "../server/github-lists.ts";
+import { toListRows } from "../src/lib/github-list-rows.ts";
 
 const token = process.env.GITHUB_TOKEN;
 const user = process.env.DEMO_USER ?? "armanckeser";
@@ -70,26 +72,6 @@ const STARS_QUERY = `
   }
 `;
 
-const LISTS_QUERY = `
-  query($login: String!) {
-    user(login: $login) {
-      lists(first: 100) {
-        nodes {
-          id name description isPrivate createdAt updatedAt
-          items(first: 100) { nodes { ... on Repository { databaseId } } }
-        }
-      }
-    }
-  }
-`;
-
-type ListsData = {
-  user: { lists: { nodes: {
-    id: string; name: string; description: string | null; isPrivate: boolean;
-    createdAt: string; updatedAt: string; items: { nodes: { databaseId?: number }[] };
-  }[] } };
-};
-
 const edges: StarEdge[] = [];
 let after: string | null = null;
 do {
@@ -140,23 +122,7 @@ for (let i = 0; i < repos.length; i += 20) {
 }
 
 const repoIdByGithubId = new Map(repos.map((r) => [r.github_id, r.id]));
-const listsData = await graphql<ListsData>(LISTS_QUERY, { login: user });
-const publicLists = listsData.user.lists.nodes.filter((l) => !l.isPrivate);
-const lists = publicLists.map((l) => ({
-  id: l.id,
-  github_list_id: l.id,
-  name: l.name,
-  description: l.description,
-  is_private: false,
-  created_at: l.createdAt,
-  updated_at: l.updatedAt,
-}));
-const list_items = publicLists.flatMap((l) =>
-  l.items.nodes.flatMap((item, position) => {
-    const repoId = item.databaseId !== undefined ? repoIdByGithubId.get(item.databaseId) : undefined;
-    return repoId ? [{ id: `${l.id}:${repoId}`, list_id: l.id, repo_id: repoId, position, added_at: l.updatedAt }] : [];
-  }),
-);
+const { lists, list_items } = toListRows((await fetchPublicLists(graphql, user)).map(toPublicList), repoIdByGithubId);
 
 mkdirSync("src/lib/demo", { recursive: true });
 writeFileSync(outFile, JSON.stringify({ user, generated_at: now, repos, lists, list_items }));

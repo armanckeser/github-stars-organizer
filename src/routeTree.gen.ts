@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as BackupsRouteImport } from './routes/backups'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ListListIdRouteImport } from './routes/list.$listId'
 
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BackupsRoute = BackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -31,30 +37,34 @@ const ListListIdRoute = ListListIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/backups': typeof BackupsRoute
   '/explore': typeof ExploreRoute
   '/list/$listId': typeof ListListIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/backups': typeof BackupsRoute
   '/explore': typeof ExploreRoute
   '/list/$listId': typeof ListListIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/backups': typeof BackupsRoute
   '/explore': typeof ExploreRoute
   '/list/$listId': typeof ListListIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/explore' | '/list/$listId'
+  fullPaths: '/' | '/backups' | '/explore' | '/list/$listId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/explore' | '/list/$listId'
-  id: '__root__' | '/' | '/explore' | '/list/$listId'
+  to: '/' | '/backups' | '/explore' | '/list/$listId'
+  id: '__root__' | '/' | '/backups' | '/explore' | '/list/$listId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BackupsRoute: typeof BackupsRoute
   ExploreRoute: typeof ExploreRoute
   ListListIdRoute: typeof ListListIdRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/explore'
       fullPath: '/explore'
       preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backups': {
+      id: '/backups'
+      path: '/backups'
+      fullPath: '/backups'
+      preLoaderRoute: typeof BackupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BackupsRoute: BackupsRoute,
   ExploreRoute: ExploreRoute,
   ListListIdRoute: ListListIdRoute,
 }

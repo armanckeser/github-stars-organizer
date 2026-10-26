@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import path from "path";
+import cliPackage from "./cli/package.json" with { type: "json" };
+import { thirdPartyLicenses } from "./scripts/third-party-licenses";
 
 // Link previews need absolute URLs, so og:url and og:image come from the
 // deployment's own address, which the Pages workflow passes in as
@@ -22,6 +24,17 @@ function sharePreviewUrls(siteUrl: string | undefined): Plugin {
   };
 }
 
+const LOCAL_BUILD = process.env.VITE_LOCAL === "1";
+
+const licenses = thirdPartyLicenses({
+  alsoBundled: [
+    // Through a CSS @import, which Tailwind inlines outside the module graph.
+    "@fontsource-variable/space-grotesk",
+    // Inlined in the browser persistence package's prebuilt OPFS worker, which only local builds ship.
+    ...(LOCAL_BUILD ? ["@journeyapps/wa-sqlite"] : []),
+  ],
+});
+
 export default defineConfig({
   // "/" everywhere except the GitHub Pages demo, which sets VITE_BASE=/<repo>/.
   base: process.env.VITE_BASE ?? "/",
@@ -30,10 +43,20 @@ export default defineConfig({
     react(),
     tailwindcss(),
     sharePreviewUrls(process.env.VITE_SITE_URL),
+    licenses,
   ],
+  // The demo's /api/lists is a Cloudflare Worker in production; in dev it is
+  // `npm run dev` in worker/, on wrangler's default port.
+  server: process.env.VITE_DEMO === "1" ? { proxy: { "/api": "http://localhost:8787" } } : undefined,
+  // The version the npx package publishes, shown in the app's footer.
+  define: { __APP_VERSION__: JSON.stringify(cliPackage.version) },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      ...(LOCAL_BUILD ? [] : [{
+        find: /^@tanstack\/browser-db-sqlite-persistence$/,
+        replacement: path.resolve(__dirname, "./src/lib/no-browser-persistence.ts"),
+      }]),
+    ],
   },
 });

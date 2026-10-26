@@ -1,0 +1,27 @@
+{
+  "name": "github-stars-organizer",
+  "version": "1.2.1",
+  "description": "Search, tag, rate and sort your GitHub stars into Lists, using your gh login. Runs locally; nothing to host.",
+  "license": "AGPL-3.0-or-later",
+  "author": "Armanc Keser",
+  "type": "module",
+  "bin": {
+    "github-stars-organizer": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/armanckeser/github-stars-organizer.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/armanckeser/github-stars-organizer#readme",
+  "bugs": {
+    "url": "https://github.com/armanckeser/github-stars-organizer/issues"
+  },
+  "keywords": ["github", "stars", "github-lists", "organizer", "cli"]
+}

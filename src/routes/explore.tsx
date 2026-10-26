@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { repoCollection, listCollection } from "../lib/collections";
 import { DEMO } from "../lib/demo";
 import { APP_MODE } from "../lib/mode";
 import { scoreHealth } from "../lib/local-sync";
+import { FRESHNESS_BUCKETS, freshnessOf, starsLink } from "../lib/freshness";
 import { CHART_COLORS } from "@/components/explore/chart-colors";
 import { InsightBanner } from "@/components/explore/insight-banner";
 import { StatCards } from "@/components/explore/stat-cards";
@@ -34,6 +35,8 @@ const DAYS_MS = 86_400_000;
 export const Route = createFileRoute("/explore")({ component: ExplorePage });
 
 function ExplorePage() {
+  const navigate = useNavigate();
+  const openStars = (filter: Record<string, string>) => navigate({ to: "/", search: starsLink(filter) });
   const { data: repos } = useLiveQuery((q) =>
     q.from({ repoCollection }).select(({ repoCollection }) => repoCollection),
   );
@@ -86,20 +89,13 @@ function ExplorePage() {
   }, [allRepos]);
 
   const freshness = useMemo(() => {
-    const buckets = { active: 0, aging: 0, stale: 0, dormant: 0 };
+    const counts = new Map<string, number>();
     for (const r of allRepos) {
-      const daysSincePush = r.pushed_at ? (now - new Date(r.pushed_at).getTime()) / DAYS_MS : Infinity;
-      if (daysSincePush < 180) buckets.active++;
-      else if (daysSincePush < 365) buckets.aging++;
-      else if (daysSincePush < 730) buckets.stale++;
-      else buckets.dormant++;
+      const id = freshnessOf(r.pushed_at, now);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
     }
-    return [
-      { label: "Active (<6mo)", count: buckets.active, color: CHART_COLORS.healthy },
-      { label: "Aging (6–12mo)", count: buckets.aging, color: CHART_COLORS.tealMuted },
-      { label: "Stale (1–2yr)", count: buckets.stale, color: CHART_COLORS.warning },
-      { label: "Dormant (>2yr)", count: buckets.dormant, color: CHART_COLORS.danger },
-    ];
+    const colors = [CHART_COLORS.healthy, CHART_COLORS.tealMuted, CHART_COLORS.warning, CHART_COLORS.danger];
+    return FRESHNESS_BUCKETS.map((b, i) => ({ id: b.id, label: b.label, count: counts.get(b.id) ?? 0, color: colors[i] }));
   }, [allRepos, now]);
 
   const healthRadar = useMemo(() => {
@@ -192,6 +188,8 @@ function ExplorePage() {
         staleCount={staleCount}
         avgHealth={avgHealth}
         recentMonthStars={recentMonthStars}
+        onShowDormant={() => openStars({ freshness: "+dormant" })}
+        onShowStale={() => openStars({ freshness: "+stale,+dormant" })}
       />
 
       <StatCards
@@ -203,11 +201,11 @@ function ExplorePage() {
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <FreshnessChart data={freshness} />
+        <FreshnessChart data={freshness} onSelect={(id) => openStars({ freshness: `+${id}` })} />
         <HealthRadar data={healthRadar} />
       </div>
 
-      <LanguageBars data={languages} />
+      <LanguageBars data={languages} onSelect={(language) => openStars({ language: `+${language}` })} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <StarringTimeline data={timeline} />

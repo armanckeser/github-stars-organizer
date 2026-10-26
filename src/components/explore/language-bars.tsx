@@ -10,9 +10,10 @@ interface LanguageEntry {
 
 interface LanguageBarsProps {
   data: LanguageEntry[];
+  onSelect?: (language: string) => void;
 }
 
-export function LanguageBars({ data }: LanguageBarsProps) {
+export function LanguageBars({ data, onSelect }: LanguageBarsProps) {
   if (data.length === 0) return null;
 
   return (
@@ -22,7 +23,16 @@ export function LanguageBars({ data }: LanguageBarsProps) {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={data.length * 32 + 16}>
-          <BarChart data={data} layout="vertical" margin={{ left: 4, right: 40, top: 4, bottom: 4 }}>
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ left: 4, right: 40, top: 4, bottom: 4 }}
+            onClick={(state) => {
+              const entry = data[Number(state.activeTooltipIndex)];
+              if (entry && onSelect) onSelect(entry.language);
+            }}
+            style={onSelect ? { cursor: "pointer" } : undefined}
+          >
             <XAxis type="number" hide />
             <YAxis
               type="category"

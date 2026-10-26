@@ -4,6 +4,7 @@ import { CHART_COLORS, FONT_FAMILY } from "./chart-colors";
 import { ExploreTooltip } from "./explore-tooltip";
 
 export interface FreshnessBucket {
+  id: string;
   label: string;
   count: number;
   color: string;
@@ -11,9 +12,10 @@ export interface FreshnessBucket {
 
 interface FreshnessChartProps {
   data: FreshnessBucket[];
+  onSelect?: (id: string) => void;
 }
 
-export function FreshnessChart({ data }: FreshnessChartProps) {
+export function FreshnessChart({ data, onSelect }: FreshnessChartProps) {
   const total = data.reduce((sum, d) => sum + d.count, 0);
   if (total === 0) return null;
 
@@ -21,10 +23,20 @@ export function FreshnessChart({ data }: FreshnessChartProps) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Freshness</CardTitle>
+        {onSelect && <p className="text-xs text-muted-foreground">Click a bar to see those repos.</p>}
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={data} layout="vertical" margin={{ left: 8, right: 40, top: 4, bottom: 4 }}>
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ left: 8, right: 40, top: 4, bottom: 4 }}
+            onClick={(state) => {
+              const entry = data[Number(state.activeTooltipIndex)];
+              if (entry && onSelect) onSelect(entry.id);
+            }}
+            style={onSelect ? { cursor: "pointer" } : undefined}
+          >
             <XAxis type="number" hide />
             <YAxis
               type="category"

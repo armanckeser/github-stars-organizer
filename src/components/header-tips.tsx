@@ -68,26 +68,34 @@ export function TokenTip() {
 export function AgentTip() {
   const signInEnabled = useSignInEnabled();
   const prompt = agentPrompt(signInEnabled);
+  const where = APP_MODE === "server" ? "that can reach this address" : "on this computer";
   return (
     <HeaderTip label="Sort with an AI agent" icon={<Bot className="h-4 w-4" />}>
-      <p className="font-medium">Sort with an AI agent</p>
-      <p className="text-muted-foreground">
-        Claude Code, Codex or any agent that runs <code>curl</code> can suggest Lists for your stars and sort them once you agree.
-      </p>
-      {APP_MODE === "demo" ? (
-        <p className="text-muted-foreground">Run <code>npx github-stars-organizer</code> to use one with your own stars.</p>
-      ) : (
-        <>
-          <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{prompt}</pre>
-          {APP_MODE === "server" && signInEnabled && (
-            <p className="text-xs text-muted-foreground">The agent also needs this install's <code>AGENT_API_TOKEN</code>.</p>
-          )}
-          <div className="flex items-center gap-3">
-            <CopyButton text={prompt} />
-            <a href={AGENT_GUIDE_URL} target="_blank" rel="noopener" className="text-primary hover:underline">API guide</a>
-          </div>
-        </>
+      <p className="font-medium">Sort your stars with an AI agent</p>
+      <ol className="list-decimal space-y-1.5 pl-4 text-muted-foreground">
+        {APP_MODE === "demo" && (
+          <li>
+            Run <code className="text-foreground">npx github-stars-organizer</code> and leave it running. It signs in with
+            your GitHub CLI login.
+          </li>
+        )}
+        <li>Paste this prompt into Claude Code, Codex or another agent that can run commands {where}:</li>
+      </ol>
+      <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{prompt}</pre>
+      <div className="flex items-center gap-3">
+        <CopyButton text={prompt} />
+        <a href={AGENT_GUIDE_URL} target="_blank" rel="noopener" className="text-primary hover:underline">API guide</a>
+      </div>
+      {APP_MODE === "server" && signInEnabled && (
+        <p className="text-xs text-muted-foreground">
+          Give the agent this install's <code>AGENT_API_TOKEN</code> when it asks: the value you set, or the one in
+          the <code>instance_secret</code> table.
+        </p>
       )}
+      <p className="text-xs text-muted-foreground">
+        The agent reads your stars and shows its plan as a table. Nothing changes until you say OK; then it sorts the
+        repos into your GitHub Lists.
+      </p>
     </HeaderTip>
   );
 }

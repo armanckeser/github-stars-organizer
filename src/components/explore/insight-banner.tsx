@@ -6,10 +6,13 @@ interface InsightBannerProps {
   staleCount: number;
   avgHealth: number | null;
   recentMonthStars: number;
+  onShowDormant?: () => void;
+  onShowStale?: () => void;
 }
 
-export function InsightBanner({ totalRepos, dormantCount, staleCount, avgHealth, recentMonthStars }: InsightBannerProps) {
-  const { headline, detail, icon, severity } = pickInsight({ totalRepos, dormantCount, staleCount, avgHealth, recentMonthStars });
+export function InsightBanner({ totalRepos, dormantCount, staleCount, avgHealth, recentMonthStars, onShowDormant, onShowStale }: InsightBannerProps) {
+  const { headline, detail, icon, severity, show } = pickInsight({ totalRepos, dormantCount, staleCount, avgHealth, recentMonthStars });
+  const onShow = show === "dormant" ? onShowDormant : show === "stale" ? onShowStale : undefined;
 
   const borderColor = severity === "warning" ? "border-l-amber-500" : severity === "concern" ? "border-l-red-400" : "border-l-primary";
 
@@ -19,14 +22,24 @@ export function InsightBanner({ totalRepos, dormantCount, staleCount, avgHealth,
         <div className="mt-0.5 shrink-0 text-muted-foreground">{icon}</div>
         <div>
           <p className="text-sm font-medium text-card-foreground">{headline}</p>
-          <p className="text-sm text-muted-foreground">{detail}</p>
+          <p className="text-sm text-muted-foreground">
+            {detail}
+            {onShow && (
+              <>
+                {" "}
+                <button type="button" onClick={onShow} className="font-medium text-primary underline-offset-4 hover:underline">
+                  Show them
+                </button>
+              </>
+            )}
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-function pickInsight({ totalRepos, dormantCount, staleCount, avgHealth, recentMonthStars }: InsightBannerProps): { headline: string; detail: string; icon: React.ReactNode; severity: "info" | "warning" | "concern" } {
+function pickInsight({ totalRepos, dormantCount, staleCount, avgHealth, recentMonthStars }: InsightBannerProps): { headline: string; detail: string; icon: React.ReactNode; severity: "info" | "warning" | "concern"; show?: "dormant" | "stale" } {
   const dormantPercent = totalRepos > 0 ? Math.round((dormantCount / totalRepos) * 100) : 0;
   const rottingCount = dormantCount + staleCount;
   const rottingPercent = totalRepos > 0 ? Math.round((rottingCount / totalRepos) * 100) : 0;
@@ -37,6 +50,7 @@ function pickInsight({ totalRepos, dormantCount, staleCount, avgHealth, recentMo
       detail: `${dormantCount} repos with no commits in 2+ years. Worth pruning.`,
       icon: <AlertTriangle className="h-5 w-5 text-amber-500" />,
       severity: "warning",
+      show: "dormant",
     };
   }
 
@@ -46,6 +60,7 @@ function pickInsight({ totalRepos, dormantCount, staleCount, avgHealth, recentMo
       detail: `${rottingCount} repos not updated in over a year.`,
       icon: <AlertTriangle className="h-5 w-5 text-amber-500" />,
       severity: "warning",
+      show: "stale",
     };
   }
 

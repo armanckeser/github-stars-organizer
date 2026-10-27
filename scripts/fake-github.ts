@@ -239,6 +239,23 @@ export async function startFakeGitHub(seed: FakeSeed = defaultSeed(), port = 0):
       }
       return;
     }
+    // A classic token with the repo scope, as the README asks for.
+    if (request.method === "GET" && url.pathname === "/user") {
+      response.writeHead(200, { "Content-Type": "application/json", "X-OAuth-Scopes": "repo, read:org" });
+      response.end(JSON.stringify({ login: "abed-nadir" }));
+      return;
+    }
+    // Every other starred repo, as if GitHub had found them alike.
+    if (request.method === "GET" && url.pathname === "/search/repositories") {
+      writes.push(`search ${url.searchParams.get("q")}`);
+      const items = repos.filter((repo) => repo.databaseId % 2 === 0).map((repo) => ({
+        full_name: `${repo.owner}/${repo.name}`, html_url: `https://github.com/${repo.owner}/${repo.name}`,
+        description: `A ${repo.owner} side project`, language: "TypeScript", topics: ["community"],
+        stargazers_count: repo.stars, pushed_at: "2026-09-20T00:00:00Z", archived: false, fork: false,
+      }));
+      send(response, 200, { items });
+      return;
+    }
     const unstarMatch = url.pathname.match(/^\/user\/starred\/([^/]+)\/([^/]+)$/);
     if (request.method === "DELETE" && unstarMatch) {
       const [, owner, name] = unstarMatch.map(decodeURIComponent);

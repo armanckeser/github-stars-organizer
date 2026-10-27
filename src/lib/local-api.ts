@@ -1,5 +1,6 @@
 import type { Repo } from "./collections";
 import type { GitHubList, RepoListChange } from "../../server/github-lists";
+import type { SimilarRepo, SimilarSource } from "../../server/similar";
 import type { Backup, BackUpRequest, BackupSummary, RestorePlan } from "./backup";
 
 // The contract between the browser and the npx CLI's localhost server
@@ -48,6 +49,9 @@ export type RestoreResult = {
   beforeRestore: BackupSummary;
 };
 export type ErrorResponse = { error: string };
+export type TokenResponse = { connected: boolean; login?: string; scopes?: string[] | null; error?: string };
+export type SimilarRequest = { repo: SimilarSource };
+export type SimilarResponse = { similar: SimilarRepo[] };
 
 async function call<TResponse>(method: string, path: string, body: unknown): Promise<TResponse> {
   const response = await fetch(`/api/local/${path}`, {
@@ -78,4 +82,6 @@ export const localApi = {
   uploadBackup: (backup: unknown) => call<BackupSummary>("POST", "backups/upload", backup),
   planRestore: (request: RestoreRequest) => call<RestorePlan>("POST", "restore/plan", request),
   applyRestore: (request: RestoreRequest) => call<RestoreResult>("POST", "restore/apply", request),
+  token: () => call<TokenResponse>("GET", "token", undefined),
+  similar: (request: SimilarRequest) => call<SimilarResponse>("POST", "similar", request),
 };

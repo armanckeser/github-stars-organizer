@@ -70,3 +70,41 @@ curl -s -X POST $API/membership -H 'Content-Type: application/json' -d '{
 Before it opens, every launch backs up your stars and Lists to
 `~/.github-stars-organizer/backups/<login>/`. The app's Backups page restores one,
 adding back anything that's missing without removing what you've added since.
+
+## Self-hosted
+
+A self-hosted install (Docker, the all-in-one image or an app store) serves the same
+kind of API on its own address, under `/api`. The robot icon beside **Import Stars**
+shows a copy-paste prompt with the right address filled in.
+
+With sign-in on (`AUTH_PASSWORD` or OIDC), send `Authorization: Bearer <AGENT_API_TOKEN>`
+with every request. Use the `AGENT_API_TOKEN` you set, or read the one generated on
+first start from the `instance_secret` table. Without sign-in, no header is needed.
+
+Every request except `GET` needs `Content-Type: application/json`.
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `GET /api/agent/stars` | | `{repos, lists}`: every star with the Lists it is in |
+| `POST /api/lists/create` | `{name, description}` | `{list}`, the new List with its `id` |
+| `POST /api/lists/:id/add-repo` | `{repo_id}` | `{item}` |
+| `POST /api/lists/:id/remove-repo` | `{repo_id}` | `{}` |
+| `POST /api/repos/:id/unstar` | `{}` | `{}` |
+| `GET /api/repos/:id/similar` | | `{similar}`: repos like this one, found through GitHub search |
+
+`repos[]` has `id` (what `repo_id` and `/repos/:id` take), `full_name`, `description`,
+`language`, `topics`, `stars`, `pushed_at`, `is_archived`, `health_score`,
+`usefulness_rating`, `notes` and `list_ids`. `lists[]` has `id`, `name` and `description`.
+Every write goes to GitHub first and is refused if GitHub refuses it.
+
+```bash
+API=https://stars.example.com/api
+AUTH="Authorization: Bearer $AGENT_API_TOKEN"
+curl -s $API/agent/stars -H "$AUTH" > stars.json
+
+curl -s -X POST $API/lists/<list id>/add-repo -H "$AUTH" \
+  -H 'Content-Type: application/json' -d '{"repo_id": "<repo id>"}'
+```
+
+`/similar` spends up to three of the token's 30 GitHub searches a minute, so ask for one
+repo at a time.

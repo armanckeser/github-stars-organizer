@@ -30,6 +30,7 @@ import { createRepoColumns } from "@/components/repo-table/columns";
 import { RepoBulkActions } from "@/components/repo-table/bulk-actions";
 import { RepoMobileRow } from "@/components/repo-table/mobile-row";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { AgentTip, TokenTip } from "@/components/header-tips";
 import {
   buildRepoRegistry,
   DEFAULT_SORT,
@@ -49,6 +50,7 @@ const searchSchema = z.object({
   starsMin: z.coerce.number().optional(),
   starsMax: z.coerce.number().optional(),
   topics: z.string().optional(),
+  freshness: z.string().optional(),
   lists: z.string().optional(),
 });
 
@@ -226,7 +228,10 @@ function AllStarsPage() {
           </p>
         </div>
         {DEMO ? (
-          <DemoUserForm />
+          <div className="flex items-start gap-2">
+            <AgentTip />
+            <DemoUserForm />
+          </div>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             {progress && <span className="text-xs text-muted-foreground">{progress}</span>}
@@ -239,6 +244,8 @@ function AllStarsPage() {
                 (classic, repo scope), set it as GITHUB_TOKEN in the app's settings, and restart the app.
               </span>
             )}
+            <AgentTip />
+            <TokenTip />
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button disabled={importing} />}>
                 <Download className="mr-2 h-4 w-4" />

@@ -45,6 +45,7 @@ const searchSchema = z.object({
   starsMin: z.coerce.number().optional(),
   starsMax: z.coerce.number().optional(),
   topics: z.string().optional(),
+  freshness: z.string().optional(),
 });
 
 export const Route = createFileRoute("/list/$listId")({

@@ -5,7 +5,8 @@ import { createAuth, type Auth } from "./auth.ts";
 import { computeHealthScore } from "./health.ts";
 import {
   createGitHubClient, starredPages, topicsOf, fetchHealthNodes,
-  createList, updateList, deleteList, changeRepoList, unstar, type GitHubClient,
+  createList, updateList, deleteList, changeRepoList, unstar, similarTo, tokenInfo,
+  GitHubError, type GitHubClient,
 } from "./github.ts";
 import { fetchViewerLists } from "./github-lists.ts";
 
@@ -493,6 +494,47 @@ export function createApp(options: AppOptions): Hono {
       return {};
     });
     return c.json(result);
+  });
+
+  // Everything an AI agent needs to suggest Lists, in one read: each repo with
+  // the ids the write routes take and the Lists it is in (AGENT-API.md).
+  app.get("/api/agent/stars", async (c) => {
+    const { rows: lists } = await pool.query("SELECT id, name, description FROM lists ORDER BY name");
+    const { rows: repos } = await pool.query(
+      `SELECT r.id, r.full_name, r.description, r.language, r.topics, r.stars, r.pushed_at, r.is_archived,
+              r.health_score, r.usefulness_rating, r.notes,
+              COALESCE(array_agg(i.list_id) FILTER (WHERE i.list_id IS NOT NULL), '{}') AS list_ids
+         FROM repos r LEFT JOIN list_items i ON i.repo_id = r.id
+        GROUP BY r.id ORDER BY r.starred_at DESC NULLS LAST`,
+    );
+    return c.json({ repos, lists });
+  });
+
+  // Who the token signs in as and what it may do, so the app can say so (Settings).
+  app.get("/api/github-token", async (c) => {
+    if (!GITHUB_TOKEN) return c.json({ connected: false });
+    try {
+      return c.json({ connected: true, ...(await tokenInfo(createGitHubClient(GITHUB_TOKEN, options.githubApiUrl))) });
+    } catch (error) {
+      return c.json({ connected: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // Asked for one repo at a time, from its detail sheet: each lookup spends up
+  // to three of the token's 30 searches a minute.
+  app.get("/api/repos/:id/similar", async (c) => {
+    if (!GITHUB_TOKEN) return c.json(NO_TOKEN, 400);
+    const { rows } = await pool.query(
+      "SELECT full_name, description, language, topics, stars FROM repos WHERE id = $1",
+      [c.req.param("id")],
+    );
+    if (!rows[0]) return c.json({ error: "No such repo." }, 404);
+    try {
+      return c.json({ similar: await similarTo(createGitHubClient(GITHUB_TOKEN, options.githubApiUrl), rows[0]) });
+    } catch (error) {
+      const status = error instanceof GitHubError && error.status === 429 ? 429 : 502;
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, status);
+    }
   });
 
   // Generic CRUD (no GitHub side effects)

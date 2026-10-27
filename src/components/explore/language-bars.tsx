@@ -10,9 +10,10 @@ interface LanguageEntry {
 
 interface LanguageBarsProps {
   data: LanguageEntry[];
+  onSelect?: (language: string) => void;
 }
 
-export function LanguageBars({ data }: LanguageBarsProps) {
+export function LanguageBars({ data, onSelect }: LanguageBarsProps) {
   if (data.length === 0) return null;
 
   return (
@@ -22,7 +23,12 @@ export function LanguageBars({ data }: LanguageBarsProps) {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={data.length * 32 + 16}>
-          <BarChart data={data} layout="vertical" margin={{ left: 4, right: 40, top: 4, bottom: 4 }}>
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ left: 4, right: 40, top: 4, bottom: 4 }}
+            style={onSelect ? { cursor: "pointer" } : undefined}
+          >
             <XAxis type="number" hide />
             <YAxis
               type="category"
@@ -33,7 +39,13 @@ export function LanguageBars({ data }: LanguageBarsProps) {
               tickLine={false}
             />
             <Tooltip content={<ExploreTooltip formatter={(value) => `${value} repos`} />} />
-            <Bar dataKey="count" fill={CHART_COLORS.teal} radius={[0, 4, 4, 0]} barSize={18}>
+            <Bar dataKey="count" fill={CHART_COLORS.teal} radius={[0, 4, 4, 0]} barSize={18}
+              // The whole row is the target, not only the bar: a short bar is a small one.
+              // A tap on a phone has no hover first, so this reads the row it lands on,
+              // never the tooltip's last position.
+              background={onSelect ? { fill: "transparent" } : undefined}
+              onClick={onSelect ? (entry) => onSelect((entry as unknown as { payload: { language: string } }).payload.language) : undefined}
+            >
               <LabelList
                 dataKey="count"
                 position="right"

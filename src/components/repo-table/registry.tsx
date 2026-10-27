@@ -1,4 +1,5 @@
 import type { Repo, StarList } from "@/lib/collections";
+import { FRESHNESS_BUCKETS, freshnessOf } from "@/lib/freshness";
 import type { ItemGroup } from "@/components/views/data-table";
 import {
   createAutoRegistry,
@@ -73,6 +74,13 @@ function groupByLanguage(items: Repo[]): ItemGroup<Repo>[] {
   }
 
   return result;
+}
+
+function groupByFreshness(items: Repo[]): ItemGroup<Repo>[] {
+  const now = Date.now();
+  return FRESHNESS_BUCKETS
+    .map((b) => ({ groupId: b.id, label: b.label, items: items.filter((r) => freshnessOf(r.pushed_at, now) === b.id) }))
+    .filter((g) => g.items.length > 0);
 }
 
 // Value used for stars that sit in no List. GitHub's own stars page has no way to show
@@ -160,6 +168,19 @@ export function buildRepoRegistry(sampleItems: Repo[], listContext?: ListContext
         defaultValue: { mode: "include", values: ["false"] },
         match: (repo, filter) =>
           matchThreeState(String(repo.is_archived), filter),
+      }),
+
+      // Days since the last push, in Explore's buckets
+      freshness: createThreeStateFilter<Repo>({
+        id: "freshness",
+        label: "Freshness",
+        urlParam: "freshness",
+        options: {
+          source: "static",
+          values: FRESHNESS_BUCKETS.map((b) => ({ value: b.id, label: b.label })),
+        },
+        match: (repo, filter) => matchThreeState(freshnessOf(repo.pushed_at), filter),
+        groupBy: { grouper: groupByFreshness },
       }),
 
       // Topics is a comma-separated string, needs custom parsing

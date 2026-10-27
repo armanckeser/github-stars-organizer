@@ -1,6 +1,6 @@
 {
   "name": "github-stars-organizer",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Search, tag, rate and sort your GitHub stars into Lists, using your gh login. Runs locally; nothing to host.",
   "license": "AGPL-3.0-or-later",
   "author": "Armanc Keser",

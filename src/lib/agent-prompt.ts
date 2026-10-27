@@ -7,9 +7,13 @@ export const AGENT_GUIDE_URL = "https://github.com/armanckeser/github-stars-orga
 
 const ASK = "Suggest which List each repo in no List belongs in, and any new Lists worth creating. Show me the plan as a table and wait for my OK before changing anything.";
 
+// The npx version's address unless started with --port (cli/src/cli.ts).
+const NPX_ORIGIN = "http://127.0.0.1:5185";
+
 export function agentPrompt(signInEnabled: boolean): string {
-  const origin = window.location.origin;
-  if (APP_MODE === "local") {
+  // The demo has no API of its own; it shows the prompt for the npx version it points people to.
+  const origin = APP_MODE === "demo" ? NPX_ORIGIN : window.location.origin;
+  if (APP_MODE === "local" || APP_MODE === "demo") {
     return `Stars Organizer is running at ${origin}. Read ${AGENT_GUIDE_URL}, then fetch my stars and Lists with POST /api/local/import. ${ASK}`;
   }
   const auth = signInEnabled

@@ -60,6 +60,19 @@ Umbrel isn't listed: Umbrel installs take no settings, and Stars Organizer needs
 An AI agent can act through the same API as the UI (`/api/*`). With sign-in on, it sends `Authorization: Bearer <AGENT_API_TOKEN>`; set that yourself, or read the one generated on first start from the `instance_secret` table. [AGENT-API.md](AGENT-API.md#self-hosted) lists the routes.
 </details>
 
+## More apps
+
+Other apps from the same author:
+
+- **[Kumbara](https://github.com/armanckeser/kumbara)**: Budgeting app for bank transactions: one tap files every charge from a merchant.
+- **[leakwatch](https://github.com/armanckeser/leakwatch)**: Finds the program that is slowly breaking Windows and stops the leak without a restart.
+- **[Jellymeme](https://github.com/armanckeser/jellymeme)**: Find a scene in your Jellyfin library by describing the scene, then export a captioned GIF or clip.
+- **[Wishlist](https://github.com/armanckeser/wishlist)**: Save products from any store, get told when prices drop, and buy within a monthly allowance.
+- **[USCIS Tracker](https://github.com/armanckeser/uscis-tracker)**: Shows what changed on your myUSCIS cases since you last looked, all in your browser.
+- **[Four Quarters](https://github.com/armanckeser/four-quarters)**: Send someone a mini photo vending machine: each quarter they put in gives them one of your photos as a card.
+- **[Visa Bulletin data](https://github.com/armanckeser/visa-bulletin-data)**: Every Visa Bulletin since FY2016 as CSV, JSON and SQLite, updated daily.
+- **[Downstream](https://github.com/armanckeser/downstream)**: Shows which agent-opened pull request to review first, and Claude Code helps you review the change.
+
 Developing: [CONTRIBUTING.md](CONTRIBUTING.md). Like it? A star helps others find it.
 
 Copyright (C) 2026 Armanc Keser. [AGPL-3.0-or-later](LICENSE), with absolutely no warranty. Not affiliated with or endorsed by GitHub.

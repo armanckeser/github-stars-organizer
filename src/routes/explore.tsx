@@ -3,7 +3,7 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
-import { repoCollection, listCollection } from "../lib/collections";
+import { repoCollection, listCollection, listItemCollection, tagCollection, repoTagCollection } from "../lib/collections";
 import { DEMO } from "../lib/demo";
 import { APP_MODE } from "../lib/mode";
 import { scoreHealth } from "../lib/local-sync";
@@ -17,6 +17,8 @@ import { LanguageBars } from "@/components/explore/language-bars";
 import { StarringTimeline } from "@/components/explore/starring-timeline";
 import { StarsHealthScatter } from "@/components/explore/stars-health-scatter";
 import { RecentActivity } from "@/components/explore/recent-activity";
+import { StarWaves, type WaveGrouping } from "@/components/explore/star-waves";
+import { topicsOf } from "../lib/star-waves";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -42,6 +44,17 @@ function ExplorePage() {
   );
   const { data: lists } = useLiveQuery((q) =>
     q.from({ listCollection }).select(({ listCollection }) => listCollection),
+  );
+
+  const { data: listItems } = useLiveQuery((q) =>
+    q.from({ listItemCollection }).select(({ listItemCollection }) => listItemCollection),
+  );
+
+  const { data: tags } = useLiveQuery((q) =>
+    q.from({ tagCollection }).select(({ tagCollection }) => tagCollection),
+  );
+  const { data: repoTags } = useLiveQuery((q) =>
+    q.from({ repoTagCollection }).select(({ repoTagCollection }) => repoTagCollection),
   );
 
   const [refreshing, setRefreshing] = useState(false);
@@ -163,6 +176,23 @@ function ExplorePage() {
     return allRepos.filter((r) => r.starred_at && new Date(r.starred_at).getTime() > thirtyDaysAgo).length;
   }, [allRepos, now]);
 
+  const groupings = useMemo<WaveGrouping[]>(() => {
+    const byRepo = (pairs: [string, string | undefined][]) => {
+      const map = new Map<string, string[]>();
+      for (const [repoId, name] of pairs) if (name) map.set(repoId, [...(map.get(repoId) ?? []), name]);
+      return (repo: { id: string }) => map.get(repo.id) ?? [];
+    };
+    const listName = new Map((lists ?? []).map((l) => [l.id, l.name]));
+    const tagName = new Map((tags ?? []).map((t) => [t.id, t.name]));
+    const languageOf = new Map(allRepos.map((r) => [r.id, r.language]));
+    return [
+      { id: "list", label: "List", labelsOf: byRepo((listItems ?? []).map((i) => [i.repo_id, listName.get(i.list_id)])) },
+      { id: "topic", label: "Topic", labelsOf: topicsOf },
+      { id: "language", label: "Language", labelsOf: (r) => { const l = languageOf.get(r.id); return l ? [l] : []; } },
+      { id: "tag", label: "Tag", labelsOf: byRepo((repoTags ?? []).map((t) => [t.repo_id, tagName.get(t.tag_id)])) },
+    ];
+  }, [lists, listItems, tags, repoTags, allRepos]);
+
   const dormantCount = freshness[3].count;
   const staleCount = freshness[2].count;
 
@@ -206,6 +236,8 @@ function ExplorePage() {
       </div>
 
       <LanguageBars data={languages} onSelect={(language) => openStars({ language: `+${language}` })} />
+
+      <StarWaves repos={allRepos} groupings={groupings} now={now} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <StarringTimeline data={timeline} />

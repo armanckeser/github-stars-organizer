@@ -3,7 +3,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { computeHealthScore } from "../../server/health.ts";
 import {
   GitHubError, starredPages, topicsOf, fetchHealthNodes,
-  createList, updateList, deleteList, changeRepoList, unstar, similarTo, tokenInfo, type GitHubClient,
+  createList, updateList, deleteList, changeRepoList, unstar, starSelf, similarTo, tokenInfo, type GitHubClient,
 } from "../../server/github.ts";
 import { fetchViewerLists } from "../../server/github-lists.ts";
 import {
@@ -133,6 +133,11 @@ export function createLocalServer({ github, appDir, port, store, login }: LocalS
   api.post("/membership", async (c) => {
     const listIds = await changeRepoList(github, await c.req.json<MembershipRequest>());
     return c.json<MembershipResponse>({ listIds });
+  });
+
+  api.post("/star-self", async (c) => {
+    await starSelf(github);
+    return c.json({});
   });
 
   api.post("/unstar", async (c) => {

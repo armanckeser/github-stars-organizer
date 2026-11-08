@@ -215,6 +215,20 @@ describe("unstarring", () => {
   });
 });
 
+describe("starring Stars Organizer", () => {
+  test("starSelf_stars_only_the_stars_organizer_repo", async () => {
+    const { fake, call } = await setUp();
+    const { status } = await call("POST", "/api/star-self");
+    expect(status).toBe(200);
+    expect(fake.writes).toContain("star armanckeser/github-stars-organizer");
+  });
+
+  test("starSelf_asks_for_a_token_when_there_is_none", async () => {
+    const { call } = await setUp({ token: null });
+    expect((await call("POST", "/api/star-self")).json).toMatchObject({ code: "no_token" });
+  });
+});
+
 describe("similar repos and the token", () => {
   test("similar_returns_ranked_repos_without_the_repo_itself", async () => {
     const { fake, call, rows } = await setUp();

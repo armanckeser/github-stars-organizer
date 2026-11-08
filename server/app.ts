@@ -5,7 +5,7 @@ import { createAuth, type Auth } from "./auth.ts";
 import { computeHealthScore } from "./health.ts";
 import {
   createGitHubClient, starredPages, topicsOf, fetchHealthNodes,
-  createList, updateList, deleteList, changeRepoList, unstar, similarTo, tokenInfo,
+  createList, updateList, deleteList, changeRepoList, unstar, starSelf, similarTo, tokenInfo,
   GitHubError, type GitHubClient,
 } from "./github.ts";
 import { fetchViewerLists } from "./github-lists.ts";
@@ -472,6 +472,17 @@ export function createApp(options: AppOptions): Hono {
       return {};
     });
     return c.json(result);
+  });
+
+  app.post("/api/star-self", async (c) => {
+    const token = resolveGitHubToken(await c.req.json().catch(() => ({})));
+    if (!token) return c.json(NO_TOKEN, 400);
+    try {
+      await starSelf(createGitHubClient(token, options.githubApiUrl));
+    } catch (error) {
+      return gitHubRefused(c, "star Stars Organizer", error);
+    }
+    return c.json({});
   });
 
   app.post("/api/repos/:id/unstar", async (c) => {

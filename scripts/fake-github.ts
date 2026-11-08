@@ -257,6 +257,12 @@ export async function startFakeGitHub(seed: FakeSeed = defaultSeed(), port = 0):
       return;
     }
     const unstarMatch = url.pathname.match(/^\/user\/starred\/([^/]+)\/([^/]+)$/);
+    if (request.method === "PUT" && unstarMatch) {
+      const [, owner, name] = unstarMatch.map(decodeURIComponent);
+      writes.push(`star ${owner}/${name}`);
+      response.writeHead(204).end();
+      return;
+    }
     if (request.method === "DELETE" && unstarMatch) {
       const [, owner, name] = unstarMatch.map(decodeURIComponent);
       const repo = repos.find((candidate) => candidate.owner === owner && candidate.name === name);

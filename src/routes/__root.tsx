@@ -1,7 +1,7 @@
 import { createRootRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useEffect, useState } from "react";
-import { listCollection, listItemCollection, type StarList } from "../lib/collections";
+import { listCollection, listItemCollection, repoCollection, type StarList } from "../lib/collections";
 import { Star, Compass, ListTree, Plus, Menu, Info, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,9 @@ import { APP_MODE } from "../lib/mode";
 import { DemoCredit } from "@/components/demo-credit";
 import { useSignInEnabled } from "../lib/session";
 import { MarkGithubIcon } from "@primer/octicons-react";
+import { toast } from "sonner";
+import { localApi } from "../lib/local-api";
+import { apiStarSelf } from "../lib/api";
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -74,6 +77,7 @@ function RootLayout() {
           ))}
         </div>
       </div>
+      <StarThisRepo />
       {!DEMO && <AboutLine />}
     </>
   );
@@ -152,6 +156,36 @@ function AboutLine() {
       <p>Not affiliated with GitHub.</p>
     </div>
   );
+}
+
+const SELF = "armanckeser/github-stars-organizer";
+
+// Stars the repo with the app's own token; the demo has no token, so it links
+// to the repo page. Hidden once the repo is among the stars on screen.
+function StarThisRepo() {
+  const { data: starred } = useLiveQuery((q) =>
+    q.from({ repoCollection }).select(({ repoCollection }) => ({ full_name: repoCollection.full_name })),
+  );
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  if (state === "done" || (starred ?? []).some((r) => r.full_name.toLowerCase() === SELF)) return null;
+  const className = "mx-3 flex items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60";
+  const label = <><Star className="h-3.5 w-3.5" /> Star on GitHub</>;
+  if (DEMO) {
+    return <a href={`https://github.com/${SELF}`} target="_blank" rel="noopener" className={className}>{label}</a>;
+  }
+  async function star() {
+    setState("busy");
+    try {
+      if (APP_MODE === "local") await localApi.starSelf();
+      else await apiStarSelf();
+      toast.success("Starred. Thank you!");
+      setState("done");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't star the repo.");
+      setState("idle");
+    }
+  }
+  return <button type="button" onClick={star} disabled={state === "busy"} className={className}>{label}</button>;
 }
 
 function DemoNote() {

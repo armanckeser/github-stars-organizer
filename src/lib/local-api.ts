@@ -76,6 +76,7 @@ export const localApi = {
     call<Record<string, never>>("DELETE", `lists/${encodeURIComponent(githubListId)}`, {}),
   changeMembership: (request: MembershipRequest) => call<MembershipResponse>("POST", "membership", request),
   unstar: (request: UnstarRequest) => call<Record<string, never>>("POST", "unstar", request),
+  starSelf: () => call<Record<string, never>>("POST", "star-self", {}),
   listBackups: () => call<BackupsResponse>("GET", "backups", undefined),
   backUpNow: (request: BackUpRequest) => call<BackupSummary>("POST", "backups", request),
   readBackup: (id: string) => call<Backup>("GET", `backups/${encodeURIComponent(id)}`, undefined),

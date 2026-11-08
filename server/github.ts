@@ -219,6 +219,14 @@ export async function addStar(client: GitHubClient, repoNodeId: string): Promise
   await client.graphql(`mutation($input: AddStarInput!) { addStar(input: $input) { starrable { id } } }`, { input: { starrableId: repoNodeId } });
 }
 
+// Stars Organizer's own repo, for the "Star Stars Organizer" button. Fixed so the
+// route can't be used to star anything else.
+export const SELF_REPO = { owner: "armanckeser", name: "github-stars-organizer" };
+
+export async function starSelf(client: GitHubClient): Promise<void> {
+  await client.rest("PUT", `/user/starred/${SELF_REPO.owner}/${SELF_REPO.name}`);
+}
+
 export async function unstar(client: GitHubClient, owner: string, name: string): Promise<void> {
   await client.rest("DELETE", `/user/starred/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`);
 }

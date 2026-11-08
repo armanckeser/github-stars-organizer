@@ -60,6 +60,15 @@ export async function apiUpdateList(id: string, data: Record<string, unknown>): 
   return readResponse(response);
 }
 
+export async function apiStarSelf(): Promise<ApiResponse> {
+  const response = await fetch(`${API_URL}/api/star-self`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  return readResponse(response);
+}
+
 export async function apiUnstarRepo(id: string): Promise<ApiResponse> {
   const response = await fetch(`${API_URL}/api/repos/${id}/unstar`, {
     method: "POST",

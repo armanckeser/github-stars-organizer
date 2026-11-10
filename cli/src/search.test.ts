@@ -31,6 +31,10 @@ describe("searchStars", () => {
     expect(searchStars(stars, "wrangle pdf").map((s) => s.fullName)).toContain("someone/parser-kit");
   });
 
+  test("ignores words like 'to' that match nearly everything", () => {
+    expect(searchStars([...stars, star("x/y", { description: "Ways to cook" })], "pdf to markdown").map((s) => s.fullName)).not.toContain("x/y");
+  });
+
   test("finds nothing for a query with no real words", () => {
     expect(searchStars(stars, " , ")).toEqual([]);
   });

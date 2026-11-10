@@ -7,6 +7,16 @@ land on GitHub, so the app's UI shows them the next time you press Import.
 
 Tags, ratings and notes live in your browser, so an agent can't read or change them.
 
+## Search your stars from the command line
+
+`npx github-stars-organizer search <words>` needs no running server. It prints the
+stars that match, with each repo's Lists and whether it is active, quiet (no push in
+6 months) or archived, so an agent can check what you already starred before it
+suggests a library or tool. It reads a copy kept in `~/.github-stars-organizer` and
+refreshes it from GitHub once a day (`--refresh` to do it now). `--json` and
+`--limit <n>` change the output. The skill (`npx skills add
+armanckeser/github-stars-organizer`) tells agents to do this.
+
 ## Copy-paste prompt
 
 ```text

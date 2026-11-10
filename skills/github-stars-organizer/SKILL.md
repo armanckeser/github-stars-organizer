@@ -22,6 +22,10 @@ else as usual. The search reads a copy on disk and needs no running server; the 
 search of the day reads from GitHub and takes about 30 seconds for 500 stars. Add
 `--json` for machine-readable output.
 
+If the user wants this every time, offer to add this line to their `CLAUDE.md` or
+`AGENTS.md`, since a skill isn't always loaded at the moment a tool is picked:
+Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred.
+
 Stars Organizer runs on the user's machine and serves an HTTP API at
 `http://127.0.0.1:5185/api/local`. Changes go straight to the user's GitHub account, so
 show a plan and wait for the user's OK before any write.

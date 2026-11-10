@@ -78,8 +78,11 @@ export async function saveIndex(home: string, index: StarIndex): Promise<void> {
   await rename(partial, file);
 }
 
+// Words that match nearly every description, so they would only add noise.
+const STOP_WORDS = new Set(["a", "an", "and", "app", "for", "from", "in", "into", "my", "of", "on", "or", "the", "to", "tool", "with"]);
+
 function termsOf(query: string): string[] {
-  return [...new Set(query.toLowerCase().split(/[\s,]+/).filter((term) => term.length > 1))];
+  return [...new Set(query.toLowerCase().split(/[\s,]+/).filter((term) => term.length > 1 && !STOP_WORDS.has(term)))];
 }
 
 /**

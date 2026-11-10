@@ -4,14 +4,14 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createGitHubClient } from "../../server/github.ts";
 import { startFakeGitHub, type FakeGitHub } from "../../scripts/fake-github.ts";
-import { buildIndex, formatResults, isStale, readIndex, saveIndex, searchStars, STALE_AFTER_MS, type IndexedStar } from "./search.ts";
+import { buildIndex, formatResults, INDEX_VERSION, isStale, readIndex, saveIndex, searchStars, STALE_AFTER_MS, type IndexedStar } from "./search.ts";
 
 const NOW = Date.parse("2026-11-10T00:00:00Z");
 
 function star(fullName: string, extra: Partial<IndexedStar> = {}): IndexedStar {
   return {
     fullName, description: null, language: null, topics: [], stars: 100, isArchived: false,
-    pushedAt: "2026-11-01T00:00:00Z", starredAt: "2025-01-01T00:00:00Z", lists: [], ...extra,
+    pushedAt: "2026-11-01T00:00:00Z", lastReleaseAt: null, starredAt: "2025-01-01T00:00:00Z", lists: [], ...extra,
   };
 }
 
@@ -50,11 +50,13 @@ describe("formatResults", () => {
       star("a/archived", { isArchived: true, stars: 12_345 }),
       star("b/quiet", { pushedAt: "2024-01-01T00:00:00Z", lists: ["Dev Workflow", "Learn"] }),
       star("c/active", { description: "x".repeat(150) }),
+      star("d/old-release", { lastReleaseAt: "2025-03-01T00:00:00Z" }),
     ], NOW);
     expect(text).toContain("a/archived · 12k stars · ARCHIVED");
     expect(text).toContain("b/quiet · 100 stars · QUIET, last push 2y ago · Lists: Dev Workflow, Learn");
     expect(text).toContain("c/active · 100 stars · active, last push 9d ago");
     expect(text).toContain(`${"x".repeat(99)}…`);
+    expect(text).toContain("d/old-release · 100 stars · active, last push 9d ago, last release 20mo ago");
   });
 });
 
@@ -76,14 +78,16 @@ describe("the index on disk", () => {
     const index = await buildIndex(createGitHubClient("fake-token", fake.url), "abed-nadir", new Date(NOW));
     expect(index.stars).toHaveLength(120);
     expect(index.stars.filter((s) => s.lists.includes("Paintball"))).toHaveLength(2);
+    expect(index.stars.filter((s) => s.lastReleaseAt)).toHaveLength(60);
     await saveIndex(home, index);
     expect(await readIndex(home)).toEqual(index);
   });
 
   test("goes stale after a day, or when there is none", () => {
-    const index = { login: "abed-nadir", refreshedAt: new Date(NOW).toISOString(), stars: [] };
+    const index = { version: INDEX_VERSION, login: "abed-nadir", refreshedAt: new Date(NOW).toISOString(), stars: [] };
     expect(isStale(null, NOW)).toBe(true);
     expect(isStale(index, NOW + STALE_AFTER_MS - 1)).toBe(false);
     expect(isStale(index, NOW + STALE_AFTER_MS)).toBe(true);
+    expect(isStale({ ...index, version: 1 }, NOW)).toBe(true);
   });
 });

@@ -97,6 +97,7 @@ export async function startFakeGitHub(seed: FakeSeed = defaultSeed(), port = 0):
       owner: { login: repo.owner }, description: `A ${repo.owner} side project`, url: `https://github.com/${repo.owner}/${repo.name}`,
       homepageUrl: null, primaryLanguage: { name: "TypeScript" }, stargazerCount: repo.stars, forkCount: 3,
       isArchived: repo.databaseId % 17 === 0, pushedAt: "2026-09-20T00:00:00Z", createdAt: "2021-04-01T00:00:00Z",
+      latestRelease: repo.databaseId % 2 === 0 ? { publishedAt: "2025-03-01T00:00:00Z" } : null,
       repositoryTopics: { nodes: [{ topic: { name: "community" } }] },
     };
   }

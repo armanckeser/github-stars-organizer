@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { serve } from "@hono/node-server";
-import { createGitHubClient, type GitHubClient } from "../../server/github.ts";
+import { createGitHubClient, GitHubError, type GitHubClient } from "../../server/github.ts";
 import { LOCAL_APP_SIGNATURE, type PingResponse } from "../../src/lib/local-api.ts";
 import { defaultHome, HOME_ENV } from "./backup-store.ts";
 import { BackupFailedError, launch } from "./launch.ts";
@@ -35,8 +35,8 @@ saved in this browser; Lists and unstars are written to GitHub.
   --help           Show this message.
 
 search prints the stars that match any of the words (name, topics, Lists,
-description), with each repo's Lists and whether it is archived or quiet
-(no push in 6 months). It reads a copy of your stars kept on disk and
+description), with each repo's Lists, its last release, and whether it is
+archived or quiet (no push in 6 months). It reads a copy of your stars kept on disk and
 refreshes it from GitHub once a day, or now with --refresh. For coding
 agents: check the user's stars before suggesting a library or tool.
 
@@ -184,7 +184,7 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  const expected = error instanceof CliError || error instanceof BackupFailedError;
+  const expected = error instanceof CliError || error instanceof BackupFailedError || error instanceof GitHubError;
   console.error(expected ? error.message : error);
   process.exit(EXIT_FAILURE);
 });

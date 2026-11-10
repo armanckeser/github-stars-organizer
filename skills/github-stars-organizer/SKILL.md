@@ -16,15 +16,17 @@ npx github-stars-organizer search <a few words>
 
 Use two to four plain words for the job, like `pdf parser` or `self hosted photo`. Each
 result shows the repo's Lists and whether it is active, `QUIET` (no push in 6 months)
-or `ARCHIVED`. Prefer an active star that fits, and say it's one they starred. Don't
-pick a quiet or archived one without saying so. If nothing fits, suggest something
-else as usual. The search reads a copy on disk and needs no running server; the first
+or `ARCHIVED`. Start from an active star that fits, and say it's one they starred. If
+the best match is quiet or archived, or its last release is over a year old, say so
+and check whether a current alternative has overtaken it before you recommend it. The
+user wants their own picks first, but not stale ones. If nothing fits, suggest
+something else as usual. The search reads a copy on disk and needs no running server; the first
 search of the day reads from GitHub and takes about 30 seconds for 500 stars. Add
 `--json` for machine-readable output.
 
 If the user wants this every time, offer to add this line to their `CLAUDE.md` or
 `AGENTS.md`, since a skill isn't always loaded at the moment a tool is picked:
-Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred.
+Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred. If my pick is quiet or hasn't released in a year, say so and name the current alternative.
 
 Stars Organizer runs on the user's machine and serves an HTTP API at
 `http://127.0.0.1:5185/api/local`. Changes go straight to the user's GitHub account, so

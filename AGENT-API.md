@@ -18,7 +18,7 @@ refreshes it from GitHub once a day (`--refresh` to do it now). `--json` and
 to your `CLAUDE.md` or `AGENTS.md`:
 
 ```text
-Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred.
+Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred. If my pick is quiet or hasn't released in a year, say so and name the current alternative.
 ```
 
 ## Copy-paste prompt

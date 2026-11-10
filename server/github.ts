@@ -40,7 +40,9 @@ export function createGitHubClient(token: string, apiUrl: string = process.env.G
       const json = (await response.json().catch(() => ({}))) as GraphQLResponse<TData>;
       if (!response.ok) throw new GitHubError(response.status, json.message ?? `GitHub returned ${response.status}.`);
       if (json.errors?.length) throw new GitHubError(502, json.errors[0].message);
-      return json.data as TData;
+      // GitHub sometimes answers 200 with an empty body when it is overloaded.
+      if (json.data == null) throw new GitHubError(502, "GitHub sent an empty answer. Try again in a minute.");
+      return json.data;
     },
     get(path: string, accept = "application/vnd.github+json"): Promise<Response> {
       return request(`${apiUrl}${path}`, { headers: { ...headers, Accept: accept } });
@@ -71,6 +73,7 @@ export type StarredRepoNode = {
   isArchived?: boolean;
   pushedAt?: string | null;
   createdAt?: string | null;
+  latestRelease?: { publishedAt: string | null } | null;
 };
 
 export type StarredEdge = { node: StarredRepoNode; starredAt: string };
@@ -98,6 +101,7 @@ const STARRED_REPOS_QUERY = `
             primaryLanguage { name }
             stargazerCount forkCount
             isArchived pushedAt createdAt
+            latestRelease { publishedAt }
             repositoryTopics(first: 10) { nodes { topic { name } } }
           }
         }

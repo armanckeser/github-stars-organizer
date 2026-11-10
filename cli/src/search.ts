@@ -22,11 +22,16 @@ export type IndexedStar = {
   stars: number;
   isArchived: boolean;
   pushedAt: string | null;
+  /** When the latest release came out; null when the repo has never released. */
+  lastReleaseAt: string | null;
   starredAt: string;
   lists: string[];
 };
 
-export type StarIndex = { login: string; refreshedAt: string; stars: IndexedStar[] };
+/** Bumped when the stored fields change, so an older copy is read again from GitHub. */
+export const INDEX_VERSION = 2;
+
+export type StarIndex = { version: number; login: string; refreshedAt: string; stars: IndexedStar[] };
 
 export function indexFile(home: string): string {
   return path.join(home, "search-index.json");
@@ -41,7 +46,7 @@ export async function readIndex(home: string): Promise<StarIndex | null> {
 }
 
 export function isStale(index: StarIndex | null, now: number): boolean {
-  return !index || now - Date.parse(index.refreshedAt) >= STALE_AFTER_MS;
+  return !index || index.version !== INDEX_VERSION || now - Date.parse(index.refreshedAt) >= STALE_AFTER_MS;
 }
 
 /** Every star with the names of the Lists it is in, read fresh from GitHub. */
@@ -62,12 +67,13 @@ export async function buildIndex(github: GitHubClient, login: string, now: Date)
         stars: node.stargazerCount,
         isArchived: node.isArchived ?? false,
         pushedAt: node.pushedAt ?? null,
+        lastReleaseAt: node.latestRelease?.publishedAt ?? null,
         starredAt,
         lists: listsOf.get(node.nameWithOwner) ?? [],
       });
     }
   }
-  return { login, refreshedAt: now.toISOString(), stars };
+  return { version: INDEX_VERSION, login, refreshedAt: now.toISOString(), stars };
 }
 
 export async function saveIndex(home: string, index: StarIndex): Promise<void> {
@@ -132,11 +138,12 @@ export function formatResults(results: IndexedStar[], now: number): string {
         : isQuiet({ is_archived: false, pushed_at: star.pushedAt }, now)
           ? `QUIET, last push ${star.pushedAt ? ago(star.pushedAt, now) : "never"}`
           : `active, last push ${star.pushedAt ? ago(star.pushedAt, now) : "unknown"}`;
+      const release = star.lastReleaseAt ? `, last release ${ago(star.lastReleaseAt, now)}` : "";
       const lists = star.lists.length ? ` · Lists: ${star.lists.join(", ")}` : "";
       const description = star.description
         ? `\n  ${star.description.length > DESCRIPTION_CHARS ? `${star.description.slice(0, DESCRIPTION_CHARS - 1)}…` : star.description}`
         : "";
-      return `${star.fullName} · ${compactCount(star.stars)} stars · ${state}${lists}${description}`;
+      return `${star.fullName} · ${compactCount(star.stars)} stars · ${state}${release}${lists}${description}`;
     })
     .join("\n");
 }

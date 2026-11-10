@@ -6,6 +6,7 @@ import { createGitHubClient, type GitHubClient } from "../../server/github.ts";
 import { LOCAL_APP_SIGNATURE, type PingResponse } from "../../src/lib/local-api.ts";
 import { defaultHome, HOME_ENV } from "./backup-store.ts";
 import { BackupFailedError, launch } from "./launch.ts";
+import { buildIndex, formatResults, readIndex, saveIndex, searchStars, isStale } from "./search.ts";
 
 // `npx github-stars-organizer`: serves the app on 127.0.0.1 with the user's own
 // GitHub login, opens it, and stops on Ctrl-C. The data lives in the browser,
@@ -23,6 +24,7 @@ Source, license and bundled licenses: ${SOURCE_URL}
 Not affiliated with or endorsed by GitHub.`;
 
 const HELP = `Usage: npx github-stars-organizer [--port <number>] [--no-open]
+       npx github-stars-organizer search <words> [--refresh] [--json] [--limit <n>]
 
 Opens Stars Organizer on http://127.0.0.1:${DEFAULT_PORT} using your GitHub
 login from the gh CLI (or GITHUB_TOKEN, if set). Tags, ratings and notes are
@@ -31,6 +33,12 @@ saved in this browser; Lists and unstars are written to GitHub.
   --port <number>  Serve on another port. Each port keeps its own saved data.
   --no-open        Print the address without opening a browser.
   --help           Show this message.
+
+search prints the stars that match any of the words (name, topics, Lists,
+description), with each repo's Lists and whether it is archived or quiet
+(no push in 6 months). It reads a copy of your stars kept on disk and
+refreshes it from GitHub once a day, or now with --refresh. For coding
+agents: check the user's stars before suggesting a library or tool.
 
 Before opening, it backs up your stars and Lists to
 ~/.github-stars-organizer/backups (set ${HOME_ENV} to move it).
@@ -94,14 +102,53 @@ function parsePort(value: string | undefined): number {
   return port;
 }
 
+function parseLimit(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 1) throw new CliError(`--limit must be a whole number above 0, got "${value}".`);
+  return limit;
+}
+
+async function search(words: string[], options: { refresh?: boolean; json?: boolean; limit?: string }) {
+  const query = words.join(" ").trim();
+  if (!query) throw new CliError("Say what to look for, e.g. `npx github-stars-organizer search pdf parser`.");
+  const limit = parseLimit(options.limit);
+  const home = defaultHome();
+  const now = new Date();
+  let index = await readIndex(home);
+  if (options.refresh || isStale(index, now.getTime())) {
+    const github = createGitHubClient(await resolveToken());
+    // stderr, so --json output stays parseable.
+    console.error("Reading your stars and Lists from GitHub (once a day; about 30 seconds for 500 stars)...");
+    index = await buildIndex(github, await signedInAs(github), now);
+    await saveIndex(home, index);
+  }
+  const results = searchStars(index!.stars, query, limit);
+  if (options.json) {
+    console.log(JSON.stringify({ login: index!.login, refreshedAt: index!.refreshedAt, results }, null, 2));
+    return;
+  }
+  if (!results.length) {
+    console.log(`None of @${index!.login}'s ${index!.stars.length} stars match "${query}".`);
+    return;
+  }
+  console.log(formatResults(results, now.getTime()));
+}
+
 async function main() {
-  const { values } = parseArgs({
-    options: { port: { type: "string" }, "no-open": { type: "boolean" }, help: { type: "boolean" } },
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: {
+      port: { type: "string" }, "no-open": { type: "boolean" }, help: { type: "boolean" },
+      refresh: { type: "boolean" }, json: { type: "boolean" }, limit: { type: "string" },
+    },
   });
   if (values.help) {
     console.log(HELP);
     return;
   }
+  if (positionals[0] === "search") return search(positionals.slice(1), values);
+  if (positionals.length) throw new CliError(`Unknown command "${positionals[0]}". Run with --help to see the options.`);
   console.log(`${NOTICE}\n`);
   const port = parsePort(values.port);
   const url = `http://127.0.0.1:${port}`;

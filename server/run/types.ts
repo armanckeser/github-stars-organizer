@@ -1,4 +1,14 @@
 // The shapes every part of the run shares: the fight engine, the Worker and the screen.
+//
+// The board is 4 cells wide and 4 deep. Each side places cards on its own half:
+// 4 columns and 2 rows, row 0 in front. Board cell (x, y): y 0 and 1 belong to
+// side 0 (y 1 is its front), y 2 and 3 to side 1 (y 2 is its front). Each side
+// counts columns from its own left, so side 1's columns are mirrored on the board.
+
+export const COLS = 4;
+export const ROWS = 2;
+/** One tick of a fight, in milliseconds. Event times are in ticks. */
+export const TICK_MS = 100;
 
 export type Card = {
   /** "owner/repo" */
@@ -11,23 +21,32 @@ export type Card = {
   attack: number;
   guard: number;
   speed: number;
+  /** How many cells away the card can hit: 1 fights up close, 3 from behind. */
+  range: 1 | 3;
   /** An id from ABILITIES. */
   ability: string;
   shiny: boolean;
 };
 
-/** A team as saved at one round of a run. Cards are in order, front first. */
-export type Snapshot = { login: string; round: number; cards: Card[]; boosts: string[] };
+export type Placed = { card: Card; col: number; row: number };
+
+/** A team as saved at one round of a run: which cards, and where each stands. */
+export type Snapshot = { login: string; round: number; units: Placed[]; boosts: string[] };
 
 export type Side = 0 | 1;
 
-export type FightEvent =
-  | { kind: "enter"; side: Side; slot: number }
-  | { kind: "hit"; side: Side; slot: number; target: number; damage: number; critical: boolean }
-  | { kind: "ability"; side: Side; slot: number; ability: string; targets: number[] }
-  | { kind: "condition"; side: Side; slot: number; condition: string; on: boolean }
-  | { kind: "faint"; side: Side; slot: number }
-  | { kind: "end"; winner: Side | null };
+export function cellOf(side: Side, placed: { col: number; row: number }): { x: number; y: number } {
+  return side === 0 ? { x: placed.col, y: ROWS - 1 - placed.row } : { x: COLS - 1 - placed.col, y: ROWS + placed.row };
+}
 
-/** Pure: the same two snapshots and seed always give the same events. */
+/** `unit` and `target` are indexes into that side's `units`. A hit's target is on the other side. */
+export type FightEvent =
+  | { t: number; kind: "move"; side: Side; unit: number; x: number; y: number }
+  | { t: number; kind: "hit"; side: Side; unit: number; target: number; damage: number; critical: boolean }
+  | { t: number; kind: "ability"; side: Side; unit: number; ability: string; targets: number[] }
+  | { t: number; kind: "condition"; side: Side; unit: number; condition: string; on: boolean }
+  | { t: number; kind: "faint"; side: Side; unit: number }
+  | { t: number; kind: "end"; winner: Side | null };
+
+/** Pure: the same two snapshots and seed always give the same events, in time order. */
 export type Fight = (a: Snapshot, b: Snapshot, seed: string) => FightEvent[];

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RunRouteImport } from './routes/run'
 import { Route as GameRouteImport } from './routes/game'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as ComposeRouteImport } from './routes/compose'
@@ -17,6 +18,11 @@ import { Route as BackupsRouteImport } from './routes/backups'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ListListIdRouteImport } from './routes/list.$listId'
 
+const RunRoute = RunRouteImport.update({
+  id: '/run',
+  path: '/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GameRoute = GameRouteImport.update({
   id: '/game',
   path: '/game',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/compose': typeof ComposeRoute
   '/explore': typeof ExploreRoute
   '/game': typeof GameRoute
+  '/run': typeof RunRoute
   '/list/$listId': typeof ListListIdRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/compose': typeof ComposeRoute
   '/explore': typeof ExploreRoute
   '/game': typeof GameRoute
+  '/run': typeof RunRoute
   '/list/$listId': typeof ListListIdRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/compose': typeof ComposeRoute
   '/explore': typeof ExploreRoute
   '/game': typeof GameRoute
+  '/run': typeof RunRoute
   '/list/$listId': typeof ListListIdRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/compose'
     | '/explore'
     | '/game'
+    | '/run'
     | '/list/$listId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/compose'
     | '/explore'
     | '/game'
+    | '/run'
     | '/list/$listId'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/compose'
     | '/explore'
     | '/game'
+    | '/run'
     | '/list/$listId'
   fileRoutesById: FileRoutesById
 }
@@ -118,11 +130,19 @@ export interface RootRouteChildren {
   ComposeRoute: typeof ComposeRoute
   ExploreRoute: typeof ExploreRoute
   GameRoute: typeof GameRoute
+  RunRoute: typeof RunRoute
   ListListIdRoute: typeof ListListIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/run': {
+      id: '/run'
+      path: '/run'
+      fullPath: '/run'
+      preLoaderRoute: typeof RunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/game': {
       id: '/game'
       path: '/game'
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComposeRoute: ComposeRoute,
   ExploreRoute: ExploreRoute,
   GameRoute: GameRoute,
+  RunRoute: RunRoute,
   ListListIdRoute: ListListIdRoute,
 }
 export const routeTree = rootRouteImport

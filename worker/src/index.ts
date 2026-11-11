@@ -1,5 +1,5 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
-import { BATTLE_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
+import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, poolResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
 import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
@@ -86,18 +86,21 @@ export default {
     const fight = BATTLE_PATH.exec(url.pathname);
     const trainer = TRAINER_PATH.test(url.pathname);
     const versus = VERSUS_PATH.test(url.pathname);
-    if (card || fight || trainer || versus) {
+    const pool = RUN_POOL_PATH.test(url.pathname);
+    if (card || fight || trainer || versus || pool) {
       // Sorted, so one card asked for with its parameters in another order shares an entry.
       url.searchParams.sort();
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
       // The version goes up whenever a reply's shape changes, so a deploy never serves
       // an older shape to the newer app out of the cache.
-      const keyUrl = new URL(fight || versus ? url.toString().toLowerCase() : url.toString());
+      const keyUrl = new URL(fight || versus || pool ? url.toString().toLowerCase() : url.toString());
       keyUrl.searchParams.set("_shape", RESPONSE_SHAPE);
       const key = new Request(keyUrl.toString());
       const cached = await caches.default.match(key);
       if (cached) return cached;
-      const response = versus
+      const response = pool
+        ? await poolResponse(url.searchParams, env.GITHUB_TOKEN)
+        : versus
         ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)
         : trainer
         ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN)

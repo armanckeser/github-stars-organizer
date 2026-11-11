@@ -13,10 +13,13 @@ import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 
 export const BATTLE_PATH = /^\/api\/(battle|card\/battle\.svg)$/;
 //   /api/card/trainer.svg?user=<login>&name=&class=&look=&motto=   a player's character
+export const RUN_POOL_PATH = /^\/api\/run\/pool$/;
 export const TRAINER_PATH = /^\/api\/card\/trainer\.svg$/;
 
 const CACHE_SECONDS = 3600;
 const TEAM_SIZE = 4;
+// A run draws its shops from this many of the player's stars for the day.
+const POOL_SIZE = 21;
 
 const FACTS = `nameWithOwner description stargazerCount forkCount isArchived createdAt pushedAt
   primaryLanguage { name color } owner { avatarUrl(size: 192) }
@@ -125,7 +128,7 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
 // first pinned repo, else their own most-starred repo. Someone with too few stars
 // fills the rest from what they chose and then from their own repos, and may still
 // come up short; `evened` then trims the other side to match.
-export async function teamFor(token: string, login: string, now: number): Promise<Team> {
+export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE): Promise<Team> {
   const name = JSON.stringify(login);
   const data = await gql<{
     user: (PlayerNode & {
@@ -174,11 +177,11 @@ export async function teamFor(token: string, login: string, now: number): Promis
   if (ace.length === 0 && stars.length > 0) source = "stars";
   const drawn = await factsFor(
     token,
-    drawFromStars(stars, ace.map((node) => node.nameWithOwner), TEAM_SIZE - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
+    drawFromStars(stars, ace.map((node) => node.nameWithOwner), size - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
   );
   const nodes = [...ace, ...drawn];
   for (const spare of [...chosen.slice(1), ...user.repositories.nodes]) {
-    if (nodes.length >= TEAM_SIZE) break;
+    if (nodes.length >= size) break;
     if (!nodes.some((node) => node.nameWithOwner === spare.nameWithOwner)) nodes.push(spare);
   }
   const team = fieldTeam(nodes.map(toFacts), user.login, character.klass, now).map((fighter, i) => (i >= ace.length && i < ace.length + drawn.length ? { ...fighter, wildcard: true } : fighter));
@@ -224,6 +227,21 @@ export async function trainerResponse(params: URLSearchParams, token: string): P
   } catch (error) {
     console.error(error);
     return svg(messageCard("GitHub didn't answer. This card will be back shortly."), 502, 0);
+  }
+}
+
+/** The cards a run is played with: the ace first, then the day's draws from the player's stars. */
+export async function poolResponse(params: URLSearchParams, token: string): Promise<Response> {
+  const login = params.get("login") ?? "";
+  if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
+  try {
+    const player = await teamFor(token, login, Date.now(), POOL_SIZE);
+    if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
+    return json(player, 200, CACHE_SECONDS);
+  } catch (error) {
+    if (error instanceof NoSuchUser) return json({ error: `No GitHub user called ${error.message}.` }, 404, CACHE_SECONDS);
+    console.error(error);
+    return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0);
   }
 }
 

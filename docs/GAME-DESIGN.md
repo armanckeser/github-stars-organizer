@@ -12,7 +12,7 @@ The plan for making battles fun, fair and worth coming back to. The 3D arena is 
 
 ## Open decision: turns or a run
 
-Not decided. A friend's point: picking a move each turn is an old format, and the instant battle in the demo is something people watch, not play. The alternative is an auto-battler run, the format of Super Auto Pets, Backpack Battles and The Bazaar.
+Decided 2026-11-11: the run. A friend's point: picking a move each turn is an old format, and the instant battle in the demo is something people watch, not play. The alternative is an auto-battler run, the format of Super Auto Pets, Backpack Battles and The Bazaar.
 
 **What those games do**
 

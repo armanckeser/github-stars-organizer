@@ -117,6 +117,38 @@ Prepare everything in one PR; the maintainer flips the settings.
 - The card opened from the shop or the board still lists the two moves of the old turn-by-turn game. In a run, show what matters there: reach (up close or from behind), the four numbers, the ability and the sets (once Task 2 exists), and the price.
 - Gold has nothing to spend on once the team is full. With the bench (Task 8), add buying a larger team: 4 gold for one more board slot, up to 7.
 
+## Task 14: characters that look like the person
+
+Today a look is six numbers (`Look` in `server/character.ts`) and glasses, headphones, cap and beard share one slot, so nobody can have glasses and a beard. Well-known accounts get a look made from their username, which looks like nobody.
+
+**A character file.** `characters/<login>.md` in this repo, login in lower case. Plain `key: value` lines, written to be easy for a person or their agent to produce:
+
+```
+name: Theo
+class: scout
+motto: Ship it.
+skin: light
+hair: short
+hair-color: brown
+beard: stubble
+glasses: round
+hat: none
+headphones: no
+top: hoodie
+top-color: #1f1f1f
+```
+
+- Every key is optional. Unknown keys and values are ignored, never an error. Colours are a name from the palette or `#rrggbb`.
+- A closed list of parts, nothing free-form and no code: the same file must draw in 3D (`three/trainer.ts`), as the flat figure (`figureSvg`) and on the character card.
+- Order of preference: the character in the player's own `stard` repo or profile README, then `characters/<login>.md` here, then the look made from the username.
+- The same keys work in a file `character.md` in a player's own `stard` repo, so a player's agent can write one without a pull request here.
+
+**More parts**, so a likeness is possible. Glasses, beard, hat and headphones become separate. Add at least: hair `bald`, `buzz`, `short`, `medium`, `long`, `curly`, `bun`, `mohawk`; beard `none`, `stubble`, `full`, `goatee`, `moustache`; glasses `none`, `round`, `square`, `shades`; hat `none`, `cap`, `beanie`; top `tee`, `hoodie`, `jacket`, `sweater`, `shirt`. The look code in a card link (`encodeLook`) must still read every code already pasted into someone's README.
+
+**Files to ship.** One for `armanckeser` and one for each account in `OPPONENTS` (`src/lib/run.ts`), made from the account's public avatar: hair, beard, glasses, hat, what they usually wear. Where the avatar does not show a feature, leave the key out. `characters/README.md` says how anyone can change or remove their own file with a pull request or an issue.
+
+**Checks.** A test per part that the 3D figure and the flat figure both build. A page of all shipped characters side by side (3D and flat) as a screenshot in the PR.
+
 ## Taken (being built by the maintainer)
 
 - The Play screen (`src/routes/run.tsx`) and its 3D board (`src/components/battle/three/board.ts`): the shop, gold, placing cards and the all-at-once fight are built. Still to do there: the boost pick, showing abilities and sets, a bench, and a share link for a finished run.

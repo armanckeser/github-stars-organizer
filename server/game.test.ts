@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { fighterFor, type RepoFacts } from "./battle.ts";
 import { defaultLook } from "./character.ts";
 import {
-  TURN_CLOCK_MS, applyAction, decodeOpening, encodeOpening, legalActions, moveComment, openingBody, readOpening, replay, replyComment, rollFor,
+  ENERGY_FOR_SPECIAL, TURN_CLOCK_MS, applyAction, decodeOpening, encodeOpening, legalActions, moveComment, openingBody, readOpening, replay, replyComment, rollFor, startGame,
   type Action, type GameComment, type GameState, type Opening,
 } from "./game.ts";
 
@@ -76,6 +76,20 @@ describe("starting", () => {
   test("the faster lead card moves first", () => {
     const fastHost: Opening = { ...opening, teams: { a: team("host"), b: team("guest", { pushedAt: "2024-01-01T00:00:00Z" }) } };
     expect(replay(fastHost, SEED, [comment("guest", replyComment("accept", "Ok."))], NOW).next).toBe("a");
+  });
+
+  test("the side moving second starts with its lead card's special charged", () => {
+    const state = replay(opening, SEED, [comment("guest", replyComment("accept", "Ok."))], NOW);
+    expect(state.next).toBe("b");
+    expect(state.sides.a.energy).toEqual([ENERGY_FOR_SPECIAL, 0]);
+    expect(state.sides.b.energy).toEqual([0, 0]);
+  });
+
+  test("a game against the computer starts at once, as an accepted challenge would", () => {
+    const accepted = replay(opening, SEED, [comment("guest", replyComment("accept", "Ok."))], NOW);
+    const started = startGame(opening, SEED);
+    expect(started.status).toBe("active");
+    expect([started.next, started.sides, started.forecast]).toEqual([accepted.next, accepted.sides, accepted.forecast]);
   });
 
   test("a decline ends the challenge", () => {

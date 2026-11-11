@@ -22,11 +22,12 @@ const TEAM_SIZE = 4;
 // A run draws its shops from this many of the player's stars for the day.
 const POOL_SIZE = 21;
 
-const FACTS = `nameWithOwner description stargazerCount forkCount isArchived createdAt pushedAt
+// `lastYear` counts commits since the same day a year ago, for a card's attack.
+const factsQuery = (now: number) => `nameWithOwner description stargazerCount forkCount isArchived createdAt pushedAt
   primaryLanguage { name color } owner { avatarUrl(size: 192) } repositoryTopics(first: 20) { nodes { topic { name } } }
   openIssues: issues(states: OPEN) { totalCount } closedIssues: issues(states: CLOSED) { totalCount }
   releases { totalCount } mentionableUsers { totalCount }
-  defaultBranchRef { target { ... on Commit { history { totalCount } } } }`;
+  defaultBranchRef { target { ... on Commit { history { totalCount } lastYear: history(since: ${JSON.stringify(new Date(now - 365 * 86_400_000).toISOString().slice(0, 10) + "T00:00:00Z")}) { totalCount } } } }`;
 
 type FactsNode = {
   nameWithOwner: string;
@@ -37,7 +38,7 @@ type FactsNode = {
   createdAt: string | null;
   pushedAt: string | null;
   mentionableUsers: { totalCount: number };
-  defaultBranchRef: { target: { history?: { totalCount: number } } | null } | null;
+  defaultBranchRef: { target: { history?: { totalCount: number }; lastYear?: { totalCount: number } } | null } | null;
   primaryLanguage: { name: string; color: string | null } | null;
   owner: { avatarUrl: string };
   openIssues: { totalCount: number };
@@ -91,6 +92,7 @@ function toFacts(node: FactsNode): RepoFacts {
     createdAt: node.createdAt,
     contributors: node.mentionableUsers.totalCount,
     commits: node.defaultBranchRef?.target?.history?.totalCount ?? 0,
+    commitsYear: node.defaultBranchRef?.target?.lastYear?.totalCount,
     language: node.primaryLanguage?.name ?? null,
     color: node.primaryLanguage?.color ?? null,
     avatarUrl: node.owner.avatarUrl,
@@ -111,14 +113,14 @@ export function topFourIn(readme: string): string[] {
 }
 
 
-async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
+async function factsFor(token: string, names: string[], now: number): Promise<FactsNode[]> {
   if (names.length === 0) return [];
   const found = await gql<Record<string, FactsNode | null>>(
     token,
     `query {${names
       .map((repo, i) => {
         const [owner, repoName] = repo.split("/");
-        return ` r${i}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(repoName)}) { ${FACTS} }`;
+        return ` r${i}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(repoName)}) { ${factsQuery(now)} }`;
       })
       .join("")} }`,
   );
@@ -150,8 +152,8 @@ export async function teamFor(token: string, login: string, now: number, size = 
       ${PLAYER}
       profile: repository(name: ${name}) { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
       stard: repository(name: "stard") { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
-      pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${FACTS} } } }
-      repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${FACTS} } }
+      pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${factsQuery(now)} } } }
+      repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${factsQuery(now)} } }
       starredRepositories(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { nodes { nameWithOwner isPrivate } }
     } }`,
   );
@@ -165,7 +167,7 @@ export async function teamFor(token: string, login: string, now: number, size = 
   const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
 
   let source: TeamSource = "profile";
-  let chosen = await factsFor(token, topFourIn(readme));
+  let chosen = await factsFor(token, topFourIn(readme), now);
   if (chosen.length === 0) {
     source = "pinned";
     chosen = user.pinnedItems.nodes.filter((node): node is FactsNode => "nameWithOwner" in node);
@@ -180,6 +182,7 @@ export async function teamFor(token: string, login: string, now: number, size = 
   const drawn = await factsFor(
     token,
     drawFromStars(stars, ace.map((node) => node.nameWithOwner), size - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
+    now,
   );
   const nodes = [...ace, ...drawn];
   for (const spare of [...chosen.slice(1), ...user.repositories.nodes]) {

@@ -26,21 +26,18 @@ describe("a stored opening post", () => {
     const opening = await opened(STORED_V2);
     const rebuilt = teamsFromFacts(opening);
 
-    // The post was written before cards had a `home` mark. The mark changes no number,
-    // so a rebuild that adds it still plays the same match.
-    const withoutHome = (team: Fighter[]) => team.map((fighter) => {
-      const copy: Partial<Fighter> = { ...fighter };
-      delete copy.home;
-      return copy;
-    });
-    expect({ a: withoutHome(rebuilt.a), b: withoutHome(rebuilt.b) }).toEqual(opening.teams);
+    // The post was signed before the stat budget, so its numbers are the old rules'.
+    // A rebuild applies today's rules to the same facts: same cards, perks and order.
+    const shape = (team: Fighter[]) => team.map((f) => [f.fullName, f.type, f.perk, f.wildcard ?? false]);
+    expect({ a: shape(rebuilt.a), b: shape(rebuilt.b) }).toEqual({ a: shape(opening.teams.a), b: shape(opening.teams.b) });
     expect([...rebuilt.a, ...rebuilt.b].map((f) => f.home)).toEqual([false, false, false, false, false, false]);
+    expect(teamsFromFacts(opening)).toEqual(rebuilt);
     // The host fielded four cards and was cut to three: the specialist perk counted the
     // three web cards among all four, so the two web cards left still carry it.
     expect(rebuilt.a.map((f) => [f.fullName, f.attack, f.perk, f.wildcard ?? false])).toEqual([
-      ["greendale/dreamatorium", 103, true, false],
-      ["troy-barnes/blanket-fort", 67, true, true],
-      ["inspector-spacetime/constables", 101, false, true],
+      ["greendale/dreamatorium", 121, true, false],
+      ["troy-barnes/blanket-fort", 124, true, true],
+      ["inspector-spacetime/constables", 113, false, true],
     ]);
     expect(rebuilt.b.map((f) => f.fullName)).toEqual(["greendale/paintball-assassin", "greendale/human-being", "city-college/mascot"]);
   });
@@ -98,6 +95,6 @@ describe("a new challenge", () => {
     if (opening.v !== 2) throw new Error(`expected a v2 opening, got v${opening.v}`);
     expect(opening.facts.a.repos.map((r) => r.topics)).toEqual([["simulation", "game"], ["web"], ["ai", "data"], ["cli"]]);
     expect(teamsFromFacts(opening)).toEqual(opening.teams);
-    expect(opening.teams.a.map((f) => f.attack)).toEqual([103, 67, 101]);
+    expect(opening.teams.a.map((f) => f.attack)).toEqual([121, 124, 113]);
   });
 });

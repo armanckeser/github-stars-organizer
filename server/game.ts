@@ -17,7 +17,7 @@
 //   from GitHub when the challenge was made, so the teams can be worked out again later
 //   with GitHub out of the picture (teamsFromFacts).
 
-import { fieldTeam, matchup, seededRandom, type Fighter, type RepoFacts, type Side } from "./battle.ts";
+import { baseDamage, fieldTeam, matchup, seededRandom, type Fighter, type RepoFacts, type Side } from "./battle.ts";
 import { defaultCharacter, type Character, type ClassId, type Look } from "./character.ts";
 
 export type Action = { kind: "attack" } | { kind: "special" } | { kind: "guard" } | { kind: "switch"; to: number };
@@ -129,12 +129,11 @@ export type GameState = {
 
 export const ENERGY_FOR_SPECIAL = 2;
 export const TURN_CLOCK_MS = 7 * 86_400_000;
-const STRONG = 1.3;
+const STRONG = 1.5;
 const CRITICAL = 1.5;
 const CRITICAL_ODDS = 1 / 8;
 const SPECIAL_POWER = 1.6;
 const GUARD = 0.5;
-const QUICK = 1.08;
 const MAX_TURNS = 300;
 const CHAT_CHARS = 280;
 const OPEN = "open";
@@ -298,12 +297,12 @@ export function applyAction(state: GameState, seed: string, side: Side, action: 
     const target = state.teams[foe][theirs.active];
     const roll = rollFor(seed, state.turn);
     const edge = matchup(attacker.type, target.type);
-    const base = (attacker.attack * attacker.attack) / (attacker.attack + target.defense);
+    const base = baseDamage(attacker, target);
     const damage = Math.max(
       1,
       Math.round(
         base * (special ? SPECIAL_POWER : 1) * (edge === 1 ? STRONG : edge === -1 ? 1 / STRONG : 1) * (roll.critical ? CRITICAL : 1) *
-          roll.variance * (attacker.speed > target.speed ? QUICK : 1) * (theirs.guarding ? GUARD : 1),
+          roll.variance * (theirs.guarding ? GUARD : 1),
       ),
     );
     mine.energy[mine.active] = special ? mine.energy[mine.active] - ENERGY_FOR_SPECIAL : Math.min(ENERGY_FOR_SPECIAL, mine.energy[mine.active] + 1);
@@ -344,16 +343,34 @@ function chatText(body: string): string {
   return text.length > CHAT_CHARS ? `${text.slice(0, CHAT_CHARS - 1)}…` : text;
 }
 
+function waitingFor(opening: Opening): GameState {
+  const fresh = (side: Side): SideState => ({ hp: opening.teams[side].map((f) => f.hp), energy: opening.teams[side].map(() => 0), active: 0, guarding: false });
+  return {
+    status: "waiting", reason: null, players: opening.players, teams: opening.teams, sides: { a: fresh("a"), b: fresh("b") },
+    turn: 1, next: null, winner: null, events: [], chat: [], last: OPEN, lastAt: null, forecast: [],
+  };
+}
+
+// The faster lead card moves first; the challenged player takes a tie.
+function begin(state: GameState, seed: string): GameState {
+  const first: Side = state.teams.a[0].speed > state.teams.b[0].speed ? "a" : "b";
+  // Moving first is worth a hit, so the other side's lead card starts with its special charged.
+  const second = other(first);
+  const sides = { ...state.sides, [second]: { ...state.sides[second], energy: state.sides[second].energy.map((value, i) => (i === 0 ? ENERGY_FOR_SPECIAL : value)) } };
+  return { ...state, sides, status: "active", next: first, forecast: [0, 1, 2].map((ahead) => rollFor(seed, 1 + ahead)) };
+}
+
+/** A match that starts at once, with no thread and nobody to accept: a game against the computer. */
+export function startGame(opening: Opening, seed: string): GameState {
+  return begin(waitingFor(opening), seed);
+}
+
 /**
  * The whole match, from the opening and the thread's comments in the order GitHub
  * gives them. `seed` is the thread's id. `now` decides whether the turn clock ran out.
  */
 export function replay(opening: Opening, seed: string, comments: GameComment[], now: number): GameState {
-  const fresh = (side: Side): SideState => ({ hp: opening.teams[side].map((f) => f.hp), energy: opening.teams[side].map(() => 0), active: 0, guarding: false });
-  let state: GameState = {
-    status: "waiting", reason: null, players: opening.players, teams: opening.teams, sides: { a: fresh("a"), b: fresh("b") },
-    turn: 1, next: null, winner: null, events: [], chat: [], last: OPEN, lastAt: null, forecast: [],
-  };
+  let state = waitingFor(opening);
   const sideOf = (login: string): Side | null =>
     login.toLowerCase() === opening.players.a.login.toLowerCase() ? "a" : login.toLowerCase() === opening.players.b.login.toLowerCase() ? "b" : null;
   const ids = new Set(comments.map((comment) => comment.id));
@@ -395,9 +412,7 @@ export function replay(opening: Opening, seed: string, comments: GameComment[], 
         state = { ...state, status: "declined", last: comment.id, lastAt: comment.createdAt };
         continue;
       }
-      // The faster lead card moves first; the challenged player takes a tie.
-      const first: Side = opening.teams.a[0].speed > opening.teams.b[0].speed ? "a" : "b";
-      state = { ...state, status: "active", next: first, last: comment.id, lastAt: comment.createdAt, forecast: [0, 1, 2].map((ahead) => rollFor(seed, 1 + ahead)) };
+      state = { ...begin(state, seed), last: comment.id, lastAt: comment.createdAt };
       continue;
     }
 

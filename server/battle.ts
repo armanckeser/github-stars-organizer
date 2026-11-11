@@ -23,7 +23,12 @@ export type RepoFacts = {
   contributors: number;
   /** Commits on the default branch. */
   commits: number;
+  /** Commits on the default branch in the last year. Missing from older replies: then estimated from `commits` and age. */
+  commitsYear?: number;
 };
+
+export const RARITIES = ["common", "uncommon", "rare", "epic", "legendary"] as const;
+export type Rarity = (typeof RARITIES)[number];
 
 export const CARD_TYPES = ["systems", "scripts", "web", "apps", "data", "docs"] as const;
 export type CardType = (typeof CARD_TYPES)[number];
@@ -53,16 +58,19 @@ export type Fighter = {
   /** The type that hits this card harder, and the one this card shrugs off. Null for docs. */
   weakness: CardType | null;
   resistance: CardType | null;
+  /** Shown on cards; no longer changes the stats. */
   level: number;
+  /** From the stars: sets the card's stat budget. */
+  rarity: Rarity;
   hp: number;
   attack: number;
   defense: number;
   speed: number;
   /** The everyday move, and the special the card uses on every third hit. */
   moves: [Move, Move];
-  /** The repo belongs to `armanckeser`: shiny for every player. */
+  /** Owned by armanckeser: a foil card and 5% more of every stat, for every player. */
   shiny: boolean;
-  /** The repo belongs to the player fielding it. A mark only: no stat change. */
+  /** The repo belongs to the player fielding it. No stat bonus. */
   home: boolean;
   /** The repo is archived. */
   retired: boolean;
@@ -121,13 +129,32 @@ const BASIC_MOVE: Record<CardType, string> = {
   docs: "Read the Docs",
 };
 
-const STRONG = 1.3;
+const STRONG = 1.5;
 const WEAK = 1 / STRONG;
 const CRITICAL_ODDS = 1 / 12;
 const CRITICAL = 1.5;
 const SHINY = 1.05;
 /** Repos from this account are shiny for every player: the game asks for stars. */
 export const SHINY_OWNER = "armanckeser";
+// The stat budget per rarity, and the stars each rarity starts at.
+const RARITY_STARS: [Rarity, number, number][] = [["legendary", 100_000, 460], ["epic", 10_000, 445], ["rare", 1000, 430], ["uncommon", 100, 415], ["common", 0, 400]];
+// Each stat's share of the budget stays between these.
+const MIN_SHARE = 0.15;
+const MAX_SHARE = 0.4;
+// HP is a pool and the other stats are rates. One budget point buys this much HP,
+// so an even card (about 107 HP points) has about 160 HP and falls to four everyday
+// hits from an even card, and a 4-card match lasts about 50 turns.
+const HP_PER_POINT = 1.5;
+// A hit between two cards with the same attack, defense and speed, before the move,
+// the type edge and the dice.
+const DAMAGE = 40;
+// How much a speed lead adds to a hit: the speed ratio to this power.
+const SPEED_EDGE = 0.4;
+// Speed is shared out of the common budget whatever the rarity. Speed also decides who
+// moves first, so a rarer card that was faster too would win the opening as well.
+const SPEED_BUDGET = 400;
+// The card a move's shown damage is measured against: an even split of a rare's budget.
+const EVEN = 430 / 4;
 const SPECIAL_POWER = 1.6;
 const SPECIAL_EVERY = 3;
 const MAX_ROUNDS = 400;
@@ -146,20 +173,58 @@ export function matchup(attacker: CardType, target: CardType): -1 | 0 | 1 {
   return 0;
 }
 
+/**
+ * A hit's damage before the move, the type edge and the dice: attack against defense,
+ * and more for the faster card. Only ratios count, so a card with every stat 15%
+ * higher is 15% stronger (its HP), not more.
+ */
+export function baseDamage(attacker: { attack: number; speed: number }, target: { defense: number; speed: number }): number {
+  return DAMAGE * (attacker.attack / Math.max(1, target.defense)) * (Math.max(1, attacker.speed) / Math.max(1, target.speed)) ** SPEED_EDGE;
+}
+
+function movesFor(names: [string, string], attack: number, speed: number): [Move, Move] {
+  const shown = (power: number) => Math.round(baseDamage({ attack, speed }, { defense: EVEN, speed: EVEN }) * power);
+  return [
+    { name: names[0], power: 1, damage: shown(1) },
+    { name: names[1], power: SPECIAL_POWER, damage: shown(SPECIAL_POWER) },
+  ];
+}
+
 /** A value's place between 0 and 1 on a log scale that tops out at `full`. */
 function logShare(value: number, full: number): number {
   return Math.min(1, Math.log10(value + 1) / Math.log10(full + 1));
 }
 
+export function rarityOf(stars: number): Rarity {
+  return RARITY_STARS.find(([, from]) => stars >= from)?.[0] ?? "common";
+}
+
+/** The stat points a card of this rarity shares out across HP, attack, defense and speed. */
+export function budgetOf(rarity: Rarity): number {
+  return RARITY_STARS.find(([name]) => name === rarity)?.[2] ?? 400;
+}
+
 /**
- * A repo's card. Level grows with the log of its stars, so a 1,000-star repo can
- * still hurt a 100,000-star one. The rest rewards a repo that is alive: contributors
- * are HP, commits and a recent push are attack, closed issues and age are defense,
- * a recent push and releases are speed. The special move is named for whatever the
- * repo is best at.
+ * Shares of a budget from four signals between 0 and 1: each share grows with its
+ * signal and stays between MIN_SHARE and MAX_SHARE, and the shares add up to 1.
+ */
+function split(signals: number[]): number[] {
+  const weights = signals.map((signal) => 0.3 + Math.max(0, Math.min(1, signal)));
+  const sum = weights.reduce((total, weight) => total + weight, 0);
+  const free = 1 - MIN_SHARE * signals.length;
+  return weights.map((weight) => Math.min(MAX_SHARE, MIN_SHARE + (free * weight) / sum));
+}
+
+/**
+ * A repo's card. Stars set the rarity, and the rarity sets the stat budget: a
+ * legendary has 15% more to spend on HP, attack and defense than a common. How the budget is split comes from
+ * the repo's shape: contributors are HP, commits in the last year are attack, closed
+ * issues and age are defense, a recent push and releases are speed. The special move
+ * is named for whatever the repo is best at. Level still follows the stars, for show.
  */
 export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, klass: ClassId = "rookie"): Fighter {
   const level = Math.max(1, Math.min(100, Math.round(Math.log10(repo.stars + 1) * 20)));
+  const rarity = rarityOf(repo.stars);
   const daysQuiet = repo.pushedAt ? Math.max(0, (now - Date.parse(repo.pushedAt)) / DAY_MS) : 3650;
   const fresh = Math.exp(-daysQuiet / 180);
   const age = repo.createdAt ? Math.max(0, Math.floor((now - Date.parse(repo.createdAt)) / (365.25 * DAY_MS))) : 0;
@@ -167,6 +232,7 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, kl
   const closeRate = issues > 0 ? repo.closedIssues / issues : 0.5;
   const people = logShare(repo.contributors, 1000);
   const work = logShare(repo.commits, 20_000);
+  const yearly = repo.commitsYear ?? repo.commits / Math.max(1, age);
   const shipped = Math.min(repo.releases, 30) / 30;
   const owner = repo.fullName.split("/")[0].toLowerCase();
   const shiny = owner === SHINY_OWNER;
@@ -179,7 +245,16 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, kl
   const tired = repo.isArchived && klass !== "archivist" ? 0.5 : 1;
   const type = typeOf(repo.language);
   const ring = RING.indexOf(type);
-  const attack = Math.round((20 + level * 0.6 + fresh * 20 + work * 15) * boost * tired);
+
+  const budget = budgetOf(rarity);
+  const [hpShare, attackShare, defenseShare, speedShare] = split([
+    logShare(repo.contributors, 500),
+    logShare(yearly, 2000),
+    closeRate * 0.6 + (Math.min(age, 10) / 10) * 0.4,
+    fresh * 0.6 + shipped * 0.4,
+  ]);
+  const attack = Math.round(budget * attackShare * boost * tired);
+  const speed = Math.round(SPEED_BUDGET * speedShare * boost * tired);
 
   // The special is named for the repo's strongest trait; ties go to the first listed.
   const traits: [string, number][] = [
@@ -208,14 +283,12 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, kl
     weakness: ring === -1 ? null : RING[(ring + RING.length - 1) % RING.length],
     resistance: ring === -1 ? null : RING[(ring + 1) % RING.length],
     level,
-    hp: Math.round((150 + level * 2.5 + people * 45) * boost * tough),
+    rarity,
+    hp: Math.round(budget * hpShare * HP_PER_POINT * boost * tough),
     attack,
-    defense: Math.round((20 + level * 0.5 + closeRate * 20 + Math.min(age, 10) * 1.5) * boost * tough),
-    speed: Math.round((10 + fresh * 60 + shipped * 30) * boost * tired),
-    moves: [
-      { name: BASIC_MOVE[type], power: 1, damage: Math.round(attack / 2 / 5) * 5 },
-      { name: special, power: SPECIAL_POWER, damage: Math.round((attack * SPECIAL_POWER) / 2 / 5) * 5 },
-    ],
+    defense: Math.round(budget * defenseShare * boost * tough),
+    speed,
+    moves: movesFor([BASIC_MOVE[type], special], attack, speed),
     shiny,
     home,
     retired: repo.isArchived,
@@ -226,16 +299,14 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, kl
 function strengthen(fighter: Fighter, by: { all?: number; attack?: number }): Fighter {
   const all = by.all ?? 1;
   const attack = Math.round(fighter.attack * all * (by.attack ?? 1));
+  const speed = Math.round(fighter.speed * all);
   return {
     ...fighter,
     hp: Math.round(fighter.hp * all),
     attack,
     defense: Math.round(fighter.defense * all),
-    speed: Math.round(fighter.speed * all),
-    moves: [
-      { ...fighter.moves[0], damage: Math.round(attack / 2 / 5) * 5 },
-      { ...fighter.moves[1], damage: Math.round((attack * SPECIAL_POWER) / 2 / 5) * 5 },
-    ],
+    speed,
+    moves: movesFor([fighter.moves[0].name, fighter.moves[1].name], attack, speed),
     perk: true,
   };
 }
@@ -302,7 +373,7 @@ export function battle(a: Fighter[], b: Fighter[], seed: string): BattleResult {
       const move = attacker.moves[special ? 1 : 0];
       const edge = matchup(attacker.type, target.type);
       const critical = random() < CRITICAL_ODDS;
-      const base = (attacker.attack * attacker.attack) / (attacker.attack + target.defense);
+      const base = baseDamage(attacker, target);
       const damage = Math.max(
         1,
         Math.round(base * move.power * (edge === 1 ? STRONG : edge === -1 ? WEAK : 1) * (critical ? CRITICAL : 1) * (0.85 + random() * 0.3)),

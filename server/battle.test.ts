@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { battle, drawFromStars, fieldTeam, fighterFor, instantSeed, matchup, seededRandom, typeOf, type Fighter, type RepoFacts } from "./battle.ts";
+import { battle, budgetOf, drawFromStars, fieldTeam, fighterFor, instantSeed, matchup, rarityOf, seededRandom, typeOf, type Fighter, type RepoFacts } from "./battle.ts";
 
 const NOW = Date.parse("2026-11-10T00:00:00Z");
 const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
@@ -37,12 +37,58 @@ describe("cards", () => {
     expect(fighter("a/b", { stars: 400_000 }).level).toBe(100);
   });
 
-  test("a repo pushed lately hits harder and moves faster than a quiet one", () => {
-    const live = fighter("a/live");
-    const quiet = fighter("a/quiet", { pushedAt: daysAgo(900) });
-    expect(live.attack).toBeGreaterThan(quiet.attack);
-    expect(live.speed).toBeGreaterThan(quiet.speed);
-    expect(live.hp).toBe(quiet.hp);
+  test("stars set the rarity and the rarity sets the budget", () => {
+    expect([0, 99, 100, 999, 1000, 9999, 10_000, 99_999, 100_000].map(rarityOf)).toEqual(["common", "common", "uncommon", "uncommon", "rare", "rare", "epic", "epic", "legendary"]);
+    expect(["common", "uncommon", "rare", "epic", "legendary"].map((r) => budgetOf(r as Parameters<typeof budgetOf>[0]))).toEqual([400, 415, 430, 445, 460]);
+    expect(fighter("a/b", { stars: 250_000 }).rarity).toBe("legendary");
+  });
+
+  test("level no longer scales the stats: two repos of one rarity and one shape match", () => {
+    const small = fighter("a/b", { stars: 1000 });
+    const big = fighter("a/b", { stars: 9999 });
+    expect(big.level).toBeGreaterThan(small.level);
+    expect([big.hp, big.attack, big.defense, big.speed]).toEqual([small.hp, small.attack, small.defense, small.speed]);
+  });
+
+  test("a legendary has 15% more HP, attack and defense than a common of the same shape, and the same speed", () => {
+    const common = fighter("a/b", { stars: 10 });
+    const legendary = fighter("a/b", { stars: 150_000 });
+    for (const stat of ["hp", "attack", "defense"] as const) expect(legendary[stat] / common[stat]).toBeCloseTo(1.15, 1);
+    expect(legendary.speed).toBe(common.speed);
+  });
+
+  test("every stat gets 15% to 40% of the budget, however lopsided the repo", () => {
+    const shapes: Partial<RepoFacts>[] = [
+      { contributors: 5000, commitsYear: 0, openIssues: 1000, closedIssues: 0, createdAt: daysAgo(10), pushedAt: daysAgo(3000), releases: 0 },
+      { contributors: 1, commitsYear: 50_000, openIssues: 0, closedIssues: 1000, createdAt: daysAgo(5000), pushedAt: daysAgo(0), releases: 500 },
+      { contributors: 1, commitsYear: 0, openIssues: 0, closedIssues: 0, createdAt: null, pushedAt: null, releases: 0 },
+    ];
+    for (const shape of shapes) {
+      for (const stars of [0, 500, 5000, 50_000, 500_000]) {
+        const card = fighter("a/b", { stars, ...shape });
+        const budget = budgetOf(card.rarity);
+        const points = [card.hp / 1.5, card.attack, card.defense];
+        for (const value of points) {
+          expect(value).toBeGreaterThanOrEqual(budget * 0.15 - 1);
+          expect(value).toBeLessThanOrEqual(budget * 0.4 + 1);
+        }
+        expect(card.speed).toBeGreaterThanOrEqual(400 * 0.15 - 1);
+        expect(card.speed).toBeLessThanOrEqual(400 * 0.4 + 1);
+      }
+    }
+  });
+
+  test("a repo pushed lately moves faster, and a busy one hits harder", () => {
+    expect(fighter("a/live").speed).toBeGreaterThan(fighter("a/quiet", { pushedAt: daysAgo(900) }).speed);
+    expect(fighter("a/b", { commitsYear: 1500 }).attack).toBeGreaterThan(fighter("a/b", { commitsYear: 5 }).attack);
+  });
+
+  test("a well-kept repo usually beats a neglected one a rarity above it", () => {
+    const kept = fighter("a/kept", { stars: 500, contributors: 6, commitsYear: 400, openIssues: 2, closedIssues: 60, pushedAt: daysAgo(2), releases: 20 });
+    const neglected = fighter("b/neglected", { stars: 5000, contributors: 300, commitsYear: 3, openIssues: 900, closedIssues: 100, pushedAt: daysAgo(1200), releases: 1 });
+    expect([kept.rarity, neglected.rarity]).toEqual(["uncommon", "rare"]);
+    const wins = Array.from({ length: 200 }, (_, i) => battle([kept], [neglected], `s${i}`).winner).filter((winner) => winner === "a").length;
+    expect(wins).toBeGreaterThan(120);
   });
 
   test("a repo that closes its issues defends better", () => {
@@ -51,7 +97,7 @@ describe("cards", () => {
 
   test("more contributors mean more HP, more commits more attack, and age more defense", () => {
     expect(fighter("a/b", { contributors: 900 }).hp).toBeGreaterThan(fighter("a/b", { contributors: 2 }).hp);
-    expect(fighter("a/b", { commits: 15_000 }).attack).toBeGreaterThan(fighter("a/b", { commits: 30 }).attack);
+    expect(fighter("a/b", { commitsYear: 1500 }).attack).toBeGreaterThan(fighter("a/b", { commitsYear: 3 }).attack);
     expect(fighter("a/b", { createdAt: daysAgo(365 * 9) }).defense).toBeGreaterThan(fighter("a/b", { createdAt: daysAgo(40) }).defense);
     expect(fighter("a/b").age).toBe(4);
   });
@@ -78,31 +124,24 @@ describe("cards", () => {
     expect(fighter("a/b", { isArchived: true }).health).toBe(0);
   });
 
-  test("an armanckeser repo is shiny and stronger for every player; an archived one is retired and weaker", () => {
+  test("an armanckeser repo is shiny for everyone and 5% stronger; the player's own repo is home and no stronger", () => {
     const plain = fighter("octo/tool");
-    const shiny = fighter("Armanckeser/tool", {}, "octo");
-    const retired = fighter("octo/tool", { isArchived: true });
-    expect(shiny.shiny).toBe(true);
-    expect(plain.shiny).toBe(false);
-    expect(shiny.hp).toBeGreaterThan(plain.hp);
-    expect(shiny.attack).toBeGreaterThan(plain.attack);
-    expect(retired.retired).toBe(true);
-    expect(retired.attack).toBeLessThan(plain.attack);
-  });
-
-  test("a repo the player owns is home, not shiny, with the same numbers", () => {
-    const plain = fighter("octo/tool");
+    const shiny = fighter("ArmanCKeser/tool");
     const home = fighter("Octo/tool", {}, "octo");
+    expect([shiny.shiny, plain.shiny, home.shiny]).toEqual([true, false, false]);
+    expect(fighter("armanckeser/tool", {}, "armanckeser")).toMatchObject({ shiny: true, home: true });
+    for (const stat of ["hp", "attack", "defense", "speed"] as const) expect(shiny[stat] / plain[stat]).toBeCloseTo(1.05, 1);
     expect(home.home).toBe(true);
     expect(plain.home).toBe(false);
-    expect(home.shiny).toBe(false);
     expect([home.hp, home.attack, home.defense, home.speed]).toEqual([plain.hp, plain.attack, plain.defense, plain.speed]);
   });
 
-  test("armanckeser's own repo is both home and shiny for armanckeser", () => {
-    const own = fighter("armanckeser/stard", {}, "ArmancKeser");
-    expect([own.home, own.shiny]).toEqual([true, true]);
+  test("an archived repo is retired and weaker", () => {
+    const retired = fighter("octo/tool", { isArchived: true });
+    expect(retired.retired).toBe(true);
+    expect(retired.attack).toBeLessThan(fighter("octo/tool").attack);
   });
+
 });
 
 describe("drawing from stars", () => {

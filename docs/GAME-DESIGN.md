@@ -78,6 +78,17 @@ Every stat gets at least 15% of the budget and at most 40%. A legendary is 15% s
 
 **Test that must pass:** over 2,000 bot-vs-bot matches between random teams from a fixture of 200 real repos, the team with more total stars wins 45% to 60% of the time, and the side that moves first wins 47% to 53%.
 
+Built (`server/battle.ts`, test in `server/balance.test.ts`). What it took to pass:
+
+- Damage is attack over defense (times a speed edge), not attack squared over attack plus defense. Under the old formula a card 15% stronger in every stat won far more than 15% of the race.
+- Speed is shared out of the common budget (400) at every rarity. Rarity adds to HP, attack and defense. A faster rare card would otherwise also win the opening.
+- The side that moves second starts with its lead card's special charged, to pay back the first move.
+- A type advantage is ×1.5, as above (it was ×1.3).
+- One budget point buys 1.5 HP: a 4-card match lasts about 50 turns.
+- Both teams in a test match have the same number of cards (4 or 5), as the Worker cuts real teams to the same size.
+- Measured: the team with more stars wins 57.7%, the side that moves first 51.7%.
+- A well-kept repo beats a neglected one a rarity above it about 70% of the time; three rarities apart (common against epic), the neglected one wins.
+
 ### 3. Cards that differ
 
 - **Two types.** The main language sets the first, the second-largest language (over 20% of the code) sets the second.

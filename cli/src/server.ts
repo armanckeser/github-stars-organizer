@@ -1,4 +1,5 @@
 import { Hono, type MiddlewareHandler } from "hono";
+import { openBattleThread, parseBattleComment, parseChallenge, postBattleComment } from "../../server/game-github.ts";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { computeHealthScore } from "../../server/health.ts";
 import {
@@ -144,6 +145,17 @@ export function createLocalServer({ github, appDir, port, store, login }: LocalS
     const { owner, name } = await c.req.json<UnstarRequest>();
     await unstar(github, owner, name);
     return c.json({});
+  });
+
+  // A battle's thread and its moves, posted with the player's own login (server/game-github.ts).
+  api.post("/game/challenge", async (c) => {
+    const { title, body } = parseChallenge(await c.req.json());
+    return c.json(await openBattleThread(github.graphql, login, title, body));
+  });
+
+  api.post("/game/comment", async (c) => {
+    const { repo, number, body } = parseBattleComment(await c.req.json());
+    return c.json(await postBattleComment(github.graphql, repo, number, body));
   });
 
   api.get("/token", async (c) => c.json<TokenResponse>({ connected: true, ...(await tokenInfo(github)) }));

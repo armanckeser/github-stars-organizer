@@ -1,8 +1,11 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
 import { BATTLE_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
+import { GAME_PATH, gameResponse } from "./game.ts";
 
-type Env = { GITHUB_TOKEN: string };
+// BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts):
+//   npx wrangler secret put BATTLE_KEY   # any long random text
+type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string };
 
 const RESPONSE_SHAPE = "2";
 
@@ -71,6 +74,10 @@ export default {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
+
+    // A match changes with every comment, so its replies set their own short cache and skip this one.
+    const match = GAME_PATH.exec(url.pathname);
+    if (match) return gameResponse(match[1], url.searchParams, env.GITHUB_TOKEN, env.BATTLE_KEY);
 
     const card = CARD_PATH.exec(url.pathname);
     const fight = BATTLE_PATH.exec(url.pathname);

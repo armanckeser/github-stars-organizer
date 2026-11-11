@@ -262,7 +262,8 @@ export type BattleSide = { login: string; team: CardRepo[]; standing: number };
 export function battleCard(a: BattleSide, b: BattleSide, winner: "a" | "b" | null): string {
   const gap = 10;
   const middle = 60;
-  const w = ((INNER - middle) / 2 - gap * 3) / 4;
+  const slots = Math.max(4, a.team.length, b.team.length);
+  const w = ((INNER - middle) / 2 - gap * (slots - 1)) / slots;
   const top = 116;
   const won = winner === "a" ? a : winner === "b" ? b : null;
   const lost = winner === "a" ? b : a;
@@ -275,7 +276,7 @@ export function battleCard(a: BattleSide, b: BattleSide, winner: "a" | "b" | nul
     const left = PAD + s * ((INNER + middle) / 2);
     // Cards fall in team order, so the ones still standing are the last ones.
     const fallen = side.team.length - side.standing;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < slots; i++) {
       const x = left + i * (w + gap);
       const repo = side.team[i];
       if (!repo) body += emptySlot(x, top, w);

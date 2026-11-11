@@ -13,6 +13,7 @@ import { TeamSlots } from "@/components/run/team-slots";
 import { BoostPick } from "@/components/run/boost-pick";
 import { RunCard } from "@/components/run/run-card";
 import { TeamBonuses } from "@/components/run/team-bonuses";
+import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
@@ -45,22 +46,6 @@ function Pips({ filled, total, tone, label }: { filled: number; total: number; t
     <span className="flex items-center gap-1" aria-label={`${filled} of ${total} ${label}`}>
       {Array.from({ length: total }, (_, i) => <span key={i} className={`size-2.5 rounded-full ${i < filled ? tone : "bg-white/15"}`} />)}
     </span>
-  );
-}
-
-function ShopCard({ fighter, affordable, onOpen }: { fighter: RunFighter; affordable: boolean; onOpen: () => void }) {
-  const art = useCreature(fighter);
-  const type = TYPE[fighter.type];
-  const reach = rangeOf(fighter) > 1;
-  return (
-    <button type="button" onClick={onOpen} aria-label={`Look at ${fighter.fullName}, ${costOf(fighter)} gold`} className={`battle-deal relative flex aspect-[5/6] w-full flex-col overflow-hidden rounded-md border-2 text-left outline-none transition-transform duration-150 ease-out hover:-translate-y-1 active:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring ${affordable ? "" : "opacity-45"}`} style={{ borderColor: type.color, background: `linear-gradient(180deg, ${type.color}55, #0c1014 70%)` }}>
-      <span className="relative min-h-0 flex-1">
-        {art ? <img src={art} alt="" className="absolute inset-0 size-full object-contain" draggable={false} /> : art === false && fighter.avatarUrl ? <img src={fighter.avatarUrl} alt="" className="absolute inset-0 size-full object-cover" /> : null}
-        <span className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-[#ffd84d]"><Coins className="size-3" />{costOf(fighter)}</span>
-        <span className="absolute left-1 top-1 rounded-full bg-black/70 p-1" title={reach ? "Hits from behind" : "Fights up close"}>{reach ? <Crosshair className="size-3" /> : <Sword className="size-3" />}</span>
-      </span>
-      <span className="block truncate bg-black/55 px-1.5 py-1 font-display text-[11px] font-bold leading-tight tracking-tight sm:text-xs">{repoName(fighter)}</span>
-    </button>
   );
 }
 
@@ -322,22 +307,18 @@ function RunPage() {
       {player && error && <p className={`${PANEL} absolute inset-x-3 top-16 z-20 px-3 py-2 text-sm`} role="alert">{error}</p>}
 
       {building && (
-        <div ref={hudRef} className="absolute inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#0c1014]/90 p-2 backdrop-blur-sm sm:p-3">
-          <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-stretch">
-            <div data-testid="shop" className="group relative grid flex-1 grid-cols-5 gap-1.5 rounded-md sm:order-2 sm:gap-2">
-              {shop.map((fighter, i) => fighter
-                ? <ShopCard key={fighter.fullName} fighter={fighter} affordable={gold >= costOf(fighter) && bench.includes(null)} onOpen={() => setViewing({ fighter, slot: i })} />
-                : <div key={i} className="aspect-[5/6] rounded-md border border-dashed border-white/10" />)}
-            </div>
-            <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-28 sm:flex-col sm:items-stretch sm:justify-center">
-              <p className="flex items-center gap-1.5 font-display text-lg font-bold tabular-nums text-[#ffd84d]" aria-label={`${gold} gold`}><Coins className="size-5" />{gold}</p>
-              <Button variant="outline" size="sm" disabled={gold < REROLL_COST} onClick={reroll}><Dices /> Reroll · {REROLL_COST}</Button>
+        <div ref={hudRef} className="shop-bar absolute inset-x-0 bottom-0 z-10 px-2 pb-2 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3">
+          <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
+            <div className="sm:order-2 sm:flex-1"><Shop shop={shop} held={cardsOf(roster)} gold={gold} draftsFull={!bench.includes(null)} onOpen={(slot) => shop[slot] && setViewing({ fighter: shop[slot]!, slot })} /></div>
+            <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-24 sm:flex-col sm:items-stretch sm:justify-center">
+              <p className="flex items-center gap-2 font-display text-2xl font-[800] tabular-nums text-[#ffe08a] [font-stretch:110%] sm:justify-center" aria-label={`${gold} gold`}><span className="hud-coin" />{gold}</p>
+              <button type="button" className="hud-button flex h-9 items-center justify-center gap-1.5 px-3 text-sm" disabled={gold < REROLL_COST} onClick={reroll} aria-label={`Reroll for ${REROLL_COST} gold`}><Dices className="size-4" /> <span className="shop-coin" />{REROLL_COST}</button>
               <TeamSlots className="sm:hidden" count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
-              <Button className="sm:hidden" onClick={fight} disabled={loading || units.length === 0}><Swords /> Fight</Button>
+              <button type="button" className="hud-button hud-fight flex h-9 items-center gap-1.5 px-4 text-sm sm:hidden" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-4" /> Fight</button>
             </div>
             <div className="hidden sm:order-3 sm:flex sm:w-28 sm:flex-col sm:items-stretch sm:justify-center sm:gap-2">
               <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
-              <Button onClick={fight} disabled={loading || units.length === 0}><Swords /> Fight</Button>
+              <button type="button" className="hud-button hud-fight flex h-12 items-center justify-center gap-2 text-base" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
             </div>
           </div>
         </div>

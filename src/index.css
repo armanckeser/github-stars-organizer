@@ -272,3 +272,112 @@ input[type="search"]::-webkit-search-cancel-button {
     transition: none;
   }
 }
+
+/* The Play shop (src/components/run/shop.tsx): a card's frame is the metal of its cost, its art is lit from behind. */
+.shop-bar {
+  background: linear-gradient(180deg, rgb(13 17 23 / 0.82), rgb(6 8 11 / 0.96));
+  box-shadow: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -18px 40px rgb(0 0 0 / 0.45);
+}
+.shop-card {
+  background: linear-gradient(155deg, var(--metal-light), var(--metal-dark) 38%, var(--metal-dark) 62%, var(--metal-light) 82%, var(--metal-dark));
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.5);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease-out;
+}
+.shop-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 24px rgb(0 0 0 / 0.6), 0 0 18px color-mix(in oklab, var(--metal-glow) 45%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+.shop-card:active {
+  transform: translateY(-1px) scale(0.985);
+}
+.shop-card-art {
+  background:
+    radial-gradient(120% 90% at 68% 30%, color-mix(in oklab, var(--metal-glow) 70%, white 18%) 0%, color-mix(in oklab, var(--metal-glow) 38%, #0b0f14) 46%, #0a0d12 92%);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.55), inset 0 3px 8px rgb(0 0 0 / 0.45);
+}
+.shop-card:not([data-affordable]) .shop-card-art {
+  filter: grayscale(0.75) brightness(0.55);
+}
+.shop-card:not([data-affordable]) {
+  filter: saturate(0.4);
+}
+.shop-empty {
+  background: #090c10;
+  box-shadow: inset 0 2px 10px #000, 0 0 0 1px rgb(255 255 255 / 0.05);
+}
+.shop-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px rgb(0 0 0 / 0.6), inset 0 1px 1px rgb(255 255 255 / 0.4);
+}
+.shop-dot[data-topic] {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.75), 0 0 0 1px rgb(0 0 0 / 0.5);
+}
+.shop-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  flex: none;
+  border-radius: 4px;
+  font: 800 11px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: #e6edf3;
+  background: #30363d;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 1px 2px rgb(0 0 0 / 0.7);
+}
+.shop-count-live {
+  color: #04140a;
+  background: linear-gradient(180deg, #5be37a, #2ea043);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 0 10px rgb(53 196 80 / 0.6);
+}
+.shop-coin,
+.hud-coin {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #ffc93d 45%, #b97a12 100%);
+  box-shadow: inset 0 -1.5px 0 #8a5a0a, 0 1px 2px #0008;
+}
+.hud-coin {
+  width: 22px;
+  height: 22px;
+  box-shadow: inset 0 -2.5px 0 #8a5a0a, 0 2px 4px #0009, 0 0 14px rgb(255 201 61 / 0.35);
+}
+.hud-button {
+  font-family: var(--font-display);
+  font-weight: 750;
+  font-stretch: 108%;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #2a313a, #161b22);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px rgb(0 0 0 / 0.6), 0 3px 8px rgb(0 0 0 / 0.45);
+  transition: transform 120ms ease-out, filter 120ms ease-out;
+}
+.hud-button:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.hud-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.hud-button:disabled {
+  opacity: 0.45;
+}
+.hud-fight {
+  color: #04140a;
+  background: linear-gradient(180deg, #5be37a, #238636 92%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), inset 0 -2px 0 rgb(0 0 0 / 0.2), 0 0 0 1px rgb(0 0 0 / 0.6), 0 4px 14px rgb(46 160 67 / 0.4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shop-card,
+  .hud-button {
+    transition: none;
+  }
+  .shop-card:hover {
+    transform: none;
+  }
+}

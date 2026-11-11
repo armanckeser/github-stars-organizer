@@ -5,7 +5,7 @@ import { BoardWorld, type BoardFight, type BoardUnit, type Spot } from "./three/
 declare global {
   interface Window {
     /** The board, for the browser tests (e2e/), in development builds only. */
-    stardBoard?: Pick<BoardWorld, "screenOf" | "screenOfUnit">;
+    stardBoard?: Pick<BoardWorld, "screenOf" | "screenOfUnit" | "screenOfArchive">;
   }
 }
 
@@ -25,6 +25,8 @@ export type BoardProps = {
   inset: number;
   onSelect: (id: string | null) => void;
   onFightEnd: (key: string) => void;
+  /** What a creature sells for in the Archive, or null when it can't be sold. */
+  sellPrice: (id: string) => number | null;
   /** A creature carried to a cell, a Drafts slot or the Archive. */
   onMove: (id: string, spot: Spot) => void;
   /** One of the player's creatures is being carried (its id), or was put down (null). */
@@ -58,6 +60,7 @@ export default function Board3D(props: BoardProps) {
         onFightEnd: (key) => latest.current.onFightEnd(key),
         onDrag: (id) => latest.current.onDrag(id),
         onMove: (id, spot) => latest.current.onMove(id, spot),
+        sellPrice: (id) => latest.current.sellPrice(id),
       });
       if (import.meta.env.DEV) window.stardBoard = world.current;
     } catch {

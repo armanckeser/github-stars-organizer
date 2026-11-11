@@ -270,6 +270,10 @@ function RunPage() {
           onSelect={look}
           onFightEnd={(key) => setPlayed((current) => (current?.fight.key === key ? { ...current, over: true } : current))}
           onMove={move}
+          sellPrice={(id) => {
+            const fighter = cardsOf(roster).find((card) => idOf(0, card) === id);
+            return fighter && held > 1 ? costOf(fighter) : null;
+          }}
           onDrag={() => {}}
         />
       </Suspense>

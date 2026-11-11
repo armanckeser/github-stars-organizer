@@ -6,6 +6,7 @@ import type { Condition } from "../../../../server/run/hooks";
 import { CONDITION_NAMES, sourceOf, type Source } from "../../../../server/run/names";
 import { BENCH_SIZE } from "../../../../server/run/rules";
 import { COLS, ROWS, TICK_MS, type FightEvent, type Side } from "../../../../server/run/types";
+import { ARCHIVE_DEPTH, ARCHIVE_WIDTH, buildArchive, type Archive } from "./archive";
 import { buildCreature, type Creature } from "./creature";
 import { dispose, easeOut, overshoot, part, sphere, toon } from "./kit";
 import { buildTrainer, type Trainer } from "./trainer";
@@ -86,6 +87,12 @@ export class BoardWorld {
   private aim = new THREE.Vector3();
   private cells: THREE.Mesh[] = [];
   private slots: THREE.Mesh[] = [];
+  private archive: Archive;
+  /** How far the Archive's lid is open, 0 to 1, and a creature being dropped in it. */
+  private open = 0;
+  private archiving: string | null = null;
+  /** The refund shown beside a creature carried over the Archive. */
+  private refund: HTMLElement;
   /** Free board cells a creature from the Drafts may take. */
   private room = 0;
   /** Screen pixels the shop covers along the bottom, and how far the view has eased toward it. */
@@ -125,6 +132,8 @@ export class BoardWorld {
       onDrag: (id: string | null) => void;
       /** A carried creature put down on a cell, a Drafts slot or the Archive. */
       onMove: (id: string, spot: Spot) => void;
+      /** What a creature sells for in the Archive, or null when it can't be sold (the player's last card). */
+      sellPrice: (id: string) => number | null;
     },
   ) {
     const phone = window.matchMedia("(pointer: coarse)").matches;
@@ -159,6 +168,12 @@ export class BoardWorld {
 
     this.buildFloor();
     this.buildBench();
+    this.archive = buildArchive();
+    this.scene.add(this.archive.root);
+    this.refund = document.createElement("span");
+    this.refund.className = "board-refund";
+    this.refund.setAttribute("aria-live", "polite");
+    host.append(this.refund);
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.44, 0.54, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }));
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.visible = false;
@@ -179,6 +194,7 @@ export class BoardWorld {
     cancelAnimationFrame(this.raf);
     this.observer.disconnect();
     for (const label of this.labels) label.remove();
+    this.refund.remove();
     for (const texture of this.badges.values()) texture.dispose();
     dispose(this.scene);
     this.renderer.dispose();
@@ -213,6 +229,10 @@ export class BoardWorld {
   // and far ends on an upright phone, where the sides are off the screen.
   private post() {
     const upright = this.camera.aspect < 1;
+    // The Archive closes the Drafts row on a wide screen; on a phone, where the row fills the width, it sits in front of the row's end.
+    if (upright) this.archive.root.position.set(BENCH_X + BENCH_SIZE * BENCH_PITCH * 0.36, 0.02, BENCH_Z + 1.35);
+    else this.archive.root.position.set(BENCH_X + (BENCH_SIZE / 2) * BENCH_PITCH + 0.85, 0.02, BENCH_Z - 0.05);
+    this.archive.root.rotation.y = upright ? -0.2 : -0.35;
     this.trainers.forEach((trainer, side) => {
       if (!trainer) return;
       const sign = side === 0 ? 1 : -1;
@@ -228,7 +248,12 @@ export class BoardWorld {
     if (this.fight && !this.fight.done) return;
     this.fight = null;
     const wanted = new Map(units.map((unit) => [unit.id, unit]));
-    for (const [id, actor] of this.actors) if (!wanted.has(id) || wanted.get(id)!.fighter !== actor.unit.fighter) this.remove(id);
+    for (const [id, actor] of this.actors) {
+      if (wanted.has(id) && wanted.get(id)!.fighter === actor.unit.fighter) continue;
+      if (id === this.archiving) this.sink(actor);
+      else this.remove(id);
+    }
+    this.archiving = null;
     for (const unit of units) {
       const actor = this.actors.get(unit.id) ?? this.add(unit);
       actor.unit = unit;
@@ -288,6 +313,11 @@ export class BoardWorld {
     return this.toScreen(world(x, y));
   }
 
+  /** Where the Archive's open mouth is on screen. The browser tests drop on it. */
+  screenOfArchive(): Point {
+    return this.toScreen(this.archive.root.position.clone().setY(0.6));
+  }
+
   /** Where a creature is drawn on screen, or null when it is not on the board. */
   screenOfUnit(id: string): Point | null {
     const actor = this.actors.get(id);
@@ -318,7 +348,7 @@ export class BoardWorld {
         const x = i * pitch;
         const z = j * pitch;
         const onBoard = Math.abs(x) < COLS * CELL * 0.5 + 0.2 && Math.abs(z) < ROWS * CELL + 0.2;
-        const onShelf = x > -3.6 && x < 3.6 && z > ROWS * CELL && z < BENCH_Z + 1.1;
+        const onShelf = x > -3.6 && x < 3.9 && z > ROWS * CELL && z < BENCH_Z + 2.1;
         if (Math.hypot(x, z) > 9.4 || onBoard || onShelf) continue;
         spots.push(new THREE.Vector3(x, -0.02, z));
         let roll = random();
@@ -462,6 +492,27 @@ export class BoardWorld {
     this.scene.remove(actor.creature.root, actor.bar);
     dispose(actor.creature.root);
     dispose(actor.bar);
+  }
+
+  /** A sold creature drops into the Archive and the lid shuts on it. */
+  private sink(actor: Actor) {
+    this.actors.delete(actor.unit.id);
+    this.scene.remove(actor.bar);
+    dispose(actor.bar);
+    const root = actor.creature.root;
+    const from = root.position.clone();
+    const to = this.archive.root.position.clone().setY(0.35);
+    const size = root.scale.clone();
+    const done = () => {
+      this.scene.remove(root);
+      dispose(root);
+    };
+    if (this.options.reduced) return done();
+    this.open = 1;
+    this.tween(0, 0.26, (k) => {
+      root.position.lerpVectors(from, to, k).setY(from.y + (to.y - from.y) * k + Math.sin(k * Math.PI) * 0.5);
+      root.scale.copy(size).multiplyScalar(Math.max(0.001, 1 - k * k));
+    }, done);
   }
 
   private fill(actor: Actor) {
@@ -657,7 +708,7 @@ export class BoardWorld {
       actor.flash = Math.max(0, actor.flash - seconds * 6);
       const base = creature.root.userData.scale as THREE.Vector3;
       creature.root.position.copy(actor.at).add(actor.lunge);
-      if (id === dragging) creature.root.position.y += 0.45;
+      if (id === dragging) creature.root.position.y += this.drag?.spot?.kind === "archive" ? 1.0 : 0.45;
       const shelved = actor.unit.bench !== undefined && id !== dragging;
       creature.root.scale.copy(base).multiplyScalar(SIZE * actor.grow * (id === this.selected ? 1.08 : 1) * (shelved ? BENCH_SCALE : 1) * (id === dragging ? 1.1 : 1));
       creature.root.visible = actor.grow > 0.02;
@@ -672,6 +723,8 @@ export class BoardWorld {
       actor.bar.position.copy(creature.root.position).setY(creature.height * SIZE * base.y + 0.55 + (id === dragging ? 0.45 : 0));
       actor.bar.quaternion.copy(this.camera.quaternion);
     }
+
+    this.poseArchive(seconds);
 
     const chosen = this.selected ? this.actors.get(this.selected) : undefined;
     this.ring.visible = Boolean(chosen) && !chosen!.out;
@@ -701,6 +754,20 @@ export class BoardWorld {
     this.shown += (this.inset - this.shown) * ease;
     const { clientWidth: width, clientHeight: height } = this.host;
     if (width && height && Math.abs(this.shown - (this.camera.view?.offsetY ?? 0)) > 0.25) this.camera.setViewOffset(width, height + this.shown, 0, this.shown, width, height);
+  }
+
+  /** The lid eases toward open while a sellable creature is held over the box, and cracks open while anything is carried. */
+  private poseArchive(seconds: number) {
+    const drag = this.drag?.moved ? this.drag : null;
+    const over = drag?.spot?.kind === "archive";
+    const price = drag ? this.options.sellPrice(drag.id) : null;
+    const target = over && price !== null ? 1 : drag ? 0.12 : 0;
+    this.open += (target - this.open) * (this.options.reduced ? 1 : 1 - Math.exp(-seconds * (target > this.open ? 16 : 9)));
+    const { lid, light, inside } = this.archive;
+    lid.rotation.x = -this.open * 1.95;
+    light.intensity = this.open * 2.6;
+    inside.opacity = this.open * 0.75;
+    this.refund.toggleAttribute("data-shown", over);
   }
 
   // --- the frame around it ---
@@ -749,7 +816,10 @@ export class BoardWorld {
   private spotUnder(event: Point): Spot | null {
     this.ray(event);
     const point = new THREE.Vector3();
+    if (this.raycaster.intersectObject(this.archive.root, true).length > 0) return { kind: "archive" };
     if (!this.raycaster.ray.intersectPlane(this.ground, point)) return null;
+    const box = this.archive.root.position;
+    if (Math.abs(point.x - box.x) < ARCHIVE_WIDTH * 0.7 && Math.abs(point.z - box.z) < ARCHIVE_DEPTH * 0.8) return { kind: "archive" };
     if (Math.abs(point.z - BENCH_Z) < BENCH_DEPTH / 2 + 0.1) {
       const slot = Math.round((point.x - BENCH_X) / BENCH_PITCH + (BENCH_SIZE - 1) / 2);
       return slot >= 0 && slot < BENCH_SIZE ? { kind: "bench", slot } : null;
@@ -784,6 +854,16 @@ export class BoardWorld {
     }
   }
 
+  /** The refund beside the held creature: "+3" in gold, or why it can't be sold. */
+  private showRefund(id: string, at: Point) {
+    const price = this.options.sellPrice(id);
+    const box = this.host.getBoundingClientRect();
+    this.refund.textContent = price === null ? "Keep one" : `+${price}`;
+    this.refund.dataset.kind = price === null ? "refused" : "refund";
+    this.refund.style.left = `${at.clientX - box.left + 34}px`;
+    this.refund.style.top = `${at.clientY - box.top - 46}px`;
+  }
+
   private down = (event: PointerEvent) => {
     if (this.fight && !this.fight.done) return;
     const id = this.actorUnder(event);
@@ -810,6 +890,11 @@ export class BoardWorld {
     if (this.raycaster.ray.intersectPlane(this.ground, point)) actor.at.set(point.x, 0.1, point.z);
     drag.spot = this.spotUnder(event);
     this.light(actor, drag.spot);
+    // Over the Archive the creature hangs above the open box, ready to drop in.
+    if (drag.spot?.kind === "archive") {
+      actor.at.copy(this.archive.root.position).setY(0.1);
+      this.showRefund(drag.id, event);
+    }
   };
 
   private up = (event: PointerEvent) => {
@@ -824,6 +909,7 @@ export class BoardWorld {
     // Put down: a short squash, the way something lands.
     if (actor) actor.squash = 0.22;
     const spot = this.spotUnder(event);
+    if (spot?.kind === "archive" && this.options.sellPrice(drag.id) !== null) this.archiving = drag.id;
     if (spot) this.options.onMove(drag.id, spot);
   };
 }

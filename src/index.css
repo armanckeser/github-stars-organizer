@@ -225,3 +225,50 @@ input[type="search"]::-webkit-search-cancel-button {
 @keyframes battle-deal {
   from { opacity: 0; transform: translateY(18px) scale(0.94); }
 }
+
+/* The Play board (src/components/battle/three/board.ts): the refund beside a creature held over the Archive. */
+.board-refund {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 5px;
+  border-radius: 999px;
+  font: 800 20px/1 var(--font-display);
+  font-stretch: 112%;
+  font-variant-numeric: tabular-nums;
+  color: #ffe08a;
+  background: linear-gradient(180deg, #2b2110, #140f07);
+  box-shadow: 0 0 0 1px #ffb53d66, 0 6px 18px #000a, 0 0 24px #ffb53d40;
+  opacity: 0;
+  transform: translateY(6px) scale(0.92);
+  transition: opacity 120ms ease-out, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.board-refund::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #ffc93d 45%, #b97a12 100%);
+  box-shadow: inset 0 -2px 0 #8a5a0a, 0 1px 2px #0008;
+}
+.board-refund[data-kind="refused"] {
+  color: #c9d1d9;
+  font-size: 14px;
+  padding-left: 10px;
+  box-shadow: 0 0 0 1px #ffffff30, 0 6px 18px #000a;
+}
+.board-refund[data-kind="refused"]::before {
+  display: none;
+}
+.board-refund[data-shown] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-refund {
+    transition: none;
+  }
+}

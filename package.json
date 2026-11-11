@@ -25,6 +25,7 @@
     "@electric-sql/pglite": "^0.4.4",
     "@electric-sql/pglite-react": "^0.3.4",
     "@electric-sql/pglite-sync": "^0.5.4",
+    "@fontsource-variable/mona-sans": "^5.3.0",
     "@fontsource-variable/space-grotesk": "^5.2.10",
     "@hono/oidc-auth": "^1.10.0",
     "@hookform/resolvers": "^5.2.2",

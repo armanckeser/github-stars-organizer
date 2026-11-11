@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { CircleHelp, Coins, Crosshair, Dices, Layers, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,10 +7,7 @@ import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay, repoName } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
-import type { BoardHandle } from "@/components/battle/board3d";
-import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
-import { Bench, type BenchDrop } from "@/components/run/bench";
-import type { DropTarget } from "@/components/run/drop-target";
+import type { BoardFight, BoardUnit, Spot } from "@/components/battle/three/board";
 import { FpsMeter } from "@/components/run/fps-meter";
 import { TeamSlots } from "@/components/run/team-slots";
 import { BoostPick } from "@/components/run/boost-pick";
@@ -67,6 +64,18 @@ function ShopCard({ fighter, affordable, onOpen }: { fighter: RunFighter; afford
   );
 }
 
+/** The height of an element as it resizes, through a callback ref; 0 once it is gone. */
+function useHeight(): [number, (element: HTMLElement | null) => void] {
+  const [height, setHeight] = useState(0);
+  const ref = useCallback((element: HTMLElement | null) => {
+    if (!element) return setHeight(0);
+    const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
+    observer.observe(element);
+    setHeight(element.offsetHeight);
+  }, []);
+  return [height, ref];
+}
+
 function RunPage() {
   const search = Route.useSearch();
   const [login, setLogin] = useState(search.me ?? demoUser.current ?? "");
@@ -78,9 +87,6 @@ function RunPage() {
   const [bench, setBench] = useState<(RunFighter | null)[]>(emptyBench);
   // Board slots bought on top of the round's limit, for the rest of the run.
   const [bought, setBought] = useState(0);
-  // A card being dragged, from the board or the bench: the shop offers to buy it back.
-  const [carrying, setCarrying] = useState<RunFighter | null>(null);
-  const board = useRef<BoardHandle>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [wins, setWins] = useState(0);
   const [losses, setLosses] = useState(0);
@@ -99,6 +105,7 @@ function RunPage() {
   // Three boosts to pick one from, after rounds 2 and 4; null the rest of the time.
   const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
 
+  const [hud, hudRef] = useHeight();
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? boardLimit(round.number, bought) : 0;
   const roster: Roster = { board: units, bench };
@@ -176,20 +183,16 @@ function RunPage() {
     setBought(bought + 1);
   }
 
-  /** A creature from the board put down on the bench or the shop. */
-  function dropFromBoard(id: string, target: DropTarget) {
-    const moved = units.find((unit) => idOf(0, unit.fighter) === id);
-    if (!moved) return;
-    if (target.kind === "shop") sell(moved.fighter);
-    else settle(boardToBench(roster, moved.fighter.fullName, target.slot));
-  }
-
-  function dropFromBench(slot: number, drop: BenchDrop) {
-    const fighter = bench[slot];
+  /** One of the player's creatures put down on a cell, a Drafts slot or the Archive, by the roster's rules. */
+  function move(id: string, spot: Spot) {
+    const onBoard = units.find((unit) => idOf(0, unit.fighter) === id);
+    const slot = bench.findIndex((fighter) => fighter !== null && idOf(0, fighter) === id);
+    const fighter = onBoard?.fighter ?? bench[slot];
     if (!fighter) return;
-    if (drop.kind === "shop") sell(fighter);
-    else if (drop.kind === "bench") settle(swapBench(roster, slot, drop.slot));
-    else settle(benchToBoard(roster, slot, drop.col, drop.row, cap));
+    if (spot.kind === "archive") return sell(fighter);
+    if (onBoard) return spot.kind === "cell" ? place(id, spot.col, spot.row) : settle(boardToBench(roster, fighter.fullName, spot.slot));
+    if (spot.kind === "bench") settle(swapBench(roster, slot, spot.slot));
+    else settle(benchToBoard(roster, slot, spot.col, spot.row, cap));
   }
 
   function reroll() {
@@ -230,15 +233,18 @@ function RunPage() {
 
   const boardUnits = useMemo<BoardUnit[]>(() => {
     const side = (which: Side, team: Unit[]) => team.map((unit) => ({ id: idOf(which, unit.fighter), side: which, fighter: unit.fighter, ...cellOf(which, unit), ranged: rangeOf(unit.fighter) > 1 }));
-    return [...side(0, units), ...side(1, round?.theirs ?? [])];
-  }, [units, round]);
+    const drafts = bench.flatMap((fighter, slot) => (fighter ? [{ id: idOf(0, fighter), side: 0 as Side, fighter, x: 0, y: 0, ranged: rangeOf(fighter) > 1, bench: slot }] : []));
+    return [...side(0, units), ...drafts, ...side(1, round?.theirs ?? [])];
+  }, [units, bench, round]);
 
   function look(id: string | null) {
     setSelected(id);
     if (!id || fighting) return;
     const mine = units.find((unit) => idOf(0, unit.fighter) === id);
     const theirs = round?.theirs.find((unit) => idOf(1, unit.fighter) === id);
+    const slot = bench.findIndex((fighter) => fighter !== null && idOf(0, fighter) === id);
     if (mine) setViewing({ fighter: mine.fighter, unit: mine });
+    else if (slot !== -1) setViewing({ fighter: bench[slot]!, bench: slot });
     else if (theirs) setViewing({ fighter: theirs.fighter });
   }
   const close = () => {
@@ -259,12 +265,12 @@ function RunPage() {
           fight={played?.fight ?? null}
           speed={fast ? 2 : 1}
           skips={skips}
-          onPlace={place}
+          room={Math.max(0, cap - units.length)}
+          inset={hud}
           onSelect={look}
           onFightEnd={(key) => setPlayed((current) => (current?.fight.key === key ? { ...current, over: true } : current))}
-          onDrop={dropFromBoard}
-          onDrag={(id) => setCarrying(units.find((unit) => idOf(0, unit.fighter) === id)?.fighter ?? null)}
-          handle={board}
+          onMove={move}
+          onDrag={() => {}}
         />
       </Suspense>
 
@@ -312,18 +318,12 @@ function RunPage() {
       {player && error && <p className={`${PANEL} absolute inset-x-3 top-16 z-20 px-3 py-2 text-sm`} role="alert">{error}</p>}
 
       {building && (
-        <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#0c1014]/90 p-2 backdrop-blur-sm sm:p-3">
-          <div className="mx-auto mb-2 max-w-3xl sm:pl-30 sm:pr-30">
-            <Bench slots={bench} board={board} onOpen={(i) => bench[i] && setViewing({ fighter: bench[i], bench: i })} onDrop={dropFromBench} onDrag={setCarrying} />
-          </div>
+        <div ref={hudRef} className="absolute inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#0c1014]/90 p-2 backdrop-blur-sm sm:p-3">
           <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-stretch">
-            <div data-drop="shop" data-testid="shop" className="group relative grid flex-1 grid-cols-5 gap-1.5 rounded-md sm:order-2 sm:gap-2">
+            <div data-testid="shop" className="group relative grid flex-1 grid-cols-5 gap-1.5 rounded-md sm:order-2 sm:gap-2">
               {shop.map((fighter, i) => fighter
                 ? <ShopCard key={fighter.fullName} fighter={fighter} affordable={gold >= costOf(fighter) && bench.includes(null)} onOpen={() => setViewing({ fighter, slot: i })} />
                 : <div key={i} className="aspect-[5/6] rounded-md border border-dashed border-white/10" />)}
-              {carrying && held > 1 && (
-                <p className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-[#ffd84d]/70 bg-black/70 font-display font-bold text-[#ffd84d] group-data-[over]:bg-[#ffd84d]/20"><Coins className="size-5" /> Sell for {costOf(carrying)}</p>
-              )}
             </div>
             <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-28 sm:flex-col sm:items-stretch sm:justify-center">
               <p className="flex items-center gap-1.5 font-display text-lg font-bold tabular-nums text-[#ffd84d]" aria-label={`${gold} gold`}><Coins className="size-5" />{gold}</p>

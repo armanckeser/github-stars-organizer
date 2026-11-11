@@ -4,7 +4,7 @@ import { Layers, RotateCcw, Send, SkipForward, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
-import { ArenaFigures, ArenaScene, InspectOverlay, Nameplate, Stage, TextBox, repoName, type Stance } from "@/components/battle/arena";
+import { ArenaScene, ArenaStage, InspectOverlay, Nameplate, TextBox, repoName, type SideView, type Stance } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
 import { MatchList } from "@/components/battle/match-list";
 import { RepoCard } from "@/components/battle/repo-card";
@@ -239,18 +239,18 @@ function BattlePage() {
     share = `[![${won.login} beat ${lost.login} with ${left} ${left === 1 ? "card" : "cards"} left](${CARD_ORIGIN}/api/card/battle.svg?${query})](${APP_URL}battle?${query})`;
   }
 
-  const stageOf = (side: Side) => {
+  const sideOf = (side: Side): SideView | null => {
     if (!battle || !scene) return null;
-    const view = scene[side];
-    const fighter = battle[side].team[view.index];
-    const struck = scene.last && scene.last.side !== side ? { damage: scene.last.damage, critical: scene.last.critical } : undefined;
-    return (
-      <>
-        <Stage fighter={fighter} near={side === "a"} stance={view.stance} hit={struck} beat={step} onInspect={() => setInspecting(fighter)} />
-        <Nameplate near={side === "a"} owner={ownerLine(battle[side])} avatarUrl={battle[side].avatarUrl} fighter={fighter} hp={scene.hp[side][view.index]} left={scene.hp[side].filter((v) => v > 0).length} total={battle[side].team.length} />
-      </>
-    );
+    const hit = scene.last && scene.last.side !== side ? { damage: scene.last.damage, critical: scene.last.critical } : undefined;
+    return { fighter: battle[side].team[scene[side].index], look: battle[side].character.look, stance: scene[side].stance, hit, special: scene.last?.side === side && scene.last.special, won: done && battle.result.winner === side };
   };
+  const plateOf = (side: Side) => {
+    if (!battle || !scene) return null;
+    const fighter = battle[side].team[scene[side].index];
+    return <Nameplate near={side === "a"} owner={ownerLine(battle[side])} avatarUrl={battle[side].avatarUrl} fighter={fighter} hp={scene.hp[side][scene[side].index]} left={scene.hp[side].filter((v) => v > 0).length} total={battle[side].team.length} onInspect={() => setInspecting(fighter)} />;
+  };
+  const nearSide = sideOf("a");
+  const farSide = sideOf("b");
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -292,9 +292,9 @@ function BattlePage() {
       {battle && scene && phase === "fight" && (
         <div>
           <ArenaScene>
-            <ArenaFigures near={battle.a.character.look} far={battle.b.character.look} />
-            {stageOf("b")}
-            {stageOf("a")}
+            {nearSide && farSide && <ArenaStage near={nearSide} far={farSide} beat={step} speed={fast ? 2 : 1} onInspect={(where) => setInspecting(where === "near" ? nearSide.fighter : farSide.fighter)} />}
+            {plateOf("b")}
+            {plateOf("a")}
             <TextBox
               strong={done}
               actions={
@@ -317,7 +317,7 @@ function BattlePage() {
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <p className="min-w-0 flex-1 text-xs tabular-nums text-muted-foreground">
-              Hit {Math.min(step, total)} of {total}. The same matchup plays the same way all day, so anyone can check the result.
+              Hit {Math.min(step, total)} of {total}
             </p>
             {done && <CopyButton text={share} label="Copy the result card" />}
             <CopyButton text={`${APP_URL}battle?${query}`} label="Copy link" />

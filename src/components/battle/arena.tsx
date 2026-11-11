@@ -1,39 +1,35 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Figure } from "@/components/battle/figure";
 import { RepoCard, TYPE, TypeDot } from "@/components/battle/repo-card";
 import type { Fighter } from "../../../server/battle";
-import type { Look } from "../../../server/character";
+import type { ArenaView, Where } from "./three/world";
 
 // The arena both kinds of battle are staged in: the instant one (routes/battle.tsx)
-// and a match played over a thread (routes/game.tsx). One card stands large in the
-// foreground, the other across the floor, each with a nameplate, and a text box along
-// the bottom tells what happened. Sizes are in container units, so the scene scales.
+// and a match played over a thread (routes/game.tsx). The fight itself is a 3D scene
+// (three/world.ts); the nameplates and the text box are drawn over it. Sizes are in
+// container units, so the overlay scales with the scene.
 
-export type Stance = "enter" | "lunge" | "hit" | "ko" | "idle";
+export type { SideView, Stance } from "./three/world";
 
 export const repoName = (fighter: Fighter) => fighter.fullName.split("/")[1] ?? fighter.fullName;
+
+const Arena3D = lazy(() => import("./arena3d"));
 
 export function ArenaScene({ children }: { children: React.ReactNode }) {
   return (
     <div className="@container">
-      <div className="battle-scene relative aspect-[4/5] overflow-hidden rounded-xl border sm:aspect-[16/10]">
-        <div className="battle-wall" aria-hidden />
-        <div className="battle-floor" aria-hidden />
-        {children}
-      </div>
+      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border bg-[#080b0f] sm:aspect-[16/10]">{children}</div>
     </div>
   );
 }
 
-/** Each player's character, standing behind where their card goes. */
-export function ArenaFigures({ near, far }: { near: Look; far: Look }) {
+/** Both creatures, both characters and the fight between them. */
+export function ArenaStage(props: ArenaView & { onInspect: (where: Where) => void }) {
   return (
-    <>
-      <Figure look={far} flip className="absolute right-[1%] top-[24%] z-0 w-[13%] sm:right-[5%] sm:top-[13%] sm:w-[8%]" />
-      <Figure look={near} className="absolute bottom-[19%] left-[-3%] z-0 w-[19%] sm:bottom-[19%] sm:left-[1%] sm:w-[11%]" />
-    </>
+    <Suspense fallback={null}>
+      <Arena3D {...props} />
+    </Suspense>
   );
 }
 
@@ -46,6 +42,7 @@ export function Nameplate({
   left,
   total,
   energy,
+  onInspect,
 }: {
   near: boolean;
   /** The line over the card's name: who is playing it. */
@@ -58,6 +55,8 @@ export function Nameplate({
   total: number;
   /** Charge toward the special, of two. Left out where specials aren't chosen. */
   energy?: number;
+  /** Opens the card. */
+  onInspect: () => void;
 }) {
   const share = hp / fighter.hp;
   const bar = share > 0.5 ? "bg-primary" : share > 0.2 ? "bg-[#e0a312]" : "bg-[#e5484d]";
@@ -68,7 +67,7 @@ export function Nameplate({
         {avatarUrl && <img src={avatarUrl} alt="" className="shrink-0 rounded-full" style={{ width: "4.6cqw", height: "4.6cqw" }} />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-muted-foreground" style={{ fontSize: "max(1.5cqw, 10px)", lineHeight: 1.2 }}>{owner}</p>
-          <p className="truncate font-display font-bold tracking-tight" style={{ fontSize: "max(2.3cqw, 13px)", lineHeight: 1.15 }}>{repoName(fighter)}</p>
+          <button type="button" onClick={onInspect} className="block max-w-full cursor-zoom-in truncate rounded-sm text-left font-display font-bold tracking-tight underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" style={{ fontSize: "max(2.3cqw, 13px)", lineHeight: 1.15 }} aria-label={`Look at ${fighter.fullName}`}>{repoName(fighter)}</button>
         </div>
         <span className="shrink-0 font-semibold tabular-nums" style={{ fontSize: "max(1.6cqw, 10px)" }}>Lv {fighter.level}</span>
         <TypeDot type={fighter.type} size="max(3cqw, 16px)" />
@@ -94,53 +93,6 @@ export function Nameplate({
             ))}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * One side's card on the floor. The pose (the lean toward the other side) is fixed;
- * the stance on top of it is what animates. `beat` changes with every hit, so the
- * same stance twice in a row plays twice.
- */
-export function Stage({
-  fighter,
-  near,
-  stance,
-  hit,
-  guarding = false,
-  beat,
-  onInspect,
-}: {
-  fighter: Fighter;
-  near: boolean;
-  stance: Stance;
-  /** The damage this card just took, shown over it. */
-  hit?: { damage: number; critical: boolean };
-  guarding?: boolean;
-  beat: string | number;
-  onInspect: () => void;
-}) {
-  const place = near
-    ? "left-[6%] bottom-[20%] w-[42%] sm:left-[10%] sm:bottom-[21%] sm:w-[23%]"
-    : "right-[8%] top-[14%] w-[29%] sm:right-[17%] sm:top-[9%] sm:w-[16%]";
-  const motion = stance === "idle" ? "" : `battle-${stance}${stance === "lunge" ? (near ? "-near" : "-far") : ""}`;
-  const struck = stance === "hit" || stance === "ko";
-  return (
-    <div className={`absolute ${near ? "z-10" : "z-0"} ${place}`}>
-      <div className="battle-platform" style={{ "--type": TYPE[fighter.type].color } as React.CSSProperties} aria-hidden />
-      <div style={{ transform: `perspective(900px) rotateY(${near ? 20 : -16}deg) rotateZ(${near ? -2 : 1.5}deg)` }}>
-        <button type="button" key={`${beat}-${fighter.fullName}`} onClick={onInspect} className={`relative block w-full cursor-zoom-in rounded-[5%] text-left outline-none focus-visible:ring-2 focus-visible:ring-ring ${motion}`} aria-label={`Look at ${fighter.fullName}`}>
-          <RepoCard fighter={fighter} />
-          {guarding && <span className="pointer-events-none absolute -inset-[3%] rounded-[7%] border-[3px] border-white/70" aria-label="Guarding" />}
-          {struck && <span className="battle-flash pointer-events-none absolute inset-0 rounded-[5%] bg-white" aria-hidden />}
-          {struck && hit && (
-            <span className={`battle-damage pointer-events-none absolute left-1/2 top-[28%] font-display font-bold tabular-nums ${hit.critical ? "text-[#ffd23f]" : "text-white"}`} style={{ fontSize: near ? "max(5cqw, 26px)" : "max(4cqw, 22px)" }}>
-              -{hit.damage}
-            </span>
-          )}
-        </button>
       </div>
     </div>
   );

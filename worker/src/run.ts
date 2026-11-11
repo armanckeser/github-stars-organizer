@@ -1,8 +1,9 @@
 import type { Fighter } from "../../server/battle.ts";
+import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts.ts";
 import { fight as runFight } from "../../server/run/fight.ts";
 import {
   LOSSES_TO_END, REROLL_COST, ROUND_GOLD, SHOP_SIZE, START_GOLD, WINS_TO_FINISH, WIN_GOLD,
-  freeCell, inHalf, opponentLogin, opponentUnits, priceOf, shopFor, shuffled, teamSizeAt, winnerOf, type RunFighter,
+  freeCell, inHalf, opponentLogin, opponentUnits, priceOf, shopFor, teamSizeAt, winnerOf, type RunFighter,
 } from "../../server/run/rules.ts";
 import type { Card, Fight, FightEvent, Placed, Side, Snapshot } from "../../server/run/types.ts";
 import type { RunPool, Team } from "./battle.ts";
@@ -23,21 +24,12 @@ import { sign } from "./game.ts";
 
 export const RUN_PATH = /^\/api\/run\/(new|act)$/;
 
-/** The fight engine. Task 2 swaps in its rules here (`fightWith`). */
+/** The fight engine, with abilities, set bonuses and boosts (server/run/game-rules.ts). */
 const fight: Fight = runFight;
 
 /** A card's numbers, frozen when the run starts: the pool deals each fighter with its run card (poolResponse). */
 const cardOf = (fighter: RunFighter): Card => fighter.card;
 
-// Ids for the boost pick until server/run/boosts.ts (Task 2) supplies the real list.
-const BOOST_IDS = ["first-shield", "critical-2x", "last-stand"];
-const BOOSTS_OFFERED = 3;
-const BOOST_ROUNDS = [2, 4];
-
-/** The boosts on offer after a round: the same three for the same seed. Task 2 swaps in its list here. */
-export function boostsOnOffer(seed: string): string[] {
-  return shuffled(BOOST_IDS, seed).slice(0, BOOSTS_OFFERED);
-}
 
 const TOKEN_VERSION = 1;
 // Signed with the token, so a match's signature can never pass for a run's.
@@ -279,7 +271,7 @@ async function playRound(state: RunState, deps: RunDeps): Promise<{ state: RunSt
     rerolls: 0,
     gold: state.gold + ROUND_GOLD + (winner === 0 ? WIN_GOLD : 0),
     shop: shopAt(played, round, 0),
-    offer: BOOST_ROUNDS.includes(state.round) ? boostsOnOffer(`${state.login}|${state.day}|boosts|${state.round}`) : [],
+    offer: (BOOST_ROUNDS as readonly number[]).includes(state.round) ? boostOffer(`${state.login}|${state.day}|${state.round}`, state.boosts) : [],
   };
   return { state: next, report };
 }

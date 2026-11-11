@@ -45,11 +45,60 @@ Every stat gets at least 15% of the budget and at most 40%. A legendary is 15% s
 ### 3. Cards that differ
 
 - **Two types.** The main language sets the first, the second-largest language (over 20% of the code) sets the second.
-- **Four moves per card**, drawn by the repo's name from a pool, so the same repo always has the same four:
-  - one strike of each of its types;
-  - one move from a repo fact (below);
+- **Four moves per card**, drawn by the repo's name from the pool below, so the same repo always has the same four and two repos in one language rarely share more than one:
+  - one strike from its first type's four;
+  - one strike from its second type's four, or a second from the first type when it has one type;
+  - one move from a repo fact the repo qualifies for;
   - one support move.
-- **Moves from repo facts.** Has releases: *Ship It* (strong, then the card rests a turn). Over 50 contributors: *Review Swarm* (hits two to four times). Older than 8 years: *Legacy Code* (weak, but lowers the target's speed). Has CI: *Green Build* (heals a quarter of HP). A topic of `cli`: *Pipe* (always moves first). Solo maintainer: *Bus Factor* (big hit, costs the card 20% of its HP).
+
+#### The move pool (about 50 moves)
+
+Today there are 6 everyday moves (one per type) and 7 specials, which is why every TypeScript card says Hot Reload.
+
+Strikes, four per type. In each row the first is plain, the second is weaker and moves first, the third is stronger and misses one time in five, the fourth is weak and leaves a condition.
+
+| Type | Plain | Quick | Heavy | Condition |
+|---|---|---|---|---|
+| Systems | Bare Metal | Syscall | Segfault | Memory Leak (Deprecated) |
+| Scripts | Pipe Chain | One-Liner | `rm -rf` | Cron Storm (Rate limited) |
+| Web | Hot Reload | Prefetch | Bundle Bloat | Hydration Error (Flaky) |
+| Apps | Push Alert | Deep Link | Forced Update | Permission Prompt (Rate limited) |
+| Data | Batch Job | Cache Hit | Full Table Scan | Bad Join (Merge conflict) |
+| Docs | Read the Docs | Quick Start | Wall of Text | Outdated Example (Flaky) |
+
+Moves from repo facts. A card can only draw one it qualifies for.
+
+| Move | Needs | Does |
+|---|---|---|
+| Ship It | 10 or more releases | Strong hit, then the card rests a turn |
+| Review Swarm | over 50 contributors | Hits two to four times |
+| Legacy Code | older than 8 years | Weak hit, lowers the target's speed |
+| Star Storm | rare or higher | Hits harder the more stars the user has given out |
+| Fork Bomb | over 500 forks | Hits every card on the other team for a little |
+| Commit Barrage | over 500 commits last year | Three hits, each stronger than the last |
+| Issue Sweep | closes over 80% of issues | Hit, and clears the card's own condition |
+| Hotfix | pushed in the last 7 days | Moves first, stronger when the card is under half HP |
+| Bus Factor | one maintainer | Big hit, costs the card 20% of its HP |
+| Breaking Change | major version 2 or higher | Big hit, lowers the card's own defense |
+| Force Push | default branch not protected | Removes the target's raised stats |
+| Monorepo Slam | over 3 languages | Hits harder the more HP the card has |
+| Dependabot | has dependency updates on | Small hit every turn for 3 turns |
+| Archive | archived repo | Target can't use its last move again for 2 turns |
+
+Support moves. No damage.
+
+| Move | Does |
+|---|---|
+| Refactor | Raises attack |
+| Add Tests | Raises defense |
+| Green Build | Heals a quarter of HP |
+| Code Freeze | Halves the next hit taken |
+| Rebase | Clears the card's own condition and lowered stats |
+| Cache Warm | Raises speed |
+| Open Issue | Lowers the target's defense |
+| Request Changes | The target can't use a support move for 3 turns |
+| Squash | Switches out, and the card coming in takes half damage that turn |
+| Good First Issue | The next card to come in has raised attack |
 - **Conditions**, one per card at a time:
   - *Merge conflict*: one move in three hits the card itself. Lasts 3 turns.
   - *Rate limited*: the card moves last. Lasts 3 turns.
@@ -108,3 +157,50 @@ Next, in order of what a viewer notices:
 4. One ace and three draws; shiny rule; card art.
 5. Sealed simultaneous moves and paste-to-play, in the chosen arena repo.
 6. Record, ladder, upset line.
+
+## Everything else that came up
+
+Ideas and open items from the design conversations that the sections above don't cover. None of these is scheduled.
+
+**Creatures and cards**
+
+- Take the creature's colours, or a picture it carries, from the image at the top of the repo's README. Needs the Worker to fetch the README and the image.
+- A flat SVG drawing of each creature, so the cards served for READMEs (top four, list, battle result) show creatures too.
+- More bodies than six, and more things to carry than nine. Each new word list makes more repos look like themselves.
+- Creatures that change with level: a small, a middle and a large form at star milestones.
+- A card back and a pack-opening moment for the daily pull.
+
+**Characters**
+
+- Character level from followers and own stars exists; let it unlock looks (hats, jackets) and not strength.
+- Class perks are small stat bumps today. Give each class one thing it can do in a match instead (a Scout sees one of the other team's draws, an Archivist can field archived repos at full strength).
+- The 3D character in the builder, turning as the choices change.
+
+**Matches**
+
+- Chat from the GitHub thread already shows beside a match. Show it as bubbles over the characters in the arena.
+- Spectators: a "watching" count and reactions from thread reactions.
+- A turn notice inside the app. Today GitHub's own notification is the only one.
+- Best of three, and a rematch button that opens the next thread.
+- Organizations can't play: only users have a profile repo and pinned repos.
+- Tournaments: a bracket in one Discussion, each round a thread.
+
+**The arena**
+
+- Seen on a Pixel: Chrome dropped the WebGL context. The scene now restarts lighter; not yet confirmed fixed on the phone.
+- Arenas by type: a server room for systems, a terminal for scripts, and so on, picked by the home team's ace.
+- A replay that can be recorded as a short video for sharing.
+
+**Growth**
+
+- The loop: a README card links to the profile or battle, which invites the visitor to make theirs.
+- Starring is collecting, and `armanckeser` repos are the shiny pulls: the game itself asks for stars.
+- "Battle me" badge for READMEs that opens a challenge against the owner.
+- Daily draft DMs to creators (20 a day, sent by hand) are running; a creator-vs-creator battle link is the hook to try in them.
+- Rename the repo to `stard`. The npm package and image names need a release with it, since provenance checks the repo address.
+
+**Known gaps**
+
+- A deep link to `/compose` answers with a 404 status before the app loads.
+- Two real accounts have not played a whole match.
+- A real README trainer card has not been read by the game end to end.

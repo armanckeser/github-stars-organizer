@@ -2,6 +2,7 @@ import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from 
 import { BATTLE_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
+import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
 
 // BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
@@ -73,6 +74,8 @@ async function listsResponse(login: string, env: Env): Promise<Response> {
 export default {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    // The app's own page: anything but a plain read goes straight to the site.
+    if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
 
     // A match changes with every comment, so its replies set their own short cache and skip this one.
@@ -82,18 +85,21 @@ export default {
     const card = CARD_PATH.exec(url.pathname);
     const fight = BATTLE_PATH.exec(url.pathname);
     const trainer = TRAINER_PATH.test(url.pathname);
-    if (card || fight || trainer) {
+    const versus = VERSUS_PATH.test(url.pathname);
+    if (card || fight || trainer || versus) {
       // Sorted, so one card asked for with its parameters in another order shares an entry.
       url.searchParams.sort();
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
       // The version goes up whenever a reply's shape changes, so a deploy never serves
       // an older shape to the newer app out of the cache.
-      const keyUrl = new URL(fight ? url.toString().toLowerCase() : url.toString());
+      const keyUrl = new URL(fight || versus ? url.toString().toLowerCase() : url.toString());
       keyUrl.searchParams.set("_shape", RESPONSE_SHAPE);
       const key = new Request(keyUrl.toString());
       const cached = await caches.default.match(key);
       if (cached) return cached;
-      const response = trainer
+      const response = versus
+        ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)
+        : trainer
         ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN)
         : fight
           ? await battleResponse(fight[1], url.searchParams, env.GITHUB_TOKEN)

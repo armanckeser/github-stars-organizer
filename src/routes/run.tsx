@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { CircleHelp, Coins, Crosshair, Dices, Layers, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +91,11 @@ function RunPage() {
   const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
 
   const [hud, hudRef] = useHeight();
+  // For screenshots of the boost pick: `stardOffer(2)` in the console, development builds only.
+  useEffect(() => {
+    if (!import.meta.env.DEV || !player) return;
+    (window as unknown as { stardOffer?: (round: number) => void }).stardOffer = (number) => setOffer({ round: number, ids: boostOffer(`${player.login}|${today()}|${number}`, boosts) });
+  }, [player, boosts]);
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? boardLimit(round.number, bought) : 0;
   const roster: Roster = { board: units, bench };
@@ -240,7 +245,7 @@ function RunPage() {
   const viewingTeam = viewing && viewing.slot === undefined && !viewing.unit ? (round?.theirs ?? []) : units;
 
   return (
-    <div className="relative mx-auto h-[calc(100dvh-7rem)] min-h-[540px] w-full max-w-6xl overflow-hidden rounded-xl border bg-[#080b0f] text-white">
+    <div className="relative mx-auto h-[calc(100dvh-7rem)] min-h-[540px] w-full max-w-6xl overflow-hidden rounded-xl bg-[#080b0f] text-white">
       <Suspense fallback={null}>
         <Board3D
           units={boardUnits}
@@ -264,21 +269,21 @@ function RunPage() {
       </Suspense>
 
       {player && round && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2 sm:p-3">
-          <button type="button" onClick={() => setProfile(player)} aria-label={`About ${player.login}`} className={`${PANEL} pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
+        <div className="hud-top pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2 sm:p-3">
+          <button type="button" onClick={() => setProfile(player)} aria-label={`About ${player.login}`} className={`hud-chip pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
             {player.avatarUrl && <img src={player.avatarUrl} alt="" className="size-6 rounded-full" />}
             <span className="block space-y-1">
               <Pips filled={wins} total={WINS_TO_FINISH} tone="bg-primary" label="wins" />
               <Pips filled={losses} total={LOSSES_TO_END} tone="bg-[#e5484d]" label="losses" />
             </span>
           </button>
-          <p className={`${PANEL} whitespace-nowrap px-3 py-1.5 font-display text-sm font-bold tracking-tight sm:text-base`}>Round {round.number}</p>
+          <p className={`hud-chip whitespace-nowrap px-3 py-1.5 font-display text-base font-[800] tracking-tight [font-stretch:110%] sm:text-xl`}>Round {round.number}</p>
           <div className="pointer-events-auto flex items-center gap-1.5">
-            <button type="button" onClick={() => setProfile(round.opponent)} aria-label={`About ${round.opponent.login}`} className={`${PANEL} flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
+            <button type="button" onClick={() => setProfile(round.opponent)} aria-label={`About ${round.opponent.login}`} className={`hud-chip flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
               <span className="max-w-24 truncate text-xs font-medium sm:max-w-40 sm:text-sm">@{round.opponent.login}</span>
               {round.opponent.avatarUrl && <img src={round.opponent.avatarUrl} alt="" className="size-6 rounded-full" />}
             </button>
-            <button type="button" onClick={() => setHelp(!help)} aria-label="How to play" aria-expanded={help} className={`${PANEL} p-2 outline-none focus-visible:ring-2 focus-visible:ring-ring`}><CircleHelp className="size-4" /></button>
+            <button type="button" onClick={() => setHelp(!help)} aria-label="How to play" aria-expanded={help} className={`hud-chip p-2 outline-none focus-visible:ring-2 focus-visible:ring-ring`}><CircleHelp className="size-4" /></button>
           </div>
         </div>
       )}

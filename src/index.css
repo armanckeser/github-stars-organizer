@@ -275,8 +275,8 @@ input[type="search"]::-webkit-search-cancel-button {
 
 /* The Play shop (src/components/run/shop.tsx): a card's frame is the metal of its cost, its art is lit from behind. */
 .shop-bar {
-  background: linear-gradient(180deg, rgb(13 17 23 / 0.82), rgb(6 8 11 / 0.96));
-  box-shadow: 0 -1px 0 rgb(255 255 255 / 0.07), 0 -18px 40px rgb(0 0 0 / 0.45);
+  background: linear-gradient(180deg, rgb(6 8 11 / 0) 0%, rgb(6 8 11 / 0.78) 22%, rgb(6 8 11 / 0.94));
+  padding-top: 1.75rem;
 }
 .shop-card {
   background: linear-gradient(155deg, var(--metal-light), var(--metal-dark) 38%, var(--metal-dark) 62%, var(--metal-light) 82%, var(--metal-dark));
@@ -302,8 +302,8 @@ input[type="search"]::-webkit-search-cancel-button {
   filter: saturate(0.4);
 }
 .shop-empty {
-  background: #090c10;
-  box-shadow: inset 0 2px 10px #000, 0 0 0 1px rgb(255 255 255 / 0.05);
+  background: rgb(255 255 255 / 0.025);
+  box-shadow: inset 0 2px 10px rgb(0 0 0 / 0.6);
 }
 .shop-dot {
   width: 9px;
@@ -353,13 +353,13 @@ input[type="search"]::-webkit-search-cancel-button {
   font-family: var(--font-display);
   font-weight: 750;
   font-stretch: 108%;
-  border-radius: 9px;
-  background: linear-gradient(180deg, #2a313a, #161b22);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px rgb(0 0 0 / 0.6), 0 3px 8px rgb(0 0 0 / 0.45);
-  transition: transform 120ms ease-out, filter 120ms ease-out;
+  border-radius: 8px;
+  color: rgb(230 237 243 / 0.8);
+  background: rgb(255 255 255 / 0.06);
+  transition: transform 120ms ease-out, filter 120ms ease-out, background 120ms ease-out;
 }
 .hud-button:hover:not(:disabled) {
-  filter: brightness(1.15);
+  background: rgb(255 255 255 / 0.12);
 }
 .hud-button:active:not(:disabled) {
   transform: translateY(1px);
@@ -367,10 +367,13 @@ input[type="search"]::-webkit-search-cancel-button {
 .hud-button:disabled {
   opacity: 0.45;
 }
+.hud-fight:hover:not(:disabled) {
+  background: linear-gradient(180deg, #6bee88, #2a9a3f 92%);
+}
 .hud-fight {
   color: #04140a;
   background: linear-gradient(180deg, #5be37a, #238636 92%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), inset 0 -2px 0 rgb(0 0 0 / 0.2), 0 0 0 1px rgb(0 0 0 / 0.6), 0 4px 14px rgb(46 160 67 / 0.4);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), inset 0 -2px 0 rgb(0 0 0 / 0.2), 0 4px 14px rgb(46 160 67 / 0.4);
 }
 @media (prefers-reduced-motion: reduce) {
   .shop-card,
@@ -382,13 +385,26 @@ input[type="search"]::-webkit-search-cancel-button {
   }
 }
 
+/* The Play top bar: names and the round read off a shade falling from the top edge, not boxes. */
+.hud-top {
+  background: linear-gradient(180deg, rgb(6 8 11 / 0.7), rgb(6 8 11 / 0));
+  padding-bottom: 1.5rem;
+}
+.hud-chip {
+  border-radius: 8px;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
+  transition: background 120ms ease-out;
+}
+button.hud-chip:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
 /* The Play set tracker (src/components/run/checks.tsx): a pull request's checks. */
 .checks {
   width: 11.5rem;
-  padding: 6px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgb(22 27 34 / 0.92), rgb(13 17 23 / 0.88));
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 26px rgb(0 0 0 / 0.45);
+  padding: 6px 6px 10px;
+  background: radial-gradient(120% 100% at 0% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
 }
 .checks-head {
   display: flex;
@@ -464,6 +480,9 @@ input[type="search"]::-webkit-search-cancel-button {
   transform: translate(-4px, -50%);
   transition: opacity 120ms ease-out, transform 140ms ease-out;
 }
+.checks-right {
+  background: radial-gradient(120% 100% at 100% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
+}
 .checks-right .check-detail {
   left: auto;
   right: calc(100% + 6px);
@@ -507,5 +526,32 @@ input[type="search"]::-webkit-search-cancel-button {
 @media (prefers-reduced-motion: reduce) {
   .check-detail {
     transition: none;
+  }
+}
+@media (max-width: 639px) {
+  .checks {
+    width: 8.6rem;
+    padding: 4px;
+  }
+  .check-row {
+    height: 24px;
+    gap: 6px;
+    padding: 0 5px;
+    font-size: 12px;
+  }
+  .check-mark {
+    width: 13px;
+    height: 13px;
+  }
+  /* The other team's checks fold to their count on a phone, where the board is narrow. */
+  .checks-right {
+    width: auto;
+  }
+  .checks-right ul {
+    display: none;
+  }
+  .checks-right .checks-head {
+    gap: 8px;
+    padding: 4px 5px;
   }
 }

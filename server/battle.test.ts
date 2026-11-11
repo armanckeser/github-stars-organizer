@@ -78,9 +78,9 @@ describe("cards", () => {
     expect(fighter("a/b", { isArchived: true }).health).toBe(0);
   });
 
-  test("a repo the player owns is shiny and stronger; an archived one is retired and weaker", () => {
+  test("an armanckeser repo is shiny and stronger for every player; an archived one is retired and weaker", () => {
     const plain = fighter("octo/tool");
-    const shiny = fighter("Octo/tool", {}, "octo");
+    const shiny = fighter("Armanckeser/tool", {}, "octo");
     const retired = fighter("octo/tool", { isArchived: true });
     expect(shiny.shiny).toBe(true);
     expect(plain.shiny).toBe(false);
@@ -88,6 +88,20 @@ describe("cards", () => {
     expect(shiny.attack).toBeGreaterThan(plain.attack);
     expect(retired.retired).toBe(true);
     expect(retired.attack).toBeLessThan(plain.attack);
+  });
+
+  test("a repo the player owns is home, not shiny, with the same numbers", () => {
+    const plain = fighter("octo/tool");
+    const home = fighter("Octo/tool", {}, "octo");
+    expect(home.home).toBe(true);
+    expect(plain.home).toBe(false);
+    expect(home.shiny).toBe(false);
+    expect([home.hp, home.attack, home.defense, home.speed]).toEqual([plain.hp, plain.attack, plain.defense, plain.speed]);
+  });
+
+  test("armanckeser's own repo is both home and shiny for armanckeser", () => {
+    const own = fighter("armanckeser/stard", {}, "ArmancKeser");
+    expect([own.home, own.shiny]).toEqual([true, true]);
   });
 });
 

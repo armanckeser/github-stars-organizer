@@ -60,8 +60,10 @@ export type Fighter = {
   speed: number;
   /** The everyday move, and the special the card uses on every third hit. */
   moves: [Move, Move];
-  /** The repo belongs to the player fielding it. */
+  /** The repo belongs to `armanckeser`: shiny for every player. */
   shiny: boolean;
+  /** The repo belongs to the player fielding it. A mark only: no stat change. */
+  home: boolean;
   /** The repo is archived. */
   retired: boolean;
   /** The player's class makes this card stronger. */
@@ -123,7 +125,9 @@ const STRONG = 1.3;
 const WEAK = 1 / STRONG;
 const CRITICAL_ODDS = 1 / 12;
 const CRITICAL = 1.5;
-const SHINY = 1.15;
+const SHINY = 1.05;
+/** Repos from this account are shiny for every player: the game asks for stars. */
+export const SHINY_OWNER = "armanckeser";
 const SPECIAL_POWER = 1.6;
 const SPECIAL_EVERY = 3;
 const MAX_ROUNDS = 400;
@@ -164,11 +168,13 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, kl
   const people = logShare(repo.contributors, 1000);
   const work = logShare(repo.commits, 20_000);
   const shipped = Math.min(repo.releases, 30) / 30;
-  const shiny = repo.fullName.split("/")[0].toLowerCase() === playerLogin.toLowerCase();
+  const owner = repo.fullName.split("/")[0].toLowerCase();
+  const shiny = owner === SHINY_OWNER;
+  const home = owner === playerLogin.toLowerCase();
   // The classes that favour single cards (server/character.ts says what each one does).
   const sturdy = klass === "veteran" && age >= 8;
-  const perk = (klass === "maintainer" && shiny) || (klass === "scout" && repo.stars < 1000) || sturdy || (klass === "archivist" && repo.isArchived);
-  const boost = (shiny ? SHINY : 1) * (klass === "maintainer" && shiny ? 1.08 : 1) * (klass === "scout" && repo.stars < 1000 ? 1.15 : 1);
+  const perk = (klass === "maintainer" && home) || (klass === "scout" && repo.stars < 1000) || sturdy || (klass === "archivist" && repo.isArchived);
+  const boost = (shiny ? SHINY : 1) * (klass === "maintainer" && home ? 1.08 : 1) * (klass === "scout" && repo.stars < 1000 ? 1.15 : 1);
   const tough = sturdy ? 1.12 : 1;
   const tired = repo.isArchived && klass !== "archivist" ? 0.5 : 1;
   const type = typeOf(repo.language);
@@ -211,6 +217,7 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, kl
       { name: special, power: SPECIAL_POWER, damage: Math.round((attack * SPECIAL_POWER) / 2 / 5) * 5 },
     ],
     shiny,
+    home,
     retired: repo.isArchived,
     perk,
   };

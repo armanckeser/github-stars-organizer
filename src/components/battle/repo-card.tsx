@@ -190,6 +190,7 @@ export function RepoCard({ fighter, tilt = false, className = "" }: { fighter: F
           <div className="flex items-center justify-between text-[#1b1d21]/55" style={{ fontSize: "2.5cqw", padding: "0.8cqw 3.4cqw 1.6cqw" }}>
             <span className="min-w-0 truncate">{owner}/{title}</span>
             <span className="flex shrink-0 items-center font-semibold" style={{ gap: "0.6cqw" }}>
+              {fighter.home && "home · "}
               {fighter.wildcard && "wildcard · "}
               {fighter.perk && "class perk · "}
               {fighter.shiny && <><Star style={{ width: "2.8cqw", height: "2.8cqw" }} fill="#d99a0b" stroke="#d99a0b" aria-hidden /> shiny ·</>} stard

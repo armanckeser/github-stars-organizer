@@ -3,11 +3,12 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { Coins, Crosshair, Dices, Play, RotateCcw, SkipForward, Star, Swords, Sword } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay, repoName } from "@/components/battle/arena";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
 import { demoUser } from "@/lib/demo";
-import { validLogin } from "@/lib/published-list";
+import { APP_URL, validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type Unit } from "@/lib/run";
 import type { Fighter } from "../../server/battle";
 import { plainFight } from "../../server/run/plain-fight";
@@ -276,7 +277,10 @@ function RunPage() {
             <p className="font-display text-2xl font-bold tracking-tight">{wins >= WINS_TO_FINISH ? "Run finished" : "Run over"}</p>
             <p className="text-sm text-white/70">{wins} {wins === 1 ? "win" : "wins"}, {losses} {losses === 1 ? "loss" : "losses"}.</p>
             <Button className="w-full" onClick={() => void start()} disabled={loading}><RotateCcw /> New run</Button>
-            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-white/70 underline-offset-4 hover:text-white hover:underline"><Star className="size-4" /> Star Stard on GitHub</a>
+            <div className="flex items-center justify-between gap-2">
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-white/70 underline-offset-4 hover:text-white hover:underline"><Star className="size-4" /> Star Stard on GitHub</a>
+              <CopyButton text={`${APP_URL}run`} label="Share" />
+            </div>
           </div>
         </div>
       )}

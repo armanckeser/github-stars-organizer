@@ -1,6 +1,7 @@
 import { battle, drawFromStars, fieldTeam, instantSeed, type Fighter, type RepoFacts } from "../../server/battle.ts";
 import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
 import { characterFrom, characterIn, characterLevel, defaultCharacter, type Character } from "../../server/character.ts";
+import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -22,7 +23,7 @@ const TEAM_SIZE = 4;
 const POOL_SIZE = 21;
 
 const FACTS = `nameWithOwner description stargazerCount forkCount isArchived createdAt pushedAt
-  primaryLanguage { name color } owner { avatarUrl(size: 192) }
+  primaryLanguage { name color } owner { avatarUrl(size: 192) } repositoryTopics(first: 20) { nodes { topic { name } } }
   openIssues: issues(states: OPEN) { totalCount } closedIssues: issues(states: CLOSED) { totalCount }
   releases { totalCount } mentionableUsers { totalCount }
   defaultBranchRef { target { ... on Commit { history { totalCount } } } }`;
@@ -42,12 +43,13 @@ type FactsNode = {
   openIssues: { totalCount: number };
   closedIssues: { totalCount: number };
   releases: { totalCount: number };
+  repositoryTopics: { nodes: { topic: { name: string } }[] };
 };
 
-type TeamSource = "profile" | "pinned" | "stars" | "repos";
 // `custom` says the character came from a trainer card in the README, not the default.
 type Player = Character & TrainerFacts & { custom: boolean };
-export type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[] };
+// `facts` is what GitHub said that `team` was worked out from; `evened` cuts `team` only.
+export type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[]; facts: SideFacts };
 
 // What GitHub knows about a person that their character shows.
 const PLAYER = `createdAt followers { totalCount }
@@ -184,8 +186,14 @@ export async function teamFor(token: string, login: string, now: number, size = 
     if (nodes.length >= size) break;
     if (!nodes.some((node) => node.nameWithOwner === spare.nameWithOwner)) nodes.push(spare);
   }
-  const team = fieldTeam(nodes.map(toFacts), user.login, character.klass, now).map((fighter, i) => (i >= ace.length && i < ace.length + drawn.length ? { ...fighter, wildcard: true } : fighter));
-  return { login: user.login, avatarUrl: user.avatarUrl, source, character, team };
+  const repos: FrozenRepo[] = nodes.map((node, i) => ({
+    ...toFacts(node),
+    topics: node.repositoryTopics.nodes.map((entry) => entry.topic.name),
+    wildcard: i >= ace.length && i < ace.length + drawn.length,
+  }));
+  const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : fighter));
+  const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: ace[0]?.nameWithOwner ?? null, source, repos };
+  return { login: user.login, avatarUrl: user.avatarUrl, source, character, team, facts };
 }
 
 /** Both teams cut to the size of the smaller one, so nobody plays five cards against two. */

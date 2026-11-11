@@ -57,7 +57,7 @@ Every stat gets at least 15% of the budget and at most 40%. A legendary is 15% s
   - *Flaky*: moves miss one time in four. Lasts 3 turns.
 - **One trait per card** from its standout fact: *Zero Dependencies* (immune to Deprecated), *Well Documented* (immune to Flaky), *Monorepo* (more HP, less speed), *Fork* (copies the first move used against it).
 - **Shiny.** Repos owned by `armanckeser` are shiny for everyone: a foil card and 5% more of every stat. A player's own repo gets a "home" mark and no stat bonus.
-- **Card art.** The repo's custom social preview when it has one, else the first image in its README, else a picture of its creature.
+- **Card art.** In the app a card shows the repo's creature (done). The SVG cards the Worker serves for READMEs still show the owner's avatar: they need a flat drawing of the same creature, made from the same name, words and colours.
 
 ### 4. A team you collect: one ace and three draws
 
@@ -74,7 +74,7 @@ Taking turns with public dice leaves nothing to guess. In each turn both players
 - **Each seal records the comments that existed when it was made.** A sealed move that later goes missing was deleted by its author, and that author forfeits. This closes the hole where a losing host deletes a move to void the match.
 - **Dice come from both seals plus the thread id**, so neither player can know them before both have moved, and anyone can check them after. Critical: 1 in 12, 1.5× damage. Damage varies 85% to 100%.
 - **Play without `npx`.** The page gives the sealed comment and a link to the GitHub thread; the player pastes one comment per turn. GitHub says who wrote it. The `npx` version posts the same comment for them.
-- **Where matches live.** A `Battles` category in this repo's Discussions, opened from a pre-filled link. One place to list matches, rank players and watch; neither player owns the thread, so neither can delete the other's comments. Costs: people watching the repo get the notifications. Decide before building: this repo, or a separate `stard-arena` repo.
+- **Where matches live.** A `Battles` category in this repo's Discussions, opened from a pre-filled link. One place to list matches, rank players and watch; neither player owns the thread, so neither can delete the other's comments. If the notifications bother people watching the repo, matches move to a separate repo.
 
 ## Coming back
 

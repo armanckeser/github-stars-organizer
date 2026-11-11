@@ -6,8 +6,9 @@ const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
 
 function facts(fullName: string, extra: Partial<RepoFacts> = {}): RepoFacts {
   return {
-    fullName, stars: 5000, forks: 300, language: "TypeScript", color: "#3178c6", avatarUrl: null,
-    isArchived: false, pushedAt: daysAgo(3), openIssues: 50, closedIssues: 450, releases: 12, ...extra,
+    fullName, description: "A tool", stars: 5000, forks: 300, language: "TypeScript", color: "#3178c6", avatarUrl: null,
+    isArchived: false, createdAt: daysAgo(365 * 4 + 30), pushedAt: daysAgo(3), openIssues: 50, closedIssues: 450,
+    releases: 12, contributors: 40, commits: 2000, ...extra,
   };
 }
 
@@ -46,6 +47,35 @@ describe("cards", () => {
 
   test("a repo that closes its issues defends better", () => {
     expect(fighter("a/b", { openIssues: 10, closedIssues: 990 }).defense).toBeGreaterThan(fighter("a/b", { openIssues: 990, closedIssues: 10 }).defense);
+  });
+
+  test("more contributors mean more HP, more commits more attack, and age more defense", () => {
+    expect(fighter("a/b", { contributors: 900 }).hp).toBeGreaterThan(fighter("a/b", { contributors: 2 }).hp);
+    expect(fighter("a/b", { commits: 15_000 }).attack).toBeGreaterThan(fighter("a/b", { commits: 30 }).attack);
+    expect(fighter("a/b", { createdAt: daysAgo(365 * 9) }).defense).toBeGreaterThan(fighter("a/b", { createdAt: daysAgo(40) }).defense);
+    expect(fighter("a/b").age).toBe(4);
+  });
+
+  test("a card names its weakness and resistance from the ring, and docs has neither", () => {
+    const web = fighter("a/b");
+    expect([web.type, web.weakness, web.resistance]).toEqual(["web", "scripts", "apps"]);
+    const docs = fighter("a/b", { language: null });
+    expect([docs.weakness, docs.resistance]).toEqual([null, null]);
+  });
+
+  test("the everyday move comes from the type and the special from what the repo is best at", () => {
+    expect(fighter("a/b").moves[0].name).toBe("Hot Reload");
+    expect(fighter("a/b", { stars: 90_000, forks: 10, commits: 50, contributors: 3, releases: 0, pushedAt: daysAgo(500) }).moves[1].name).toBe("Star Storm");
+    expect(fighter("a/b", { stars: 30, releases: 40 }).moves[1].name).toBe("Ship It");
+    const card = fighter("a/b");
+    expect(card.moves[1].damage).toBeGreaterThan(card.moves[0].damage);
+  });
+
+  test("health runs from 0 to 10 and an archived repo has none", () => {
+    const health = fighter("a/b").health;
+    expect(health).toBeGreaterThan(5);
+    expect(health).toBeLessThanOrEqual(10);
+    expect(fighter("a/b", { isArchived: true }).health).toBe(0);
   });
 
   test("a repo the player owns is shiny and stronger; an archived one is retired and weaker", () => {
@@ -93,6 +123,14 @@ describe("the fight", () => {
       hp.set(key, e.targetHp);
       if (e.knockedOut) gone.add(key);
     }
+  });
+
+  test("a card's every third hit is its special move", () => {
+    const tank = { ...fighter("b/tank"), hp: 100_000, speed: 0 };
+    const hits = battle([{ ...fighter("a/x"), speed: 999 }], [tank], "s").events.filter((e) => e.side === "a").slice(0, 6);
+    expect(hits.map((e) => e.special)).toEqual([false, false, true, false, false, true]);
+    expect(hits[2].move).toBe(fighter("a/x").moves[1].name);
+    expect(hits[0].move).toBe("Hot Reload");
   });
 
   test("the type with the edge does more damage, all else equal", () => {

@@ -15,17 +15,22 @@ export const BATTLE_PATH = /^\/api\/(battle|card\/battle\.svg)$/;
 const CACHE_SECONDS = 3600;
 const TEAM_SIZE = 4;
 
-const FACTS = `nameWithOwner stargazerCount forkCount isArchived pushedAt
-  primaryLanguage { name color } owner { avatarUrl(size: 96) }
+const FACTS = `nameWithOwner description stargazerCount forkCount isArchived createdAt pushedAt
+  primaryLanguage { name color } owner { avatarUrl(size: 192) }
   openIssues: issues(states: OPEN) { totalCount } closedIssues: issues(states: CLOSED) { totalCount }
-  releases { totalCount }`;
+  releases { totalCount } mentionableUsers { totalCount }
+  defaultBranchRef { target { ... on Commit { history { totalCount } } } }`;
 
 type FactsNode = {
   nameWithOwner: string;
+  description: string | null;
   stargazerCount: number;
   forkCount: number;
   isArchived: boolean;
+  createdAt: string | null;
   pushedAt: string | null;
+  mentionableUsers: { totalCount: number };
+  defaultBranchRef: { target: { history?: { totalCount: number } } | null } | null;
   primaryLanguage: { name: string; color: string | null } | null;
   owner: { avatarUrl: string };
   openIssues: { totalCount: number };
@@ -34,7 +39,7 @@ type FactsNode = {
 };
 
 type TeamSource = "profile" | "pinned" | "repos";
-type Team = { login: string; source: TeamSource; team: Fighter[] };
+type Team = { login: string; avatarUrl: string | null; source: TeamSource; team: Fighter[] };
 
 class NoSuchUser extends Error {}
 
@@ -54,8 +59,12 @@ async function gql<T>(token: string, query: string): Promise<T> {
 function toFacts(node: FactsNode): RepoFacts {
   return {
     fullName: node.nameWithOwner,
+    description: node.description,
     stars: node.stargazerCount,
     forks: node.forkCount,
+    createdAt: node.createdAt,
+    contributors: node.mentionableUsers.totalCount,
+    commits: node.defaultBranchRef?.target?.history?.totalCount ?? 0,
     language: node.primaryLanguage?.name ?? null,
     color: node.primaryLanguage?.color ?? null,
     avatarUrl: node.owner.avatarUrl,
@@ -82,6 +91,7 @@ async function teamFor(token: string, login: string, now: number): Promise<Team>
   const data = await gql<{
     user: {
       login: string;
+      avatarUrl: string;
       profile: { readme: { text?: string } | null } | null;
       pinnedItems: { nodes: (FactsNode | Record<string, never>)[] };
       repositories: { nodes: FactsNode[] };
@@ -90,6 +100,7 @@ async function teamFor(token: string, login: string, now: number): Promise<Team>
     token,
     `query { user(login: ${name}) {
       login
+      avatarUrl(size: 96)
       profile: repository(name: ${name}) { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
       pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${FACTS} } } }
       repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${FACTS} } }
@@ -121,7 +132,7 @@ async function teamFor(token: string, login: string, now: number): Promise<Team>
     source = "repos";
     nodes = user.repositories.nodes;
   }
-  return { login: user.login, source, team: nodes.map((node) => fighterFor(toFacts(node), user.login, now)) };
+  return { login: user.login, avatarUrl: user.avatarUrl, source, team: nodes.map((node) => fighterFor(toFacts(node), user.login, now)) };
 }
 
 function json(body: unknown, status: number, cacheSeconds: number): Response {

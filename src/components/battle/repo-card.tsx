@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ChartColumn, Cpu, Globe, Smartphone, Star, Terminal, type LucideIcon } from "lucide-react";
+import { CARD_ORIGIN } from "@/lib/published-list";
 import { seededRandom, type CardType, type Fighter } from "../../../server/battle";
 
 // A repo as a trading card (issue #45). One rule for the look: the frame is the
@@ -78,6 +79,10 @@ export function useCreature(fighter: Fighter): string | null | false {
   return art?.of === fighter ? art.image : null;
 }
 
+// The picture from the repo's README, drawn by the Worker (worker/src/art.ts), so the
+// browser asks only the Worker and never the README's image hosts. A 404 means none.
+const artUrl = (fullName: string) => `${CARD_ORIGIN}/api/card/art.png?repo=${encodeURIComponent(fullName)}`;
+
 function MoveRow({ fighter, index }: { fighter: Fighter; index: 0 | 1 }) {
   const move = fighter.moves[index];
   return (
@@ -94,6 +99,10 @@ function MoveRow({ fighter, index }: { fighter: Fighter; index: 0 | 1 }) {
 export function RepoCard({ fighter, tilt = false, className = "" }: { fighter: Fighter; tilt?: boolean; className?: string }) {
   const frame = useRef<HTMLDivElement>(null);
   const creature = useCreature(fighter);
+  const art = artUrl(fighter.fullName);
+  // The address of the art once it has loaded; until then, and without art, the creature fills the frame.
+  const [loadedArt, setLoadedArt] = useState<string | null>(null);
+  const artShown = loadedArt === art;
   const type = TYPE[fighter.type];
   const language = fighter.color && /^#[0-9a-f]{6}$/i.test(fighter.color) ? fighter.color : NO_LANGUAGE;
   const ink = isLight(language) ? "#14171a" : "#ffffff";
@@ -146,8 +155,25 @@ export function RepoCard({ fighter, tilt = false, className = "" }: { fighter: F
             style={{ background: language, margin: "1.6cqw 3cqw 0", borderRadius: "1.6cqw", border: "0.9cqw solid #cfc6ae" }}
           >
             <CommitGrid seed={fighter.fullName} ink={ink} />
-            {creature && <img src={creature} alt="" className="absolute inset-0 h-full w-full object-contain" style={{ filter: "drop-shadow(0 1.5cqw 2cqw rgba(0,0,0,0.35))" }} draggable={false} />}
-            {creature === false && fighter.avatarUrl && (
+            <img
+              src={art}
+              alt=""
+              loading="lazy"
+              onLoad={() => setLoadedArt(art)}
+              className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${artShown ? "opacity-100" : "opacity-0"}`}
+              style={{ padding: "2.4cqw", filter: "drop-shadow(0 1cqw 1.6cqw rgba(0,0,0,0.35))" }}
+              draggable={false}
+            />
+            {creature && (
+              <img
+                src={creature}
+                alt=""
+                className={`absolute object-contain transition-all duration-300 ${artShown ? "bottom-0 left-0 h-[42%] w-[30%]" : "inset-0 h-full w-full"}`}
+                style={{ filter: "drop-shadow(0 1.5cqw 2cqw rgba(0,0,0,0.35))" }}
+                draggable={false}
+              />
+            )}
+            {creature === false && !artShown && fighter.avatarUrl && (
               <img
                 src={fighter.avatarUrl}
                 alt=""

@@ -142,7 +142,7 @@ Support moves. No damage.
   - *Flaky*: moves miss one time in four. Lasts 3 turns.
 - **One trait per card** from its standout fact: *Zero Dependencies* (immune to Deprecated), *Well Documented* (immune to Flaky), *Monorepo* (more HP, less speed), *Fork* (copies the first move used against it).
 - **Shiny.** Repos owned by `armanckeser` are shiny for everyone: a foil card and 5% more of every stat. A player's own repo gets a "home" mark and no stat bonus.
-- **Card art.** In the app a card shows the repo's creature (done). The SVG cards the Worker serves for READMEs still show the owner's avatar: they need a flat drawing of the same creature, made from the same name, words and colours.
+- **Card art.** A card's art is the first picture in the repo's README that shows the project: a screenshot or a logo, never a badge, an avatar, a tiny icon or a GIF over 1 MB (`worker/src/art.ts`). The Worker fetches and redraws the picture, so a visitor's browser never asks the README's image hosts. In the app the art fills the card's frame with the creature in its corner; the README cards show the art in the avatar's place. With no picture that fits, the app card shows the creature and the README card the owner's avatar, which still needs a flat drawing of the creature. On the board the creature stays.
 
 ### 4. A team you collect: one ace and three draws
 

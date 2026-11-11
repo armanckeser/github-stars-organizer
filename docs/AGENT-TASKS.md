@@ -61,6 +61,51 @@ Needs Tasks 1 and 2 merged.
 - A match's signed opening post holds both teams. Add what the numbers were worked out from: each repo's stars, forks, language, topics, pushed date, and the character and ace as read from the README, with the time of reading.
 - A test replays a stored opening post and gets the same teams with GitHub unreachable.
 
+## Task 6: the first minute
+
+Someone who opens a link should see a fight within seconds, with no typing.
+
+- `/battle?a=&b=&play=1` skips the team screen and starts the fight as soon as both teams load. The share picture and the "Copy link" button use this form.
+- `/run?me=<login>` starts the run on load, with no form. Without `me`, the form offers one tap on "Try with a sample account" beside the username field.
+- The site's front page for a first visit in the demo shows one button to Play above everything else.
+- Measure and put in the PR: seconds from opening each link to the first hit on screen, on a cold cache.
+
+## Task 7: say what Stard is now
+
+The README, the page tags and the repo's description still describe a stars manager and never mention the game.
+
+- `README.md`: the first screen shows the game (a GIF of a run, recorded from the live demo, under 5 MB) and one line on what Stard is, then the profile cards, then install. Keep the existing sections below. Plain words, no taglines.
+- `index.html`: title, `og:` and `twitter:` text for the site. `/run` gets its own preview picture and tags the way `/battle` does (`worker/src/share.ts`).
+- List in the PR, for the maintainer to apply by hand: a new repo description (under 350 characters) and topics.
+- No trademarked game names anywhere. "Card battle", "auto-battler" and "creatures" are fine.
+
+## Task 8: play it properly on the board
+
+- A bench: five slots between the board and the shop. Bought cards land on the bench; dragging moves a card between bench and board. The team limit counts cards on the board only.
+- Dragging a creature onto the shop sells the creature.
+- Browser tests (Playwright, software WebGL) for: drag to a cell, swap two, sell, reroll, a full run.
+- A frame counter behind `?fps=1`, and the numbers from one real phone in the PR if the agent has one; otherwise say so.
+
+## Task 9: after the run
+
+- The end screen shows the final team, the record, and a share button. The link opens a page with the team and a "Beat this team" button that starts a run against that saved team.
+- A share picture for a finished run (1200x630), drawn the way the versus picture is.
+- One line under the result: "Star Stard on GitHub". No popup.
+
+## Task 10: rename (needs the maintainer for the settings)
+
+Prepare everything in one PR; the maintainer flips the settings.
+
+- Every `github-stars-organizer` and `stars-demo.armanckeser.com` in code, docs and the Worker config, listed with what each becomes (`stard`, and a new demo address the maintainer chooses).
+- The old demo address must keep working: battle links, card image links in people's READMEs and `/api/*` all answer at the old address after the change.
+- The npm package name: say in the PR what breaks if the name changes, and recommend keep or change.
+- GitHub redirects a renamed repo, but not GitHub Pages or raw image links: list every link of those kinds.
+
+## Task 11: fairness of opponents
+
+- A plain-text file `OPPONENTS.md` listing the accounts used as opponents and how to ask to be removed (open an issue). Link the file from the Play screen's start panel.
+- An account that has a `stard` repo containing a file `no-play` is never used as an opponent or read by `/api/run/pool` for someone else's run.
+
 ## Taken (being built by the maintainer)
 
 - The Play screen (`src/routes/run.tsx`) and its 3D board (`src/components/battle/three/board.ts`): the shop, gold, placing cards and the all-at-once fight are built. Still to do there: the boost pick, showing abilities and sets, a bench, and a share link for a finished run.

@@ -34,12 +34,26 @@ export type Aim = "self" | "foe" | "weakest-foe" | "foes" | "weakest-ally" | "al
  */
 export type Stat = "attack" | "guard" | "speed" | "critical" | "luck";
 
+/**
+ * One at a time per card, for 3 seconds:
+ * - `merge-conflict`: one hit in three lands on the card itself.
+ * - `rate-limited`: the card waits half as long again between actions.
+ * - `deprecated`: the card loses a thirtieth of its full HP each second.
+ * - `flaky`: one hit in four misses.
+ */
+export const CONDITIONS = ["merge-conflict", "rate-limited", "deprecated", "flaky"] as const;
+export type Condition = (typeof CONDITIONS)[number];
+
 export type Effect =
   /** A hit of `power` times the card's normal hit, never critical. */
   | { kind: "damage"; aim: Aim; power: number }
   /** Takes the next `share` of the target's full HP of damage instead of its HP. */
   | { kind: "shield"; aim: Aim; share: number }
-  | { kind: "stat"; aim: Aim; stat: Stat; by: number };
+  | { kind: "stat"; aim: Aim; stat: Stat; by: number }
+  /** Gives back `share` of the target's full HP, never above full. */
+  | { kind: "heal"; aim: Aim; share: number }
+  /** Leaves a condition on the target, unless it already has one. */
+  | { kind: "condition"; aim: Aim; condition: Condition };
 
 /**
  * - `alone`: no teammate is standing.

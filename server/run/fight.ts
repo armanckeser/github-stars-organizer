@@ -1,5 +1,6 @@
 import { seededRandom } from "../battle.ts";
-import { NO_RULES, type Aim, type Effect, type Gate, type Hook, type Rules, type Trigger } from "./hooks.ts";
+import { type Aim, type Condition, type Effect, type Gate, type Hook, type Rules, type Trigger } from "./hooks.ts";
+import { GAME_RULES } from "./game-rules.ts";
 import { EVEN } from "./stats.ts";
 import { cellOf, COLS, ROWS, type Card, type Fight, type FightEvent, type Side } from "./types.ts";
 
@@ -37,6 +38,13 @@ const FIRST_ACTION_SPREAD = 8;
 /** A hit lands for 70% to 130% of its damage. */
 const VARIANCE = 0.6;
 const THIRD = 3;
+const CONDITION_TICKS = 30;
+/** A deprecated card loses this share of its full HP every DEPRECATED_EVERY ticks. */
+const DEPRECATED_SHARE = 1 / 30;
+const DEPRECATED_EVERY = 10;
+const MERGE_CONFLICT_ODDS = 1 / 3;
+const FLAKY_ODDS = 1 / 4;
+const RATE_LIMITED = 1.5;
 
 type Scaled = "attack" | "guard" | "speed";
 
@@ -57,6 +65,8 @@ type Unit = {
   luck: number;
   hooks: Hook[];
   spent: Set<Hook>;
+  /** The card's condition, who left it, when it wears off and when it next bites. */
+  condition: { name: Condition; from: Unit; until: number; bite: number } | null;
 };
 
 type Arena = { units: Unit[]; events: FightEvent[]; random: () => number; t: number };
@@ -70,7 +80,8 @@ const scaled = (unit: Unit, stat: Scaled) => unit.card[stat] * Math.max(0.1, uni
 
 /** Ticks between a card's hits: a faster card waits less. */
 function periodOf(unit: Unit): number {
-  const wait = PERIOD * ((EVEN + CUSHION) / (scaled(unit, "speed") + CUSHION)) ** SPEED_EDGE;
+  const limited = unit.condition?.name === "rate-limited" ? RATE_LIMITED : 1;
+  const wait = limited * PERIOD * ((EVEN + CUSHION) / (scaled(unit, "speed") + CUSHION)) ** SPEED_EDGE;
   return Math.max(MIN_PERIOD, Math.min(MAX_PERIOD, Math.round(wait)));
 }
 
@@ -143,7 +154,7 @@ function faint(arena: Arena, unit: Unit) {
   for (const mate of standing(arena, unit.side)) fire(arena, mate, "ally-faint", undefined);
 }
 
-function affect(arena: Arena, unit: Unit, effect: Effect, target: Unit) {
+function affect(arena: Arena, unit: Unit, effect: Effect, target: Unit, source: string) {
   switch (effect.kind) {
     case "damage":
       if (target.hp > 0) wound(arena, unit, target, Math.max(1, Math.round(baseHit(unit, target) * effect.power)), false);
@@ -156,6 +167,38 @@ function affect(arena: Arena, unit: Unit, effect: Effect, target: Unit) {
       else if (effect.stat === "luck") target.luck += effect.by;
       else target.boost[effect.stat] += effect.by;
       return;
+    case "heal":
+      changeHp(arena, target, Math.min(target.card.hp - target.hp, Math.round(target.card.hp * effect.share)), source);
+      return;
+    case "condition":
+      if (target.hp <= 0 || target.condition) return;
+      target.condition = { name: effect.condition, from: unit, until: arena.t + CONDITION_TICKS, bite: arena.t + DEPRECATED_EVERY };
+      arena.events.push({ t: arena.t, kind: "condition", side: target.side, unit: target.index, condition: effect.condition, on: true });
+      return;
+  }
+}
+
+/** HP gained or lost without a hit. Nothing happens, and nothing is shown, for no change. */
+function changeHp(arena: Arena, unit: Unit, change: number, cause: string) {
+  if (change === 0 || unit.hp <= 0) return;
+  unit.hp = Math.max(0, unit.hp + change);
+  arena.events.push({ t: arena.t, kind: "hp", side: unit.side, unit: unit.index, change, cause });
+  if (unit.hp === 0) faint(arena, unit);
+}
+
+/** Wears conditions off, and lets a deprecated card lose its HP. A deprecated card's loss is a hit by the card that left it. */
+function wearConditions(arena: Arena) {
+  for (const unit of arena.units) {
+    const condition = unit.condition;
+    if (!condition || unit.hp <= 0) continue;
+    if (condition.name === "deprecated" && arena.t >= condition.bite) {
+      condition.bite = arena.t + DEPRECATED_EVERY;
+      wound(arena, condition.from, unit, Math.max(1, Math.round(unit.card.hp * DEPRECATED_SHARE)), false);
+    }
+    if (unit.hp > 0 && arena.t >= condition.until) {
+      unit.condition = null;
+      arena.events.push({ t: arena.t, kind: "condition", side: unit.side, unit: unit.index, condition: condition.name, on: false });
+    }
   }
 }
 
@@ -172,11 +215,21 @@ function fire(arena: Arena, unit: Unit, on: Trigger, foe: Unit | undefined) {
     if (hook.once) unit.spent.add(hook);
     const reached = hook.effects.map((effect) => reach(arena, unit, effect.aim, foe));
     arena.events.push({ t: arena.t, kind: "ability", side: unit.side, unit: unit.index, ability: hook.source, targets: (reached[0] ?? []).map((target) => target.index) });
-    hook.effects.forEach((effect, i) => reached[i].forEach((target) => affect(arena, unit, effect, target)));
+    hook.effects.forEach((effect, i) => reached[i].forEach((target) => affect(arena, unit, effect, target, hook.source)));
   }
 }
 
 function strike(arena: Arena, unit: Unit, target: Unit) {
+  const condition = unit.condition?.name;
+  if (condition === "flaky" && arena.random() < FLAKY_ODDS) {
+    unit.next = arena.t + periodOf(unit);
+    return;
+  }
+  if (condition === "merge-conflict" && arena.random() < MERGE_CONFLICT_ODDS) {
+    unit.next = arena.t + periodOf(unit);
+    changeHp(arena, unit, -Math.max(1, Math.round(baseHit(unit, unit))), condition);
+    return;
+  }
   const critical = arena.random() < unit.luck;
   const damage = Math.max(1, Math.round(baseHit(unit, target) * (critical ? unit.critical : 1) * (1 - VARIANCE / 2 + arena.random() * VARIANCE)));
   wound(arena, unit, target, damage, critical);
@@ -235,12 +288,15 @@ export function fightWith(rules: Rules): Fight {
         luck: CRITICAL_ODDS,
         hooks: hooks[index] ?? [],
         spent: new Set(),
+        condition: null,
       }));
     });
     const arena: Arena = { units, events: [], random, t: 0 };
 
     for (const unit of shuffled(units, random)) fire(arena, unit, "start", undefined);
     while (!over(arena) && arena.t < MAX_TICKS) {
+      wearConditions(arena);
+      if (over(arena)) break;
       const ready = units.filter((unit) => unit.hp > 0 && unit.next <= arena.t);
       for (const unit of shuffled(ready, random)) act(arena, unit);
       if (!over(arena)) arena.t++;
@@ -254,4 +310,5 @@ export function fightWith(rules: Rules): Fight {
   };
 }
 
-export const fight: Fight = fightWith(NO_RULES);
+/** The fight the game plays: each card's ability, the team's set bonuses and its boosts. */
+export const fight: Fight = fightWith(GAME_RULES);

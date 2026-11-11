@@ -1,4 +1,6 @@
 import { typeOf, type CardType, type RepoFacts } from "../battle.ts";
+import { abilityFor } from "./abilities.ts";
+import { setsFor } from "./sets.ts";
 import type { Card } from "./types.ts";
 
 // A card's numbers from its repo (docs/GAME-DESIGN.md, "Fair cards"). Stars set the
@@ -40,6 +42,48 @@ export type CardFacts = RepoFacts & {
 
 export type StatPoints = { hp: number; attack: number; guard: number; speed: number };
 
+/** The repo facts the card is made from, worked out once. */
+export type Signals = {
+  /** The repo's name without the owner, lower-case. */
+  name: string;
+  type: CardType;
+  stars: number;
+  forks: number;
+  contributors: number;
+  /** Commits in the last year. */
+  yearly: number;
+  /** Years since the repo was created. */
+  age: number;
+  /** Days since the last push. */
+  daysQuiet: number;
+  openIssues: number;
+  closedIssues: number;
+  /** Share of issues closed, 0.5 when there are none. */
+  closeRate: number;
+  releases: number;
+  archived: boolean;
+};
+
+export function signalsOf(repo: CardFacts, now: number): Signals {
+  const age = repo.createdAt ? Math.max(0, (now - Date.parse(repo.createdAt)) / YEAR_MS) : 0;
+  const issues = repo.openIssues + repo.closedIssues;
+  return {
+    name: (repo.fullName.split("/")[1] ?? repo.fullName).toLowerCase(),
+    type: typeOf(repo.language),
+    stars: repo.stars,
+    forks: repo.forks,
+    contributors: repo.contributors,
+    yearly: repo.commitsYear ?? repo.commits / Math.max(1, age),
+    age,
+    daysQuiet: repo.pushedAt ? Math.max(0, (now - Date.parse(repo.pushedAt)) / DAY_MS) : 3650,
+    openIssues: repo.openIssues,
+    closedIssues: repo.closedIssues,
+    closeRate: issues > 0 ? repo.closedIssues / issues : 0.5,
+    releases: repo.releases,
+    archived: repo.isArchived,
+  };
+}
+
 export function rarityOf(stars: number): Card["rarity"] {
   return RARITY_STARS.filter((from) => stars >= from).length as Card["rarity"];
 }
@@ -66,11 +110,7 @@ function split(signals: number[]): number[] {
  * - Speed: how lately it was pushed, and releases.
  */
 export function statPoints(repo: CardFacts, now: number): StatPoints {
-  const age = repo.createdAt ? Math.max(0, (now - Date.parse(repo.createdAt)) / YEAR_MS) : 0;
-  const daysQuiet = repo.pushedAt ? Math.max(0, (now - Date.parse(repo.pushedAt)) / DAY_MS) : 3650;
-  const issues = repo.openIssues + repo.closedIssues;
-  const closeRate = issues > 0 ? repo.closedIssues / issues : 0.5;
-  const yearly = repo.commitsYear ?? repo.commits / Math.max(1, age);
+  const { age, daysQuiet, closeRate, yearly } = signalsOf(repo, now);
   const budget = BUDGET[rarityOf(repo.stars)];
   const [hp, attack, guard, speed] = split([
     logShare(repo.contributors, 500),
@@ -92,14 +132,14 @@ export function cardFor(repo: CardFacts, now: number): Card {
   return {
     fullName: repo.fullName,
     type,
-    sets: [repo.language?.toLowerCase(), ...(repo.topics ?? []).slice(0, 2)].filter((set): set is string => Boolean(set)),
+    sets: setsFor(repo.language, repo.topics ?? []),
     rarity: rarityOf(repo.stars),
     hp: Math.round((HP_FLOOR + points.hp * HP_PER_POINT) * lift),
     attack: Math.round(points.attack * lift),
     guard: Math.round(points.guard * lift),
     speed: Math.round(points.speed * lift),
     range: REACH.includes(type) ? 3 : 1,
-    ability: "none",
+    ability: abilityFor(signalsOf(repo, now), repo.fullName),
     shiny,
   };
 }

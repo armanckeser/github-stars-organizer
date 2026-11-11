@@ -146,3 +146,62 @@ describe("fightWith hooks", () => {
     expect(of(events, "ability").length).toBeLessThanOrEqual(normal);
   });
 });
+
+describe("fightWith conditions and heals", () => {
+  const wall = card("city-college/wall", { hp: 4000 });
+  const start = (effects: Hook["effects"]): Rules => carrying([{ source: "test:start", on: "start", effects }]);
+
+  it("shows a heal as an hp event with its cause, and never heals above full HP", () => {
+    const rules = carrying([{ source: "test:heal", on: "hurt", effects: [{ kind: "heal", aim: "self", share: 0.5 }] }]);
+    const events = fightWith(rules)(...duel(card("greendale/troy", { hp: 400 }), card("city-college/strong", { attack: 200, hp: 4000 })), "seed");
+    const heals = of(events, "hp");
+    expect(heals.length).toBeGreaterThan(0);
+    expect(heals.every((heal) => heal.cause === "test:heal" && heal.change > 0)).toBe(true);
+    // Each heal gives back exactly the HP the hit before it took, since half of 400 is more than one hit.
+    for (const heal of heals) expect(heal.change).toBe(of(events, "hit").filter((hit) => hit.side === 1 && hit.t === heal.t).at(-1)?.damage);
+    expect(of(fightWith(start([{ kind: "heal", aim: "self", share: 0.5 }]))(...duel(card("greendale/troy"), wall), "seed"), "hp")).toEqual([]);
+  });
+
+  it("wears a condition off after 3 seconds", () => {
+    const events = fightWith(start([{ kind: "condition", aim: "self", condition: "flaky" }]))(...duel(card("greendale/troy"), wall), "seed");
+    expect(of(events, "condition")).toEqual([
+      { t: 0, kind: "condition", side: 0, unit: 0, condition: "flaky", on: true },
+      { t: 30, kind: "condition", side: 0, unit: 0, condition: "flaky", on: false },
+    ]);
+  });
+
+  it("keeps one condition per card at a time", () => {
+    const events = fightWith(start([{ kind: "condition", aim: "self", condition: "flaky" }, { kind: "condition", aim: "self", condition: "rate-limited" }]))(...duel(card("greendale/troy"), wall), "seed");
+    expect(of(events, "condition").filter((event) => event.on).map((event) => event.condition)).toEqual(["flaky"]);
+  });
+
+  it("lets a deprecated card lose a thirtieth of its full HP each second, as hits by the card that left it", () => {
+    const events = fightWith(start([{ kind: "condition", aim: "foe", condition: "deprecated" }]))(...duel(card("greendale/troy", { attack: 0 }), wall), "seed");
+    expect(of(events, "hit").filter((hit) => hit.side === 0 && [10, 20, 30].includes(hit.t) && hit.damage === 133)).toHaveLength(3);
+  });
+
+  it("lets a card in a merge conflict hit itself", () => {
+    const rules = carrying([{ source: "test:conflict", on: "hit", effects: [{ kind: "condition", aim: "self", condition: "merge-conflict" }] }]);
+    const events = fightWith(rules)(...duel(card("greendale/troy"), wall), "seed");
+    const self = of(events, "hp").filter((event) => event.cause === "merge-conflict");
+    expect(self.length).toBeGreaterThan(2);
+    expect(self.every((event) => event.side === 0 && event.unit === 0 && event.change < 0)).toBe(true);
+  });
+
+  it("makes a rate-limited card wait half as long again between hits", () => {
+    const limited = fightWith(start([{ kind: "condition", aim: "self", condition: "rate-limited" }]))(...duel(card("greendale/troy"), wall), "seed");
+    const gaps = (events: FightEvent[]) => {
+      const times = of(events, "hit").filter((hit) => hit.side === 0).map((hit) => hit.t);
+      return times[1] - times[0];
+    };
+    expect(gaps(limited)).toBe(15);
+    expect(gaps(fight(...duel(card("greendale/troy"), wall), "seed"))).toBe(10);
+  });
+
+  it("makes a flaky card miss some of its hits", () => {
+    const rules = carrying([{ source: "test:flaky", on: "hit", effects: [{ kind: "condition", aim: "self", condition: "flaky" }] }]);
+    const hits = (events: FightEvent[]) => of(events, "hit").filter((hit) => hit.side === 0).length;
+    const steady = hits(fight(...duel(card("greendale/troy"), wall), "seed"));
+    expect(hits(fightWith(rules)(...duel(card("greendale/troy"), wall), "seed"))).toBeLessThan(steady * 0.9);
+  });
+});

@@ -1,6 +1,6 @@
 import { decodeOpening, encodeOpening, openingBody, readOpening, replay, type GameComment, type GameState, type Opening } from "../../server/game.ts";
 import { LOGIN, REPO } from "./cards.ts";
-import { NoSuchUser, gql, teamFor, type Team } from "./battle.ts";
+import { NoSuchUser, evened, gql, teamFor, type Team } from "./battle.ts";
 
 // The async battle's referee (issue #47, rules in server/game.ts). A match is a GitHub
 // Discussion; this Worker stores none of it. It does three things:
@@ -47,9 +47,10 @@ async function newGame(params: URLSearchParams, token: string, key: string): Pro
   if (!LOGIN.test(loginA) || !LOGIN.test(loginB)) return json({ error: "A challenge needs two GitHub usernames." }, 400);
   if (loginA.toLowerCase() === loginB.toLowerCase()) return json({ error: "You can't challenge yourself." }, 400);
   const now = Date.now();
-  const [a, b] = await Promise.all([teamFor(token, loginA, now), teamFor(token, loginB, now)]);
-  const empty = [a, b].find((side) => side.team.length === 0);
+  const full = await Promise.all([teamFor(token, loginA, now), teamFor(token, loginB, now)]);
+  const empty = full.find((side) => side.team.length === 0);
   if (empty) return json({ error: `${empty.login} has no public repos to play with.` }, 404);
+  const [a, b] = evened(...full);
   const opening: Opening = { v: 1, players: { a: playerOf(a), b: playerOf(b) }, teams: { a: a.team, b: b.team } };
   const payload = encodeOpening(opening);
   return json({

@@ -7,7 +7,7 @@ import { GAME_PATH, gameResponse } from "./game.ts";
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string };
 
-const RESPONSE_SHAPE = "2";
+const RESPONSE_SHAPE = "3";
 
 // GitHub's own rule for logins: alphanumerics and single inner hyphens, at most 39.
 // Anything else is rejected before it reaches GitHub, so this stays a fixed query

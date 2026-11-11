@@ -111,6 +111,8 @@ Support moves. No damage.
 ### 4. A team you collect: one ace and three draws
 
 - A team is four cards. **One ace** the player picks (profile top four or pinned repos). **Three drawn from their stars** each day.
+- Built: the ace and three daily draws, and both teams cut to the size of the smaller one, so nobody plays five cards against two. Not built: drawing five and keeping three.
+- **Nobody gives up their README to play.** Every part of a profile (character, top four, reviews, each List) can be copied by itself into a README the person already has. The game reads the character and the ace from a repo called `stard` first and the profile repo second, so someone who wants their profile README untouched keeps the cards in `stard`.
 - Each day five are drawn and the player keeps three. Starring a repo adds it to tomorrow's draw, so starring is collecting.
 - A team is fixed when a match starts and stays fixed for that match.
 - The daily draw is the reason to come back: "Today's pull" on the Battle screen, with rarity shown.

@@ -34,10 +34,10 @@ export const Route = createFileRoute("/battle")({
 
 const STEP_MS = 1500;
 const SOURCE = {
-  profile: "Top four from their profile, plus a wildcard from their stars",
-  pinned: "Their pinned repos, plus a wildcard from their stars",
-  stars: "Drawn from their stars for today",
-  repos: "Their most-starred repos",
+  profile: "Ace from their profile, the rest drawn from their stars today",
+  pinned: "Ace from their pinned repos, the rest drawn from their stars today",
+  stars: "Drawn from their stars today",
+  repos: "Their top repo, the rest drawn from their stars today",
 } as const;
 const NPX = "npx github-stars-organizer";
 
@@ -272,7 +272,7 @@ function BattlePage() {
 
       {!battle && !loading && !error && (
         <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          A team is the top four in someone's Stard profile, or their pinned repos, plus one wildcard drawn from their stars each day. A repo you own is shiny and stronger.
+          A team is four cards: one ace you pick and three drawn from your stars each day. Both sides play the same number of cards.
         </p>
       )}
 

@@ -105,7 +105,6 @@ export function topFourIn(readme: string): string[] {
   return repos.split(",").filter((name) => REPO.test(name)).slice(0, TEAM_SIZE);
 }
 
-const WILDCARDS = 1;
 
 async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
   if (names.length === 0) return [];
@@ -121,10 +120,11 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
   return names.flatMap((_, i) => found[`r${i}`] ?? []);
 }
 
-// A player's team is the four they chose plus one wildcard drawn from their stars for
-// the day. The four are the top four in their Stard profile, else their pinned repos.
-// Someone who chose neither plays a whole team drawn from their stars; someone with
-// no stars either plays their own most-starred repos.
+// A team is four cards: one ace the player chose and three drawn from their stars for
+// the day. The ace is the first of the top four in their Stard profile, else their
+// first pinned repo, else their own most-starred repo. Someone with too few stars
+// fills the rest from what they chose and then from their own repos, and may still
+// come up short; `evened` then trims the other side to match.
 export async function teamFor(token: string, login: string, now: number): Promise<Team> {
   const name = JSON.stringify(login);
   const data = await gql<{
@@ -132,6 +132,7 @@ export async function teamFor(token: string, login: string, now: number): Promis
       login: string;
       avatarUrl: string;
       profile: { readme: { text?: string } | null } | null;
+      stard: { readme: { text?: string } | null } | null;
       pinnedItems: { nodes: (FactsNode | Record<string, never>)[] };
       repositories: { nodes: FactsNode[] };
       starredRepositories: { nodes: { nameWithOwner: string; isPrivate: boolean }[] };
@@ -143,6 +144,7 @@ export async function teamFor(token: string, login: string, now: number): Promis
       avatarUrl(size: 96)
       ${PLAYER}
       profile: repository(name: ${name}) { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
+      stard: repository(name: "stard") { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
       pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${FACTS} } } }
       repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${FACTS} } }
       starredRepositories(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { nodes { nameWithOwner isPrivate } }
@@ -151,7 +153,9 @@ export async function teamFor(token: string, login: string, now: number): Promis
   if (!data.user) throw new NoSuchUser(login);
   const user = data.user;
 
-  const readme = user.profile?.readme?.text ?? "";
+  // Nobody has to give their profile README over to the game: a repo called `stard`
+  // is read first, and the two are read together so a part can live in either.
+  const readme = `${user.stard?.readme?.text ?? ""}\n${user.profile?.readme?.text ?? ""}`;
   const built = characterIn(readme, user.login);
   const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
 
@@ -161,22 +165,30 @@ export async function teamFor(token: string, login: string, now: number): Promis
     source = "pinned";
     chosen = user.pinnedItems.nodes.filter((node): node is FactsNode => "nameWithOwner" in node);
   }
-  const stars = user.starredRepositories.nodes.filter((repo) => !repo.isPrivate).map((repo) => repo.nameWithOwner);
-  if (chosen.length === 0 && stars.length > 0) source = "stars";
-  // Drawn in one go: the wildcard, and the whole team when nothing was chosen.
-  const drawn = await factsFor(
-    token,
-    drawFromStars(stars, chosen.map((node) => node.nameWithOwner), (chosen.length === 0 ? TEAM_SIZE : 0) + WILDCARDS, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
-  );
-  if (chosen.length === 0 && drawn.length === 0) {
+  if (chosen.length === 0) {
     source = "repos";
     chosen = user.repositories.nodes;
   }
-  // The wildcard is the last card drawn, when there is a team for it to join.
-  const wildcards = chosen.length > 0 ? drawn.length : Math.min(WILDCARDS, Math.max(0, drawn.length - 1));
-  const nodes = [...chosen, ...drawn];
-  const team = fieldTeam(nodes.map(toFacts), user.login, character.klass, now).map((fighter, i) => (i >= nodes.length - wildcards ? { ...fighter, wildcard: true } : fighter));
+  const ace = chosen.slice(0, 1);
+  const stars = user.starredRepositories.nodes.filter((repo) => !repo.isPrivate).map((repo) => repo.nameWithOwner);
+  if (ace.length === 0 && stars.length > 0) source = "stars";
+  const drawn = await factsFor(
+    token,
+    drawFromStars(stars, ace.map((node) => node.nameWithOwner), TEAM_SIZE - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
+  );
+  const nodes = [...ace, ...drawn];
+  for (const spare of [...chosen.slice(1), ...user.repositories.nodes]) {
+    if (nodes.length >= TEAM_SIZE) break;
+    if (!nodes.some((node) => node.nameWithOwner === spare.nameWithOwner)) nodes.push(spare);
+  }
+  const team = fieldTeam(nodes.map(toFacts), user.login, character.klass, now).map((fighter, i) => (i >= ace.length && i < ace.length + drawn.length ? { ...fighter, wildcard: true } : fighter));
   return { login: user.login, avatarUrl: user.avatarUrl, source, character, team };
+}
+
+/** Both teams cut to the size of the smaller one, so nobody plays five cards against two. */
+export function evened(a: Team, b: Team): [Team, Team] {
+  const size = Math.min(a.team.length, b.team.length);
+  return [{ ...a, team: a.team.slice(0, size) }, { ...b, team: b.team.slice(0, size) }];
 }
 
 function json(body: unknown, status: number, cacheSeconds: number): Response {
@@ -226,9 +238,10 @@ export async function battleResponse(kind: string, params: URLSearchParams, toke
 
   try {
     const now = Date.now();
-    const [a, b] = await Promise.all([teamFor(token, loginA, now), teamFor(token, loginB, now)]);
-    const empty = [a, b].find((side) => side.team.length === 0);
+    const full = await Promise.all([teamFor(token, loginA, now), teamFor(token, loginB, now)]);
+    const empty = full.find((side) => side.team.length === 0);
     if (empty) return fail(`${empty.login} has no public repos to play with.`, 404, CACHE_SECONDS);
+    const [a, b] = evened(...full);
     const seed = instantSeed(a, b, now);
     const result = battle(a.team, b.team, seed);
     if (!asCard) return json({ a, b, seed, result }, 200, CACHE_SECONDS);

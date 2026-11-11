@@ -12,7 +12,7 @@ import { FpsMeter } from "@/components/run/fps-meter";
 import { TeamSlots } from "@/components/run/team-slots";
 import { BoostPick } from "@/components/run/boost-pick";
 import { RunCard } from "@/components/run/run-card";
-import { TeamBonuses } from "@/components/run/team-bonuses";
+import { Checks } from "@/components/run/checks";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
@@ -284,9 +284,9 @@ function RunPage() {
       )}
 
       {player && round && (
-        <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex items-start justify-between gap-2 px-2 sm:top-16 sm:px-3">
-          <TeamBonuses cards={units.map((unit) => unit.fighter.card)} boosts={boosts} />
-          <TeamBonuses cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} className="ml-auto" />
+        <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex items-start justify-between gap-2 px-1 sm:top-20 sm:px-2">
+          <Checks title="Checks" cards={units.map((unit) => unit.fighter.card)} boosts={boosts} />
+          <Checks title="Theirs" cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} align="right" />
         </div>
       )}
 

@@ -381,3 +381,131 @@ input[type="search"]::-webkit-search-cancel-button {
     transform: none;
   }
 }
+
+/* The Play set tracker (src/components/run/checks.tsx): a pull request's checks. */
+.checks {
+  width: 11.5rem;
+  padding: 6px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgb(22 27 34 / 0.92), rgb(13 17 23 / 0.88));
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 26px rgb(0 0 0 / 0.45);
+}
+.checks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 6px;
+  font: 700 11px/1 var(--font-display);
+  font-stretch: 110%;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(230 237 243 / 0.45);
+}
+.check-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  outline: none;
+  font: 650 13px/1 var(--font-display);
+  font-stretch: 104%;
+  color: rgb(230 237 243 / 0.62);
+  cursor: default;
+}
+.check-row:hover,
+.check-row:focus-visible {
+  background: rgb(255 255 255 / 0.06);
+}
+.check-row[data-live] {
+  color: #e6edf3;
+}
+.check-mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px #d29922;
+}
+.check-row[data-live] .check-mark {
+  box-shadow: 0 0 10px rgb(63 185 80 / 0.55);
+  background: #3fb950 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.2 8.3l2.4 2.4 5.2-5.3' fill='none' stroke='%2304140a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat;
+}
+.check-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.check-count {
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.check-row[data-live] .check-count {
+  color: #56d364;
+}
+.check-detail {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  z-index: 40;
+  width: 15rem;
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: rgb(230 237 243 / 0.8);
+  background: linear-gradient(180deg, #1c2128, #12161c);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.09), 0 10px 28px rgb(0 0 0 / 0.6);
+  font: 500 12px/1.35 var(--font-sans);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-4px, -50%);
+  transition: opacity 120ms ease-out, transform 140ms ease-out;
+}
+.checks-right .check-detail {
+  left: auto;
+  right: calc(100% + 6px);
+  transform: translate(4px, -50%);
+}
+.check-row:hover .check-detail,
+.check-row:focus-visible .check-detail {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+.check-detail [data-on] {
+  color: #e6edf3;
+}
+.check-tier {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 4px;
+  font: 800 10px/1 var(--font-display);
+  background: #30363d;
+}
+.check-detail [data-on] .check-tier {
+  color: #04140a;
+  background: #3fb950;
+}
+.check-boost {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  background: none;
+}
+.boost-pip {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #e9b949 40%, #8a5a0a 100%);
+  box-shadow: inset 0 -2px 0 #6b4306, 0 2px 6px #000a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .check-detail {
+    transition: none;
+  }
+}

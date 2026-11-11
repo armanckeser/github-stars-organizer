@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
 import { Help, OptionRow } from "@/components/compose/controls";
+import { CharacterSheet } from "@/components/compose/character-sheet";
 import { LeftOutSheet } from "@/components/compose/left-out-sheet";
 import { ReadmePreview } from "@/components/compose/readme-preview";
 import { RepoPickerSheet } from "@/components/compose/repo-picker-sheet";
@@ -17,6 +18,7 @@ import { SectionList } from "@/components/compose/section-list";
 import { profilePrompt } from "@/lib/agent-prompt";
 import { listCollection, listItemCollection, repoCollection } from "@/lib/collections";
 import { demoUser } from "@/lib/demo";
+import { defaultCharacter } from "../../server/character";
 import {
   DEFAULT_RATING_MIN,
   TOP_FOUR,
@@ -76,12 +78,12 @@ function ComposePage() {
   function addSection(section: Section) {
     update((c) => {
       if (section.kind === "list") return { ...c, sections: [...c.sections, section] };
-      if (section.kind === "topFour") return { ...c, sections: [section, ...c.sections] };
-      const lead = c.sections.findIndex((s) => s.kind !== "topFour" && s.kind !== "reviews");
+      if (section.kind === "character") return { ...c, sections: [section, ...c.sections] };
+      const lead = c.sections.findIndex((s) => (section.kind === "topFour" ? s.kind !== "character" : s.kind !== "character" && s.kind !== "topFour" && s.kind !== "reviews"));
       const at = lead === -1 ? c.sections.length : lead;
       return { ...c, sections: [...c.sections.slice(0, at), section, ...c.sections.slice(at)] };
     });
-    if (section.kind === "topFour" || section.kind === "reviews") setPickingFor(section.id);
+    if (section.kind === "character" || section.kind === "topFour" || section.kind === "reviews") setPickingFor(section.id);
   }
 
   const has = (kind: Section["kind"]) => composition.sections.some((s) => s.kind === kind);
@@ -159,6 +161,9 @@ function ComposePage() {
                   <Plus /> Add section
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-h-80 w-56 overflow-y-auto">
+                  {!has("character") && (
+                    <DropdownMenuItem onClick={() => addSection({ id: crypto.randomUUID(), kind: "character", character: null, heading: "" })}>Character</DropdownMenuItem>
+                  )}
                   {!has("topFour") && (
                     <DropdownMenuItem onClick={() => addSection({ id: crypto.randomUUID(), kind: "topFour", repoIds: [], heading: "" })}>Top four</DropdownMenuItem>
                   )}
@@ -193,6 +198,7 @@ function ComposePage() {
                 counts={composed.counts}
                 lists={allLists}
                 repos={repoById}
+                login={login}
                 onChange={(sections) => update((c) => ({ ...c, sections }))}
                 onPick={setPickingFor}
               />
@@ -277,6 +283,13 @@ function ComposePage() {
         picked={pickingIds}
         max={picking?.kind === "topFour" ? TOP_FOUR : undefined}
         onChange={(repoIds) => update((c) => ({ ...c, sections: c.sections.map((s) => (s.id === pickingFor ? ({ ...s, repoIds } as Section) : s)) }))}
+      />
+      <CharacterSheet
+        open={picking?.kind === "character"}
+        onOpenChange={(open) => !open && setPickingFor(null)}
+        login={login}
+        character={(picking?.kind === "character" ? picking.character : null) ?? defaultCharacter(login)}
+        onChange={(character) => update((c) => ({ ...c, sections: c.sections.map((s) => (s.id === pickingFor && s.kind === "character" ? { ...s, character } : s)) }))}
       />
       <LeftOutSheet
         open={leftOutOpen && leftOutLabel !== null}

@@ -6,6 +6,8 @@
 // colour is the repo's language. An SVG shown through <img> can't load fonts or
 // outside images, so text uses the system font and avatars arrive as data URIs.
 
+import { CLASSES, figureSvg, type Character } from "./character.ts";
+
 export type CardRepo = {
   fullName: string;
   stars: number;
@@ -228,6 +230,30 @@ export function listCard(login: string, title: string, count: number, repos: Car
     body += poster(PAD + i * (w + gap), top, w, repo);
   });
   return card(top + w * 1.5 + 46, `${title}, a list of ${count} repos by ${login}`, body);
+}
+
+export type TrainerFacts = { level: number; since: number | null; followers: number; ownStars: number };
+
+/** A player's character: the figure, the class and its perk, and what GitHub knows about the person. */
+export function trainerCard(login: string, character: Character, facts: TrainerFacts): string {
+  const klass = CLASSES[character.klass];
+  const panel = 180;
+  const x = PAD + panel + 28;
+  const accent = character.klass === "rookie" ? MUTED : klass.color;
+  const stats = [
+    facts.since ? `On GitHub since ${facts.since}` : "",
+    `${compact(facts.followers)} ${facts.followers === 1 ? "follower" : "followers"}`,
+    `${compact(facts.ownStars)} ${facts.ownStars === 1 ? "star" : "stars"} on their repos`,
+  ].filter(Boolean).join(" · ");
+  let body = `<rect x="${PAD}" y="${PAD}" width="${panel}" height="190" rx="10" fill="${klass.color}"/>`;
+  body += `<g transform="translate(${PAD + 27}, ${PAD + 8}) scale(1.05)">${figureSvg(character.look)}</g>`;
+  body += `<text x="${x}" y="${PAD + 34}" font-size="30" font-weight="800" letter-spacing="-0.6" fill="${TEXT}">${escapeXml(truncate(character.name, 30))}</text>`;
+  body += `<text x="${x}" y="${PAD + 62}" font-size="15" font-weight="700" fill="${accent}">${escapeXml(klass.label)} · Lv ${facts.level}</text>`;
+  body += `<text x="${x}" y="${PAD + 86}" font-size="14" fill="${BODY}">${escapeXml(klass.perk)}</text>`;
+  if (character.motto) body += `<text x="${x}" y="${PAD + 124}" font-size="17" fill="${TEXT}">“${escapeXml(truncate(character.motto, 66))}”</text>`;
+  body += `<text x="${x}" y="${PAD + 160}" font-size="13" fill="${MUTED}">${escapeXml(stats)}</text>`;
+  body += `<text x="${x}" y="${PAD + 188}" font-size="12" font-weight="700" letter-spacing="1.8" fill="${STAR}">${escapeXml(`BATTLE ${login.toUpperCase()}`)} →</text>`;
+  return card(PAD * 2 + 190, `${character.name}, a level ${facts.level} ${klass.label} on Stard. ${klass.perk}`, body);
 }
 
 export type BattleSide = { login: string; team: CardRepo[]; standing: number };

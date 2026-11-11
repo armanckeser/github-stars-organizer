@@ -1,5 +1,6 @@
-import { battle, fighterFor, instantSeed, type Fighter, type RepoFacts } from "../../server/battle.ts";
-import { battleCard, messageCard, type CardRepo } from "../../server/cards.ts";
+import { battle, fieldTeam, instantSeed, type Fighter, type RepoFacts } from "../../server/battle.ts";
+import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
+import { characterFrom, characterIn, characterLevel, defaultCharacter, type Character } from "../../server/character.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -11,6 +12,8 @@ import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 // Nothing a player sends is trusted: the only inputs are two usernames.
 
 export const BATTLE_PATH = /^\/api\/(battle|card\/battle\.svg)$/;
+//   /api/card/trainer.svg?user=<login>&name=&class=&look=&motto=   a player's character
+export const TRAINER_PATH = /^\/api\/card\/trainer\.svg$/;
 
 const CACHE_SECONDS = 3600;
 const TEAM_SIZE = 4;
@@ -39,7 +42,25 @@ type FactsNode = {
 };
 
 type TeamSource = "profile" | "pinned" | "repos";
-type Team = { login: string; avatarUrl: string | null; source: TeamSource; team: Fighter[] };
+// `custom` says the character came from a trainer card in the README, not the default.
+type Player = Character & TrainerFacts & { custom: boolean };
+type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[] };
+
+// What GitHub knows about a person that their character shows.
+const PLAYER = `createdAt followers { totalCount }
+  owned: repositories(first: 100, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { stargazerCount } }`;
+
+type PlayerNode = { createdAt: string; followers: { totalCount: number }; owned: { nodes: { stargazerCount: number }[] } };
+
+function trainerFacts(node: PlayerNode): TrainerFacts {
+  const ownStars = node.owned.nodes.reduce((sum, repo) => sum + repo.stargazerCount, 0);
+  return {
+    level: characterLevel(node.followers.totalCount, ownStars),
+    since: Number(node.createdAt.slice(0, 4)) || null,
+    followers: node.followers.totalCount,
+    ownStars,
+  };
+}
 
 class NoSuchUser extends Error {}
 
@@ -89,18 +110,19 @@ export function topFourIn(readme: string): string[] {
 async function teamFor(token: string, login: string, now: number): Promise<Team> {
   const name = JSON.stringify(login);
   const data = await gql<{
-    user: {
+    user: (PlayerNode & {
       login: string;
       avatarUrl: string;
       profile: { readme: { text?: string } | null } | null;
       pinnedItems: { nodes: (FactsNode | Record<string, never>)[] };
       repositories: { nodes: FactsNode[] };
-    } | null;
+    }) | null;
   }>(
     token,
     `query { user(login: ${name}) {
       login
       avatarUrl(size: 96)
+      ${PLAYER}
       profile: repository(name: ${name}) { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
       pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${FACTS} } } }
       repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${FACTS} } }
@@ -111,7 +133,10 @@ async function teamFor(token: string, login: string, now: number): Promise<Team>
 
   let source: TeamSource = "profile";
   let nodes: FactsNode[] = [];
-  const picked = topFourIn(user.profile?.readme?.text ?? "");
+  const readme = user.profile?.readme?.text ?? "";
+  const built = characterIn(readme, user.login);
+  const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
+  const picked = topFourIn(readme);
   if (picked.length > 0) {
     const found = await gql<Record<string, FactsNode | null>>(
       token,
@@ -132,7 +157,7 @@ async function teamFor(token: string, login: string, now: number): Promise<Team>
     source = "repos";
     nodes = user.repositories.nodes;
   }
-  return { login: user.login, avatarUrl: user.avatarUrl, source, team: nodes.map((node) => fighterFor(toFacts(node), user.login, now)) };
+  return { login: user.login, avatarUrl: user.avatarUrl, source, character, team: fieldTeam(nodes.map(toFacts), user.login, character.klass, now) };
 }
 
 function json(body: unknown, status: number, cacheSeconds: number): Response {
@@ -154,6 +179,21 @@ async function cardRepo(fighter: Fighter): Promise<CardRepo> {
     color: fighter.color,
     avatar: fighter.avatarUrl ? await avatarData(fighter.avatarUrl) : null,
   };
+}
+
+// A trainer card is drawn from its own address, so a card shows what its builder chose
+// even before the README is saved. Only the facts come from GitHub.
+export async function trainerResponse(params: URLSearchParams, token: string): Promise<Response> {
+  const login = params.get("user") ?? "";
+  if (!LOGIN.test(login)) return svg(messageCard("This card needs a GitHub username."), 400, CACHE_SECONDS);
+  try {
+    const data = await gql<{ user: (PlayerNode & { login: string }) | null }>(token, `query { user(login: ${JSON.stringify(login)}) { login ${PLAYER} } }`);
+    if (!data.user) return svg(messageCard(`No GitHub user called ${login}.`), 404, CACHE_SECONDS);
+    return svg(trainerCard(data.user.login, characterFrom(params, data.user.login), trainerFacts(data.user)), 200, CACHE_SECONDS);
+  } catch (error) {
+    console.error(error);
+    return svg(messageCard("GitHub didn't answer. This card will be back shortly."), 502, 0);
+  }
 }
 
 export async function battleResponse(kind: string, params: URLSearchParams, token: string): Promise<Response> {

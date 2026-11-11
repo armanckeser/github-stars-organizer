@@ -2,6 +2,8 @@
 // beat which, and how two teams fight. Pure and deterministic: the same teams and
 // the same seed give the same fight on any machine, so anyone can check a result.
 
+import type { ClassId } from "./character.ts";
+
 export type RepoFacts = {
   fullName: string;
   description: string | null;
@@ -62,6 +64,8 @@ export type Fighter = {
   shiny: boolean;
   /** The repo is archived. */
   retired: boolean;
+  /** The player's class makes this card stronger. */
+  perk: boolean;
 };
 
 export type Side = "a" | "b";
@@ -148,7 +152,7 @@ function logShare(value: number, full: number): number {
  * a recent push and releases are speed. The special move is named for whatever the
  * repo is best at.
  */
-export function fighterFor(repo: RepoFacts, playerLogin: string, now: number): Fighter {
+export function fighterFor(repo: RepoFacts, playerLogin: string, now: number, klass: ClassId = "rookie"): Fighter {
   const level = Math.max(1, Math.min(100, Math.round(Math.log10(repo.stars + 1) * 20)));
   const daysQuiet = repo.pushedAt ? Math.max(0, (now - Date.parse(repo.pushedAt)) / DAY_MS) : 3650;
   const fresh = Math.exp(-daysQuiet / 180);
@@ -159,8 +163,12 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number): F
   const work = logShare(repo.commits, 20_000);
   const shipped = Math.min(repo.releases, 30) / 30;
   const shiny = repo.fullName.split("/")[0].toLowerCase() === playerLogin.toLowerCase();
-  const boost = shiny ? SHINY : 1;
-  const tired = repo.isArchived ? 0.5 : 1;
+  // The classes that favour single cards (server/character.ts says what each one does).
+  const sturdy = klass === "veteran" && age >= 8;
+  const perk = (klass === "maintainer" && shiny) || (klass === "scout" && repo.stars < 1000) || sturdy || (klass === "archivist" && repo.isArchived);
+  const boost = (shiny ? SHINY : 1) * (klass === "maintainer" && shiny ? 1.08 : 1) * (klass === "scout" && repo.stars < 1000 ? 1.15 : 1);
+  const tough = sturdy ? 1.12 : 1;
+  const tired = repo.isArchived && klass !== "archivist" ? 0.5 : 1;
   const type = typeOf(repo.language);
   const ring = RING.indexOf(type);
   const attack = Math.round((20 + level * 0.6 + fresh * 20 + work * 15) * boost * tired);
@@ -192,9 +200,9 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number): F
     weakness: ring === -1 ? null : RING[(ring + RING.length - 1) % RING.length],
     resistance: ring === -1 ? null : RING[(ring + 1) % RING.length],
     level,
-    hp: Math.round((150 + level * 2.5 + people * 45) * boost),
+    hp: Math.round((150 + level * 2.5 + people * 45) * boost * tough),
     attack,
-    defense: Math.round((20 + level * 0.5 + closeRate * 20 + Math.min(age, 10) * 1.5) * boost),
+    defense: Math.round((20 + level * 0.5 + closeRate * 20 + Math.min(age, 10) * 1.5) * boost * tough),
     speed: Math.round((10 + fresh * 60 + shipped * 30) * boost * tired),
     moves: [
       { name: BASIC_MOVE[type], power: 1, damage: Math.round(attack / 2 / 5) * 5 },
@@ -202,7 +210,42 @@ export function fighterFor(repo: RepoFacts, playerLogin: string, now: number): F
     ],
     shiny,
     retired: repo.isArchived,
+    perk,
   };
+}
+
+function strengthen(fighter: Fighter, by: { all?: number; attack?: number }): Fighter {
+  const all = by.all ?? 1;
+  const attack = Math.round(fighter.attack * all * (by.attack ?? 1));
+  return {
+    ...fighter,
+    hp: Math.round(fighter.hp * all),
+    attack,
+    defense: Math.round(fighter.defense * all),
+    speed: Math.round(fighter.speed * all),
+    moves: [
+      { ...fighter.moves[0], damage: Math.round(attack / 2 / 5) * 5 },
+      { ...fighter.moves[1], damage: Math.round((attack * SPECIAL_POWER) / 2 / 5) * 5 },
+    ],
+    perk: true,
+  };
+}
+
+/**
+ * A player's team: each repo's card, with the class's perk applied. The classes that
+ * look at the whole team (collector, specialist) are settled here; the rest per card.
+ */
+export function fieldTeam(repos: RepoFacts[], playerLogin: string, klass: ClassId, now: number): Fighter[] {
+  const team = repos.map((repo) => fighterFor(repo, playerLogin, now, klass));
+  if (klass === "collector" && team.length >= 3 && new Set(team.map((f) => f.type)).size === team.length) {
+    return team.map((fighter) => strengthen(fighter, { all: 1.06 }));
+  }
+  if (klass === "specialist") {
+    const counts = new Map<CardType, number>();
+    for (const fighter of team) counts.set(fighter.type, (counts.get(fighter.type) ?? 0) + 1);
+    return team.map((fighter) => ((counts.get(fighter.type) ?? 0) >= 3 ? strengthen(fighter, { attack: 1.1 }) : fighter));
+  }
+  return team;
 }
 
 /** A random number generator that gives the same numbers for the same seed text. */

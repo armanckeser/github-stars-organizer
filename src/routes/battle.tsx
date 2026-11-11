@@ -4,17 +4,20 @@ import { Layers, RotateCcw, SkipForward, Swords, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
+import { Figure } from "@/components/battle/figure";
 import { RepoCard, TYPE, TypeDot } from "@/components/battle/repo-card";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, CARD_ORIGIN, validLogin } from "@/lib/published-list";
 import type { BattleEvent, BattleResult, Fighter, Side } from "../../server/battle";
+import { CLASSES, defaultCharacter, type Character } from "../../server/character";
 
 // The instant battle (issue #46): two usernames, a fight the demo's Worker decides
 // (worker/src/battle.ts), staged here as an arena. The player's card stands large in
 // the foreground, the opponent's across the floor, each with a nameplate and HP bar,
 // and a text box tells the fight one hit at a time.
 
-type Team = { login: string; avatarUrl: string | null; source: "profile" | "pinned" | "repos"; team: Fighter[] };
+type Player = Character & { level: number; custom: boolean };
+type Team = { login: string; avatarUrl: string | null; source: "profile" | "pinned" | "repos"; character: Player; team: Fighter[] };
 type Battle = { a: Team; b: Team; seed: string; result: BattleResult };
 type Stance = "enter" | "lunge" | "hit" | "ko" | "idle";
 
@@ -56,9 +59,9 @@ function sceneAt(battle: Battle, step: number) {
 function narrate(battle: Battle, step: number, done: boolean): string {
   if (done) {
     const winner = battle.result.winner === "b" ? battle.b : battle.a;
-    return `${winner.login} wins the battle.`;
+    return `${winner.character.name} wins the battle.`;
   }
-  if (step === 0) return `${battle.a.login} sends out ${repoName(battle.a.team[0])}. ${battle.b.login} sends out ${repoName(battle.b.team[0])}.`;
+  if (step === 0) return `${battle.a.character.name} sends out ${repoName(battle.a.team[0])}. ${battle.b.character.name} sends out ${repoName(battle.b.team[0])}.`;
   const event = battle.result.events[step - 1];
   const attacker = repoName(battle[event.side].team[event.attacker]);
   const target = repoName(battle[otherSide(event.side)].team[event.target]);
@@ -78,7 +81,9 @@ function Nameplate({ team, fighter, hp, left, className }: { team: Team; fighter
       <div className="flex items-center" style={{ gap: "1.2cqw" }}>
         {team.avatarUrl && <img src={team.avatarUrl} alt="" className="shrink-0 rounded-full" style={{ width: "4.6cqw", height: "4.6cqw" }} />}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-muted-foreground" style={{ fontSize: "max(1.5cqw, 10px)", lineHeight: 1.2 }}>{team.login}</p>
+          <p className="truncate text-muted-foreground" style={{ fontSize: "max(1.5cqw, 10px)", lineHeight: 1.2 }}>
+            {team.character.name}{team.character.klass === "rookie" ? "" : ` · ${CLASSES[team.character.klass].label}`}
+          </p>
           <p className="truncate font-display font-bold tracking-tight" style={{ fontSize: "max(2.3cqw, 13px)", lineHeight: 1.15 }}>{repoName(fighter)}</p>
         </div>
         <span className="shrink-0 font-semibold tabular-nums" style={{ fontSize: "max(1.6cqw, 10px)" }}>Lv {fighter.level}</span>
@@ -128,12 +133,24 @@ function Stage({ fighter, side, stance, event, step, onInspect }: { fighter: Fig
 }
 
 function TeamRow({ team, onInspect, delay }: { team: Team; onInspect: (fighter: Fighter) => void; delay: number }) {
+  const klass = CLASSES[team.character.klass];
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        {team.avatarUrl && <img src={team.avatarUrl} alt="" className="size-7 rounded-full" />}
-        <h2 className="font-display text-lg font-bold tracking-tight">{team.login}</h2>
-        <span className="text-xs text-muted-foreground">{SOURCE[team.source]}</span>
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="shrink-0 rounded-md" style={{ background: klass.color }}>
+          <Figure look={team.character.look} className="h-20 w-auto" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="truncate font-display text-xl font-bold tracking-tight">{team.character.name}</h2>
+          <p className="truncate text-sm">
+            <span className="font-medium">{klass.label} · Lv {team.character.level}</span>
+            <span className="text-muted-foreground"> · @{team.login}</span>
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {team.character.klass === "rookie" ? SOURCE[team.source] : `${klass.perk} ${SOURCE[team.source]}.`}
+          </p>
+          {team.character.motto && <p className="truncate text-xs text-muted-foreground">“{team.character.motto}”</p>}
+        </div>
       </div>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {team.team.map((fighter, i) => (
@@ -173,6 +190,8 @@ function BattlePage() {
         const body = (await response.json()) as Battle & { error?: string };
         if (stale) return;
         if (!response.ok) throw new Error(body.error ?? "The battle couldn't start.");
+        // A copy of the Worker from before characters existed sends none.
+        for (const team of [body.a, body.b]) team.character ??= { ...defaultCharacter(team.login), level: 1, custom: false };
         setBattle(body);
         setPhase("teams");
         setStep(0);
@@ -259,6 +278,10 @@ function BattlePage() {
           <div className="battle-scene relative aspect-[4/5] overflow-hidden rounded-xl border sm:aspect-[16/10]">
             <div className="battle-wall" aria-hidden />
             <div className="battle-floor" aria-hidden />
+
+            {/* Each player's character stands behind their card. */}
+            <Figure look={battle.b.character.look} flip className="absolute right-[1%] top-[24%] z-0 w-[13%] sm:right-[5%] sm:top-[13%] sm:w-[8%]" />
+            <Figure look={battle.a.character.look} className="absolute bottom-[19%] left-[-3%] z-0 w-[19%] sm:bottom-[19%] sm:left-[1%] sm:w-[11%]" />
 
             <Stage fighter={battle.b.team[scene.b.index]} side="b" stance={scene.b.stance} event={scene.last} step={step} onInspect={() => setInspecting(battle.b.team[scene.b.index])} />
             <Stage fighter={battle.a.team[scene.a.index]} side="a" stance={scene.a.stance} event={scene.last} step={step} onInspect={() => setInspecting(battle.a.team[scene.a.index])} />

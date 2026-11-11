@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Layers, RotateCcw, Send, SkipForward, Star, Swords } from "lucide-react";
+import { Eye, Layers, RotateCcw, Send, SkipForward, Star, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
 import { ArenaScene, ArenaStage, InspectOverlay, Nameplate, TextBox, repoName, type SideView, type Stance } from "@/components/battle/arena";
+import { ComputerGame } from "@/components/battle/computer-game";
 import { Figure } from "@/components/battle/figure";
 import { MatchList } from "@/components/battle/match-list";
 import { RepoCard } from "@/components/battle/repo-card";
@@ -168,7 +169,7 @@ function BattlePage() {
   const [battle, setBattle] = useState<Battle | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [phase, setPhase] = useState<"teams" | "fight">("teams");
+  const [phase, setPhase] = useState<"teams" | "fight" | "play">("teams");
   const [step, setStep] = useState(0);
   const [fast, setFast] = useState(false);
   const [inspecting, setInspecting] = useState<Fighter | null>(null);
@@ -287,12 +288,17 @@ function BattlePage() {
           <TeamRow team={battle.b} onInspect={setInspecting} delay={0} />
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
-            <Button size="lg" onClick={() => { setStep(0); setPhase("fight"); }}><Swords /> Start the battle</Button>
+            <Button className="h-11 px-5 text-base" onClick={() => setPhase("play")}><Swords /> Play</Button>
+            <Button variant="outline" className="h-11 px-4" onClick={() => { setStep(0); setPhase("fight"); }}><Eye /> Watch</Button>
             <div className="h-px flex-1 bg-border" />
           </div>
           <TeamRow team={battle.a} onInspect={setInspecting} delay={360} />
           <ChallengePanel battle={battle} me={me} />
         </div>
+      )}
+
+      {battle && phase === "play" && (
+        <ComputerGame key={battle.seed} a={battle.a} b={battle.b} paused={inspecting !== null} link={`${APP_URL}battle?${query}`} onCards={() => setPhase("teams")} onInspect={setInspecting} />
       )}
 
       {battle && scene && phase === "fight" && (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ChartColumn, Cpu, Globe, Smartphone, Star, Terminal, type LucideIcon } from "lucide-react";
 import { seededRandom, type CardType, type Fighter } from "../../../server/battle";
+import { RARITY } from "./rarity";
 
 // A repo as a trading card (issue #45). One rule for the look: the frame is the
 // card's type, the art is the repo's language colour under a commit-graph pattern
@@ -131,7 +132,7 @@ export function RepoCard({ fighter, tilt = false, className = "" }: { fighter: F
         <div className="flex h-full flex-col overflow-hidden bg-[#f5f1e8]" style={{ borderRadius: "2.6cqw" }}>
           <div className="flex items-end" style={{ gap: "1.6cqw", padding: "2.2cqw 3cqw 0" }}>
             <span className="shrink-0 rounded-full bg-[#1b1d21] font-semibold text-[#f5f1e8]" style={{ fontSize: "3cqw", padding: "0.5cqw 1.8cqw", marginBottom: "0.8cqw" }}>
-              Lv {fighter.level}
+              {fighter.rarity ? RARITY[fighter.rarity] : `Lv ${fighter.level}`}
             </span>
             <h3 className="min-w-0 flex-1 truncate font-display font-bold tracking-tight" style={{ fontSize: `${nameSize}cqw`, lineHeight: 1.15 }}>{title}</h3>
             <span className="flex shrink-0 items-end font-display font-bold tabular-nums" style={{ fontSize: "7cqw", lineHeight: 1.1, gap: "0.8cqw" }}>

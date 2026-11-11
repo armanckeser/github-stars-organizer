@@ -1,15 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowLeftRight, ExternalLink, Shield, Sparkles, Swords } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, ExternalLink, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
-import { ArenaScene, ArenaStage, InspectOverlay, Nameplate, TextBox, repoName, type SideView, type Stance } from "@/components/battle/arena";
-import { RepoCard } from "@/components/battle/repo-card";
+import { ArenaScene, ArenaStage, InspectOverlay, Nameplate, TextBox } from "@/components/battle/arena";
+import { ActionPanel, Bench, DiceAhead } from "@/components/battle/match";
+import { describeEvent, sideView } from "@/components/battle/match-view";
 import { CAN_PLAY, fetchMatch, playingAs, postComment, type Match } from "@/lib/game-api";
 import type { Fighter, Side } from "../../server/battle";
 import { CLASSES } from "../../server/character";
-import { ENERGY_FOR_SPECIAL, applyAction, legalActions, moveComment, replyComment, type Action, type GameEvent, type GameState } from "../../server/game";
+import { applyAction, moveComment, replyComment, type Action, type GameState } from "../../server/game";
 
 // A match played over a GitHub thread (issue #47). The Worker works the match out
 // from the thread's comments; this screen shows where the match stands and, for the
@@ -28,20 +29,6 @@ const POLL_MS = 15_000;
 const NPX = "npx github-stars-organizer";
 const other = (side: Side): Side => (side === "a" ? "b" : "a");
 
-function describe(state: GameState, event: GameEvent): string {
-  const who = state.players[event.side].name;
-  const card = repoName(state.teams[event.side][event.card]);
-  if (event.action === "guard") return `${who}'s ${card} guards.`;
-  if (event.action === "switch") return `${who} switches to ${repoName(state.teams[event.side][event.to ?? 0])}.`;
-  const target = repoName(state.teams[other(event.side)][event.target ?? 0]);
-  return [
-    `${card} uses ${event.move} on ${target}: ${event.damage} damage.`,
-    event.critical ? "A critical hit." : "",
-    event.guarded ? "The guard took half." : "",
-    event.knockedOut ? `${target} is out.` : "",
-  ].filter(Boolean).join(" ");
-}
-
 function statusLine(state: GameState, mine: Side | null): string {
   const { a, b } = state.players;
   if (state.status === "waiting") return mine === "b" ? `${a.name} challenged you.` : `Waiting for ${b.name} to accept.`;
@@ -54,58 +41,12 @@ function statusLine(state: GameState, mine: Side | null): string {
   return state.next === mine ? "Your move." : `Waiting for ${state.players[state.next ?? "a"].name}.`;
 }
 
-// What an action would do, worked out with the same rules the referee uses.
-function preview(state: GameState, seed: string, side: Side, action: Action): GameEvent {
-  return applyAction(state, seed, side, action, "preview", "").events.at(-1)!;
-}
-
-function ActionButton({ icon, title, detail, disabled, onClick }: { icon: React.ReactNode; title: string; detail: string; disabled?: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="flex min-h-16 items-center gap-3 rounded-lg border bg-card px-3 py-2 text-left transition-[background-color,transform] duration-150 hover:bg-accent active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45"
-    >
-      <span className="shrink-0 text-muted-foreground [&_svg]:size-5">{icon}</span>
-      <span className="min-w-0">
-        <span className="block truncate text-base font-semibold">{title}</span>
-        <span className="block text-xs text-muted-foreground">{detail}</span>
-      </span>
-    </button>
-  );
-}
-
-function Bench({ state, side, onInspect }: { state: GameState; side: Side; onInspect: (fighter: Fighter) => void }) {
-  const mine = state.sides[side];
-  return (
-    <div className="min-w-0 space-y-1.5">
-      <p className="truncate text-xs text-muted-foreground">
-        {state.players[side].name}{state.players[side].klass === "rookie" ? "" : ` · ${CLASSES[state.players[side].klass].label}`}
-      </p>
-      <ul className="flex gap-1.5">
-        {state.teams[side].map((fighter, i) => (
-          <li key={fighter.fullName} className={`w-14 shrink-0 sm:w-16 ${mine.hp[i] === 0 ? "opacity-30 grayscale" : i === mine.active ? "" : "opacity-75"}`}>
-            <button type="button" onClick={() => onInspect(fighter)} className={`block w-full cursor-zoom-in rounded-[5%] outline-none focus-visible:ring-2 focus-visible:ring-ring ${i === mine.active ? "ring-2 ring-foreground" : ""}`} aria-label={`Look at ${fighter.fullName}`}>
-              <RepoCard fighter={fighter} />
-            </button>
-            <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted" aria-label={`${repoName(fighter)}: ${mine.hp[i]} of ${fighter.hp} HP`}>
-              <div className="h-full rounded-full bg-primary" style={{ width: `${(mine.hp[i] / fighter.hp) * 100}%` }} />
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function GamePage() {
   const { repo, n } = Route.useSearch();
   const [match, setMatch] = useState<Match | null>(null);
   const [me, setMe] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [switching, setSwitching] = useState(false);
   const [inspecting, setInspecting] = useState<Fighter | null>(null);
   const [chat, setChat] = useState("");
 
@@ -140,7 +81,6 @@ function GamePage() {
   const mine: Side | null = !state || !me ? null : state.players.a.login.toLowerCase() === me.toLowerCase() ? "a" : state.players.b.login.toLowerCase() === me.toLowerCase() ? "b" : null;
   const near: Side = mine ?? "a";
   const myTurn = state?.status === "active" && mine !== null && state.next === mine;
-  const legal = useMemo(() => (state && mine ? legalActions(state, mine) : []), [state, mine]);
 
   async function post(body: string, after?: GameState) {
     if (!match) return;
@@ -150,7 +90,6 @@ function GamePage() {
       const comment = await postComment(match.thread, body);
       // Shown at once from the same rules the referee will apply, then confirmed from the thread.
       if (after) setMatch({ ...match, state: { ...after, last: comment.id } });
-      setSwitching(false);
       setTimeout(() => void load(true), 1500);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "GitHub didn't take that. Try again.");
@@ -162,7 +101,7 @@ function GamePage() {
   function play(action: Action) {
     if (!state || !mine) return;
     const after = applyAction(state, seed, mine, action, "pending", new Date().toISOString());
-    const line = describe(after, after.events.at(-1)!);
+    const line = describeEvent(after, after.events.at(-1)!);
     void post(moveComment(state.turn, action, state.last, `**Turn ${state.turn}.** ${line}`), after);
   }
 
@@ -174,26 +113,6 @@ function GamePage() {
   }
 
   const lastEvent = state.events.at(-1);
-  const stanceOf = (side: Side): Stance => {
-    if (!lastEvent) return state.status === "active" ? "enter" : "idle";
-    const attacked = lastEvent.action === "attack" || lastEvent.action === "special";
-    if (lastEvent.side === side) return attacked ? "lunge" : lastEvent.action === "switch" ? "enter" : "idle";
-    if (!attacked) return "idle";
-    // A knocked-out card has already been replaced by the next in line.
-    return lastEvent.knockedOut ? (state.status === "won" ? "ko" : "enter") : "hit";
-  };
-  const sideOf = (side: Side): SideView => {
-    const hit = lastEvent && lastEvent.side !== side && lastEvent.damage !== undefined ? { damage: lastEvent.damage, critical: lastEvent.critical ?? false } : undefined;
-    return {
-      fighter: state.teams[side][state.sides[side].active],
-      look: state.players[side].look,
-      stance: stanceOf(side),
-      hit,
-      special: lastEvent?.side === side && lastEvent.action === "special",
-      guarding: state.sides[side].guarding,
-      won: state.status === "won" && state.winner === side,
-    };
-  };
   const plateOf = (side: Side) => {
     const sideState = state.sides[side];
     const fighter = state.teams[side][sideState.active];
@@ -212,16 +131,9 @@ function GamePage() {
       />
     );
   };
-  const nearSide = sideOf(near);
-  const farSide = sideOf(other(near));
+  const nearSide = sideView(state, near);
+  const farSide = sideView(state, other(near));
 
-  const can = (kind: Action["kind"]) => legal.some((action) => action.kind === kind);
-  const attack = myTurn && mine ? preview(state, seed, mine, { kind: "attack" }) : null;
-  const special = myTurn && mine && can("special") ? preview(state, seed, mine, { kind: "special" }) : null;
-  const hitDetail = (event: GameEvent) => `${event.damage} damage${event.critical ? " · critical" : ""}${event.knockedOut ? " · knocks out" : ""}`;
-  const active = mine ? state.teams[mine][state.sides[mine].active] : null;
-  const charge = mine ? state.sides[mine].energy[state.sides[mine].active] : 0;
-  const switches = legal.filter((action): action is { kind: "switch"; to: number } => action.kind === "switch");
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -238,7 +150,7 @@ function GamePage() {
         {plateOf(other(near))}
         {plateOf(near)}
         <TextBox strong={state.status !== "active"}>
-          {lastEvent && state.status === "active" ? `${describe(state, lastEvent)} ${statusLine(state, mine)}` : statusLine(state, mine)}
+          {lastEvent && state.status === "active" ? `${describeEvent(state, lastEvent)} ${statusLine(state, mine)}` : statusLine(state, mine)}
         </TextBox>
       </ArenaScene>
 
@@ -251,49 +163,9 @@ function GamePage() {
         </div>
       )}
 
-      {myTurn && mine && active && attack && (
-        <div className="space-y-2">
-          {switching ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Switch to which card? The switch uses your turn.</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {switches.map((action) => {
-                  const fighter = state.teams[mine][action.to];
-                  return (
-                    <ActionButton key={action.to} icon={<ArrowLeftRight />} title={repoName(fighter)} detail={`${state.sides[mine].hp[action.to]}/${fighter.hp} HP · Lv ${fighter.level} · ${fighter.type}`} disabled={busy} onClick={() => play(action)} />
-                  );
-                })}
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setSwitching(false)}>Back</Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-              <ActionButton icon={<Swords />} title={active.moves[0].name} detail={hitDetail(attack)} disabled={busy} onClick={() => play({ kind: "attack" })} />
-              <ActionButton
-                icon={<Sparkles />}
-                title={active.moves[1].name}
-                detail={special ? hitDetail(special) : `Charge ${charge} of ${ENERGY_FOR_SPECIAL}. Attacking charges the special.`}
-                disabled={busy || !special}
-                onClick={() => play({ kind: "special" })}
-              />
-              <ActionButton icon={<Shield />} title="Guard" detail={can("guard") ? "Halve the next hit you take." : "Not twice in a row."} disabled={busy || !can("guard")} onClick={() => play({ kind: "guard" })} />
-              <ActionButton icon={<ArrowLeftRight />} title="Switch" detail={switches.length ? "Bring in another card." : "No other card is standing."} disabled={busy || switches.length === 0} onClick={() => setSwitching(true)} />
-            </div>
-          )}
-        </div>
-      )}
+      {myTurn && mine && <ActionPanel state={state} seed={seed} side={mine} busy={busy} onPlay={play} />}
 
-      {state.status === "active" && state.forecast.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span className="font-medium uppercase tracking-wider">The dice ahead</span>
-          {state.forecast.map((roll) => (
-            <span key={roll.turn} className="tabular-nums">
-              Turn {roll.turn}: {Math.round(roll.variance * 100)}%{roll.critical && <span className="font-semibold text-[#ffd23f]"> critical</span>}
-            </span>
-          ))}
-          <span>Everyone sees the same rolls, so plan around them.</span>
-        </div>
-      )}
+      <DiceAhead state={state} note="Everyone sees the same rolls, so plan around them." />
 
       {!mine && live && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm text-muted-foreground">

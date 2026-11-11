@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function CopyButton({ text, label = "Copy prompt" }: { text: string; label?: string }) {
+export function CopyButton({ text, label = "Copy prompt", className }: { text: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     await navigator.clipboard.writeText(text);
@@ -10,7 +10,7 @@ export function CopyButton({ text, label = "Copy prompt" }: { text: string; labe
     setTimeout(() => setCopied(false), 1500);
   }
   return (
-    <Button variant="outline" size="sm" onClick={copy}>
+    <Button variant="outline" size="sm" className={className} onClick={copy}>
       {copied ? <Check className="mr-2 h-3.5 w-3.5" /> : <Copy className="mr-2 h-3.5 w-3.5" />}
       {copied ? "Copied" : label}
     </Button>

@@ -10,6 +10,7 @@ import {
   type ComposeRepo,
   type Composition,
 } from "./published-list";
+import { readLook } from "../../server/character";
 
 const NOW = Date.parse("2026-11-07T00:00:00Z");
 const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
@@ -208,7 +209,7 @@ describe("with a username: cards", () => {
     expect(cardParams(plain, "trainer").get("class")).toBe("rookie");
     expect(cardParams(plain, "trainer").has("name")).toBe(false);
 
-    const built = { name: "The Octo", klass: "scout" as const, look: { skin: 1, hair: 2, hairColor: 3, top: 0, topColor: 4, extra: 1 }, motto: "Ship small" };
+    const built = { name: "The Octo", klass: "scout" as const, look: readLook({ skin: 1, hair: 2, hairColor: 3, top: 0, topColor: 4, extra: 1 }), motto: "Ship small" };
     const params = cardParams(run(compose({ login: "octo", sections: [{ ...section, character: built }] }), []).markdown, "trainer");
     expect(Object.fromEntries(params)).toEqual({ user: "octo", name: "The Octo", class: "scout", look: "1.2.3.0.4.1", motto: "Ship small" });
   });

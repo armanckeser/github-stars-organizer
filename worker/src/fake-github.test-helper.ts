@@ -14,10 +14,20 @@ const REPOS: Record<string, Repo> = {
   "greendale/human-being": { language: "HTML", stars: 75, forks: 3, topics: ["web"], pushedAt: "2023-04-01T00:00:00Z" },
 };
 
-type Account = { readme: string | null; pinned: string[]; stars: string[] };
+type Account = { readme: string | null; pinned: string[]; stars: string[]; characterFile?: string };
 
 export const HOST = "study-group-abed";
 export const GUEST = "study-group-annie";
+/** Has a character file kept in this repo, and nothing of their own. */
+export const LISTED = "study-group-troy";
+/** Has their own `stard/character.md` as well as a file kept in this repo. */
+export const OWN_FILE = "study-group-britta";
+
+// `characters/<login>.md` in this repo.
+const LISTED_FILES: Record<string, string> = {
+  [LISTED]: "name: Troy\nhair: buzz\nhair-color: black\nbeard: stubble\ntop: tee\ntop-color: blue",
+  [OWN_FILE]: "name: Britta (kept here)\nhair: long",
+};
 
 const ACCOUNTS: Record<string, Account> = {
   // A trainer card and a top four in the `stard` README: a specialist, with an ace from the README.
@@ -28,6 +38,8 @@ const ACCOUNTS: Record<string, Account> = {
   },
   // No README: the default character, the ace from a pinned repo, only two stars.
   [GUEST]: { readme: null, pinned: ["greendale/paintball-assassin"], stars: ["city-college/mascot", "greendale/human-being"] },
+  [LISTED]: { readme: null, pinned: ["troy-barnes/blanket-fort"], stars: [] },
+  [OWN_FILE]: { readme: "# Britta", pinned: ["greendale/human-being"], stars: [], characterFile: "name: Britta\nhair: medium\nglasses: square\nhat: beanie" },
 };
 
 function repoNode(fullName: string) {
@@ -50,7 +62,7 @@ function userNode(login: string) {
     login, avatarUrl: `https://avatars.example/${login}`, createdAt: "2015-08-01T00:00:00Z",
     followers: { totalCount: 30 }, owned: { nodes: [] },
     profile: null,
-    stard: account.readme === null ? null : { readme: { text: account.readme } },
+    stard: account.readme === null ? null : { readme: { text: account.readme }, character: account.characterFile === undefined ? null : { text: account.characterFile } },
     pinnedItems: { nodes: account.pinned.map(repoNode) },
     repositories: { nodes: [] },
     starredRepositories: { nodes: account.stars.map((nameWithOwner) => ({ nameWithOwner, isPrivate: false })) },
@@ -61,7 +73,11 @@ function userNode(login: string) {
 export async function fakeGitHub(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const { query } = JSON.parse(String(init?.body)) as { query: string };
   const user = /user\(login: "([^"]+)"\)/.exec(query);
-  if (user) return Response.json({ data: { user: userNode(user[1]) } });
+  if (user) {
+    const listed = /HEAD:characters\/([^"]+)\.md/.exec(query);
+    const file = listed ? LISTED_FILES[listed[1]] : undefined;
+    return Response.json({ data: { user: userNode(user[1]), here: { character: file === undefined ? null : { text: file } } } });
+  }
   const data: Record<string, unknown> = {};
   for (const found of query.matchAll(/(r\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)/g)) {
     data[found[1]] = REPOS[`${found[2]}/${found[3]}`] ? repoNode(`${found[2]}/${found[3]}`) : null;

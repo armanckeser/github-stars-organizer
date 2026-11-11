@@ -1,6 +1,7 @@
 // Every GitHub call that writes or reads with the user's token, shared by the
 // self-host server (index.ts) and the npx CLI's localhost server (cli/). The
 // Docker image is built from server/ alone, so this imports nothing outside it.
+import { SELF_REPO } from "./self-repo.ts";
 import { HEALTH_BATCH_QUERY, type HealthBatchData } from "./health.ts";
 import { fetchViewerLists, type GitHubList, type RepoListChange } from "./github-lists.ts";
 import { findSimilar, readmeLead, type SearchItem, type SimilarRepo, type SimilarSource } from "./similar.ts";
@@ -225,7 +226,7 @@ export async function addStar(client: GitHubClient, repoNodeId: string): Promise
 
 // Stard's own repo, for the "Star Stard" button. Fixed so the
 // route can't be used to star anything else.
-export const SELF_REPO = { owner: "armanckeser", name: "github-stars-organizer" };
+export { SELF_REPO } from "./self-repo.ts";
 
 export async function starSelf(client: GitHubClient): Promise<void> {
   await client.rest("PUT", `/user/starred/${SELF_REPO.owner}/${SELF_REPO.name}`);

@@ -1,5 +1,5 @@
 import { seededRandom, type Fighter } from "../../server/battle";
-import type { Character } from "../../server/character";
+import { readLook, type Character } from "../../server/character";
 import { COLS, ROWS, type Card, type FightEvent, type Side, type Snapshot } from "../../server/run/types";
 import { CARD_ORIGIN } from "./published-list";
 
@@ -17,7 +17,7 @@ export const WIN_GOLD = 1;
 export const REROLL_COST = 1;
 
 /** Accounts whose teams a run is played against until players' own saved teams exist. */
-const OPPONENTS = ["sindresorhus", "t3dotgg", "antfu", "gaearon", "yyx990803", "kentcdodds", "tj", "mitchellh", "simonw", "rauchg", "addyosmani", "torvalds"];
+export const OPPONENTS = ["sindresorhus", "t3dotgg", "antfu", "gaearon", "yyx990803", "kentcdodds", "tj", "mitchellh", "simonw", "rauchg", "addyosmani", "torvalds"];
 
 export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: Fighter[] };
 /** A card on a player's half of the board. Row 0 is the front. */
@@ -51,7 +51,8 @@ export async function fetchPlayer(login: string): Promise<Player> {
   const response = await fetch(`${CARD_ORIGIN}/api/run/pool?login=${encodeURIComponent(login)}`);
   const body = (await response.json()) as Player & { error?: string };
   if (!response.ok) throw new Error(body.error ?? "The cards couldn't be read.");
-  return body;
+  // A copy of the Worker from before the parts were separate sends the old six-number look.
+  return { ...body, character: { ...body.character, look: readLook(body.character.look) } };
 }
 
 function shuffled<T>(items: T[], seed: string): T[] {

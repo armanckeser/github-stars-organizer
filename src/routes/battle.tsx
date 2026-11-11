@@ -12,7 +12,7 @@ import { demoUser } from "@/lib/demo";
 import { CAN_PLAY, challenge, playingAs } from "@/lib/game-api";
 import { APP_URL, CARD_ORIGIN, REPO_URL, validLogin } from "@/lib/published-list";
 import type { BattleResult, Fighter, Side } from "../../server/battle";
-import { CLASSES, defaultCharacter, type Character } from "../../server/character";
+import { CLASSES, defaultCharacter, readLook, type Character } from "../../server/character";
 
 // The Battle screen. Two usernames give an instant battle (issue #46): a fight the
 // demo's Worker decides (worker/src/battle.ts), staged in the arena one hit at a
@@ -201,6 +201,8 @@ function BattlePage() {
         if (!response.ok) throw new Error(body.error ?? "The battle couldn't start.");
         // A copy of the Worker from before characters existed sends none.
         for (const team of [body.a, body.b]) team.character ??= { ...defaultCharacter(team.login), level: 1, custom: false };
+        // A copy of the Worker from before the parts were separate sends the old six-number look.
+        for (const team of [body.a, body.b]) team.character.look = readLook(team.character.look);
         setBattle(body);
         setPhase("teams");
         setStep(0);

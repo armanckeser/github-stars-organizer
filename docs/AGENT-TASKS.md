@@ -12,36 +12,22 @@ Rules for every task:
 
 ## The contract all tasks share
 
-These are in `server/run/types.ts`. Import from there; a change to them needs a note in the PR, since every task depends on them.
+`server/run/types.ts` holds the shapes. Import from there; a change to them needs a note in the PR, since every task depends on them.
 
-```ts
-type Card = {
-  fullName: string;            // "owner/repo"
-  type: string;                // existing battle type
-  sets: string[];              // language and up to two topics, lower-case
-  rarity: 0 | 1 | 2 | 3 | 4;
-  hp: number; attack: number; guard: number; speed: number;
-  ability: string;             // id from ABILITIES
-  shiny: boolean;
-};
-type Snapshot = { login: string; round: number; cards: Card[]; boosts: string[] }; // cards in order, front first
-type FightEvent =
-  | { kind: "enter"; side: 0 | 1; slot: number }
-  | { kind: "hit"; side: 0 | 1; slot: number; target: number; damage: number; critical: boolean }
-  | { kind: "ability"; side: 0 | 1; slot: number; ability: string; targets: number[] }
-  | { kind: "condition"; side: 0 | 1; slot: number; condition: string; on: boolean }
-  | { kind: "faint"; side: 0 | 1; slot: number }
-  | { kind: "end"; winner: 0 | 1 | null };
-function fight(a: Snapshot, b: Snapshot, seed: string): FightEvent[]; // pure, same input gives same output
-```
+- The board is 4 cells wide and 4 deep. Each side places cards on its own half: 4 columns, 2 rows, row 0 in front.
+- `Card`: a repo's numbers (`hp`, `attack`, `guard`, `speed`), its `range` (1 fights up close, 3 hits from behind), `sets`, `rarity`, `ability`, `shiny`.
+- `Snapshot`: a team at one round. `units` is each card with its column and row.
+- `fight(a, b, seed)` returns `FightEvent[]` in time order. Every card acts at once. Events carry a time `t` in ticks of 100 ms: `move`, `hit`, `ability`, `condition`, `faint`, `end`.
+- Pure: the same two snapshots and seed give the same events.
 
 ## Task 1: fight engine and fair numbers
 
-- `server/run/fight.ts`: the `fight` function above. It takes the place of `server/run/plain-fight.ts` (hits only), which the Play screen (`src/routes/run.tsx`) uses today: switch that import and delete the plain one. Front cards trade hits; speed decides who acts first; 6.25% critical hits at 1.5x; a fight is capped at 40 actions, then the side with more total HP left wins, else a draw.
+- `server/run/fight.ts`: the full `fight`. It takes the place of `server/run/plain-fight.ts` (walking and hits only), which the Play screen (`src/routes/run.tsx`) uses today: switch that import and delete the plain one. Keep what the plain one does: each card heads for the nearest enemy, hits once in reach, a faster card hits more often, 6.25% critical hits at 1.5x, and a fight is capped at 45 seconds, after which the side with more total HP left wins, else a draw.
+- A fight between two full teams should last 15 to 30 seconds.
 - Randomness comes only from the seed (reuse the seeded generator in `server/battle.ts`).
 - `server/run/stats.ts`: a card's numbers from repo facts. Total by rarity is 400/415/430/445/460; each of the four stats gets 15 to 40% of the total, split by the repo's facts (see "stat budget" in the design doc). Shiny adds 5%.
 - The branch `play-vs-computer` has an unfinished stat budget and balance test for the old turn-based game. Take what fits; it was never run.
-- Test: over 2,000 fights between random teams, the side listed first wins 47 to 53%, and the team with more total stars wins 45 to 60%.
+- Test: over 2,000 fights between random teams, side 0 wins 47 to 53%, and the team with more total stars wins 45 to 60%.
 
 ## Task 2: abilities, sets and boosts
 
@@ -59,9 +45,9 @@ Needs Tasks 1 and 2 merged.
 - `worker/src/run.ts`, routes under `/api/run/`. The Worker stays stateless: the whole run travels in a token signed with `BATTLE_KEY` (the way match state is signed in `worker/src/game.ts`).
 - `GET /api/run/pool?login=` exists (`poolResponse` in `worker/src/battle.ts`): the ace and 20 cards drawn from the account's stars for the day. The Play screen runs the whole run in the browser from that today (`src/lib/run.ts`); this task moves the run behind signed tokens so a result can be trusted.
 - `POST /api/run/new {login}`: reads the account's stars once and freezes every card's numbers into the token. Returns the ace and the first shop.
-- `POST /api/run/pick {token, pick | reroll, order, boost?}`: applies the choice, finds the opponent, runs `fight`, returns the events, the new token and the next shop. The run ends at 5 wins or 3 losses.
-- Opponents for now: a team drafted by a simple bot (takes the highest-rarity card offered, orders by guard) from the stars of an account in a fixed list of well-known public accounts, to the same round. Same account + round + day gives the same team. Saved teams from real players come later.
-- Shop: three cards from the frozen pool, seeded by token state, so a reload shows the same shop. One reroll per round.
+- `POST /api/run/act {token, buy | sell | reroll | place | fight, boost?}`: applies the choice, finds the opponent, runs `fight`, returns the events, the new token and the next shop. The run ends at 5 wins or 3 losses.
+- Opponents for now: a team drafted by a simple bot (`opponentUnits` in `src/lib/run.ts`) from the stars of an account in a fixed list of well-known public accounts, to the same round. Same account + round + day gives the same team. Saved teams from real players come later.
+- Shop: five cards from the frozen pool, seeded by token state, so a reload shows the same shop. Cards cost gold by rarity (1 to 5); a reroll costs 1. The numbers are in `src/lib/run.ts`.
 
 ## Task 4: small fixes (independent, do any time)
 
@@ -77,5 +63,5 @@ Needs Tasks 1 and 2 merged.
 
 ## Taken (being built by the maintainer)
 
-- The Play screen (`src/routes/run.tsx`): shop, ordering and the fight in the 3D arena are built. Still to do there: the boost pick, showing abilities and sets, and a share link for a finished run.
+- The Play screen (`src/routes/run.tsx`) and its 3D board (`src/components/battle/three/board.ts`): the shop, gold, placing cards and the all-at-once fight are built. Still to do there: the boost pick, showing abilities and sets, a bench, and a share link for a finished run.
 - Card art from README images.

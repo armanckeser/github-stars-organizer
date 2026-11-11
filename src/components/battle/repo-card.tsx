@@ -64,7 +64,7 @@ function CommitGrid({ seed, ink }: { seed: string; ink: string }) {
  * The picture of the repo's creature (three/portrait.ts). Null until the 3D engine has
  * loaded and drawn it, false when this browser can't draw it.
  */
-function useCreature(fighter: Fighter): string | null | false {
+export function useCreature(fighter: Fighter): string | null | false {
   const [art, setArt] = useState<{ of: Fighter; image: string | false } | null>(null);
   useEffect(() => {
     let live = true;

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { CircleHelp, Coins, Crosshair, Dices, Layers, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,15 +7,22 @@ import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay, repoName } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
+import type { BoardHandle } from "@/components/battle/board3d";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
+import { Bench, type BenchDrop } from "@/components/run/bench";
+import type { DropTarget } from "@/components/run/drop-target";
+import { FpsMeter } from "@/components/run/fps-meter";
+import { TeamSlots } from "@/components/run/team-slots";
 import { BoostPick } from "@/components/run/boost-pick";
 import { RunCard } from "@/components/run/run-card";
 import { TeamBonuses } from "@/components/run/team-bonuses";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { CLASSES } from "../../server/character";
 import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
+import { benchToBoard, boardToBench, cardsOf, emptyBench, swapBench, toBench, without, type Roster } from "../../server/run/roster";
+import { SLOT_COST, boardLimit } from "../../server/run/rules";
 import { fight as playFight } from "../../server/run/fight";
 import { cellOf, type Side } from "../../server/run/types";
 
@@ -68,6 +75,12 @@ function RunPage() {
   const [loading, setLoading] = useState(false);
 
   const [units, setUnits] = useState<Unit[]>([]);
+  const [bench, setBench] = useState<(RunFighter | null)[]>(emptyBench);
+  // Board slots bought on top of the round's limit, for the rest of the run.
+  const [bought, setBought] = useState(0);
+  // A card being dragged, from the board or the bench: the shop offers to buy it back.
+  const [carrying, setCarrying] = useState<RunFighter | null>(null);
+  const board = useRef<BoardHandle>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [wins, setWins] = useState(0);
   const [losses, setLosses] = useState(0);
@@ -79,7 +92,7 @@ function RunPage() {
   const [fast, setFast] = useState(false);
   const [skips, setSkips] = useState(0);
   // The card being looked at: one in the shop, one of the player's on the board, or one of the other team's.
-  const [viewing, setViewing] = useState<{ fighter: RunFighter; slot?: number; unit?: Unit } | null>(null);
+  const [viewing, setViewing] = useState<{ fighter: RunFighter; slot?: number; unit?: Unit; bench?: number } | null>(null);
   const [profile, setProfile] = useState<Player | null>(null);
   const [help, setHelp] = useState(false);
   const [boosts, setBoosts] = useState<string[]>([]);
@@ -87,17 +100,19 @@ function RunPage() {
   const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
 
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
-  const cap = round ? teamSizeAt(round.number) : 0;
+  const cap = round ? boardLimit(round.number, bought) : 0;
+  const roster: Roster = { board: units, bench };
+  const held = cardsOf(roster).length;
   const fighting = played !== null && !played.over;
 
-  async function openRound(me: Player, team: Unit[], number: number) {
+  async function openRound(me: Player, owned: RunFighter[], number: number) {
     setLoading(true);
     setError("");
     try {
       const opponent = await fetchPlayer(opponentLogin(me.login, number));
       setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
       setRerolls(0);
-      setShop(shopFor(me, team.map((unit) => unit.fighter), number, 0));
+      setShop(shopFor(me, owned, number, 0));
       setPlayed(null);
       setSelected(null);
     } catch (cause) {
@@ -117,42 +132,71 @@ function RunPage() {
       const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
       setPlayer(me);
       setUnits(team);
+      setBench(emptyBench());
+      setBought(0);
       setWins(0);
       setLosses(0);
       setGold(START_GOLD);
       setBoosts([]);
       setOffer(null);
-      await openRound(me, team, 1);
+      await openRound(me, team.map((unit) => unit.fighter), 1);
     } catch (cause) {
       setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The cards couldn't be read. Check the connection and try again.");
       setLoading(false);
     }
   }
 
+  /** Takes a change to the board and bench. False when the rules refused it. */
+  function settle(next: Roster | null): boolean {
+    if (!next) return false;
+    setUnits(next.board);
+    setBench(next.bench);
+    return true;
+  }
+
   function buy(slot: number) {
     const fighter = shop[slot];
-    if (!fighter || gold < costOf(fighter) || units.length >= cap) return;
-    const cell = freeCell(units, fighter);
-    if (!cell) return;
-    setUnits([...units, { fighter, ...cell }]);
+    if (!fighter || gold < costOf(fighter) || !settle(toBench(roster, fighter))) return;
     setGold(gold - costOf(fighter));
     setShop(shop.map((item, i) => (i === slot ? null : item)));
   }
 
-  function sell(unit: Unit) {
-    setUnits(units.filter((other) => other !== unit));
-    setGold(gold + costOf(unit.fighter));
+  function sell(fighter: RunFighter) {
+    if (held <= 1 || !settle(without(roster, fighter.fullName))) return;
+    setGold(gold + costOf(fighter));
     // The card goes back on an empty shelf, so a purchase can be taken back.
     const empty = shop.indexOf(null);
-    if (empty !== -1) setShop(shop.map((item, i) => (i === empty ? unit.fighter : item)));
+    if (empty !== -1) setShop(shop.map((item, i) => (i === empty ? fighter : item)));
     setSelected(null);
+  }
+
+  function buySlot() {
+    if (gold < SLOT_COST || cap >= boardLimit(round?.number ?? 0, bought + 1)) return;
+    setGold(gold - SLOT_COST);
+    setBought(bought + 1);
+  }
+
+  /** A creature from the board put down on the bench or the shop. */
+  function dropFromBoard(id: string, target: DropTarget) {
+    const moved = units.find((unit) => idOf(0, unit.fighter) === id);
+    if (!moved) return;
+    if (target.kind === "shop") sell(moved.fighter);
+    else settle(boardToBench(roster, moved.fighter.fullName, target.slot));
+  }
+
+  function dropFromBench(slot: number, drop: BenchDrop) {
+    const fighter = bench[slot];
+    if (!fighter) return;
+    if (drop.kind === "shop") sell(fighter);
+    else if (drop.kind === "bench") settle(swapBench(roster, slot, drop.slot));
+    else settle(benchToBoard(roster, slot, drop.col, drop.row, cap));
   }
 
   function reroll() {
     if (!player || !round || gold < REROLL_COST) return;
     setGold(gold - REROLL_COST);
     setRerolls(rerolls + 1);
-    setShop(shopFor(player, units.map((unit) => unit.fighter), round.number, rerolls + 1));
+    setShop(shopFor(player, cardsOf(roster), round.number, rerolls + 1));
   }
 
   // A creature dropped on a taken cell trades places with the one standing there.
@@ -163,7 +207,7 @@ function RunPage() {
   }
 
   function fight() {
-    if (!player || !round) return;
+    if (!player || !round || units.length === 0) return;
     const seed = `${player.login}|${round.opponent.login}|${round.number}|${today()}`;
     const events = playFight(snapshot(player.login, round.number, units, boosts), snapshot(round.opponent.login, round.number, round.theirs), seed);
     setSelected(null);
@@ -181,7 +225,7 @@ function RunPage() {
     setGold(gold + ROUND_GOLD + (played.winner === 0 ? WIN_GOLD : 0));
     // The same seed as the Worker's offer (worker/src/run.ts), so both offer the same three.
     if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${today()}|${round.number}`, boosts) });
-    void openRound(player, units, round.number + 1);
+    void openRound(player, cardsOf(roster), round.number + 1);
   }
 
   const boardUnits = useMemo<BoardUnit[]>(() => {
@@ -218,6 +262,9 @@ function RunPage() {
           onPlace={place}
           onSelect={look}
           onFightEnd={(key) => setPlayed((current) => (current?.fight.key === key ? { ...current, over: true } : current))}
+          onDrop={dropFromBoard}
+          onDrag={(id) => setCarrying(units.find((unit) => idOf(0, unit.fighter) === id)?.fighter ?? null)}
+          handle={board}
         />
       </Suspense>
 
@@ -266,21 +313,27 @@ function RunPage() {
 
       {building && (
         <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#0c1014]/90 p-2 backdrop-blur-sm sm:p-3">
+          <div className="mx-auto mb-2 max-w-3xl sm:pl-30 sm:pr-30">
+            <Bench slots={bench} board={board} onOpen={(i) => bench[i] && setViewing({ fighter: bench[i], bench: i })} onDrop={dropFromBench} onDrag={setCarrying} />
+          </div>
           <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-stretch">
-            <div className="grid flex-1 grid-cols-5 gap-1.5 sm:order-2 sm:gap-2">
+            <div data-drop="shop" data-testid="shop" className="group relative grid flex-1 grid-cols-5 gap-1.5 rounded-md sm:order-2 sm:gap-2">
               {shop.map((fighter, i) => fighter
-                ? <ShopCard key={fighter.fullName} fighter={fighter} affordable={gold >= costOf(fighter) && units.length < cap} onOpen={() => setViewing({ fighter, slot: i })} />
+                ? <ShopCard key={fighter.fullName} fighter={fighter} affordable={gold >= costOf(fighter) && bench.includes(null)} onOpen={() => setViewing({ fighter, slot: i })} />
                 : <div key={i} className="aspect-[5/6] rounded-md border border-dashed border-white/10" />)}
+              {carrying && held > 1 && (
+                <p className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-[#ffd84d]/70 bg-black/70 font-display font-bold text-[#ffd84d] group-data-[over]:bg-[#ffd84d]/20"><Coins className="size-5" /> Sell for {costOf(carrying)}</p>
+              )}
             </div>
             <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-28 sm:flex-col sm:items-stretch sm:justify-center">
               <p className="flex items-center gap-1.5 font-display text-lg font-bold tabular-nums text-[#ffd84d]" aria-label={`${gold} gold`}><Coins className="size-5" />{gold}</p>
               <Button variant="outline" size="sm" disabled={gold < REROLL_COST} onClick={reroll}><Dices /> Reroll · {REROLL_COST}</Button>
-              <p className="text-center text-xs tabular-nums text-white/70 sm:hidden" aria-hidden="true">Team {units.length}/{cap}</p>
-              <Button className="sm:hidden" onClick={fight} disabled={loading}><Swords /> Fight</Button>
+              <TeamSlots className="sm:hidden" count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
+              <Button className="sm:hidden" onClick={fight} disabled={loading || units.length === 0}><Swords /> Fight</Button>
             </div>
             <div className="hidden sm:order-3 sm:flex sm:w-28 sm:flex-col sm:items-stretch sm:justify-center sm:gap-2">
-              <p className="text-center text-xs tabular-nums text-white/70" aria-label={`${units.length} of ${cap} cards on the board`}>Team {units.length}/{cap}</p>
-              <Button onClick={fight} disabled={loading}><Swords /> Fight</Button>
+              <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
+              <Button onClick={fight} disabled={loading || units.length === 0}><Swords /> Fight</Button>
             </div>
           </div>
         </div>
@@ -324,7 +377,7 @@ function RunPage() {
             <li className="flex gap-2"><Coins className="mt-0.5 size-4 shrink-0 text-[#ffd84d]" /> Tap a shop card to see the card, then buy. Cards come from your stars. {ROUND_GOLD} gold each round, {WIN_GOLD} more for a win.</li>
             <li className="flex gap-2"><Sword className="mt-0.5 size-4 shrink-0" /> Sword cards fight up close. Put them in the front row.</li>
             <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Target cards hit from three cells away. Keep them behind.</li>
-            <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Drag a creature to move. Tap one to see the card or sell for the full price.</li>
+            <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Bought cards wait on the bench. Drag between bench and board, or onto the shop to sell for the full price. Only the board counts toward the team.</li>
             <li className="flex gap-2"><Layers className="mt-0.5 size-4 shrink-0 text-[#35c450]" /> Two or three cards that share a language or topic give each other a bonus.</li>
             <li className="flex gap-2"><Star className="mt-0.5 size-4 shrink-0" /> Press Fight and watch. {WINS_TO_FINISH} wins finishes the run, {LOSSES_TO_END} losses ends the run.</li>
           </ul>
@@ -349,15 +402,17 @@ function RunPage() {
         </div>
       )}
 
+      <FpsMeter />
+
       <InspectOverlay fighter={viewing?.fighter ?? null} onClose={close} card={viewing && <RunCard fighter={viewing.fighter} team={viewingTeam.map((unit) => unit.fighter)} />}>
         {viewing && (
           <>
             {viewing.slot !== undefined && building && (
-              <Button className="w-full" disabled={gold < costOf(viewing.fighter) || units.length >= cap} onClick={() => { buy(viewing.slot!); close(); }}>
-                <Coins /> {units.length >= cap ? `Team is full (${cap})` : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}
+              <Button className="w-full" disabled={gold < costOf(viewing.fighter) || !bench.includes(null)} onClick={() => { buy(viewing.slot!); close(); }}>
+                <Coins /> {!bench.includes(null) ? "Bench is full" : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}
               </Button>
             )}
-            {viewing.unit && building && units.length > 1 && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.unit!); close(); }}><Coins /> Sell for {costOf(viewing.unit.fighter)}</Button>}
+            {(viewing.unit || viewing.bench !== undefined) && building && held > 1 && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.fighter); close(); }}><Coins /> Sell for {costOf(viewing.fighter)}</Button>}
           </>
         )}
       </InspectOverlay>

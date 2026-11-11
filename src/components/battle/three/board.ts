@@ -16,6 +16,8 @@ import { buildTrainer, type Trainer } from "./trainer";
 /** A creature on the board. `x`, `y` is its board cell (server/run/types.ts). */
 export type BoardUnit = { id: string; side: Side; fighter: Fighter; x: number; y: number; ranged: boolean };
 export type BoardFight = { key: string; ids: [string[], string[]]; events: FightEvent[] };
+/** A point on screen, in CSS pixels from the top left of the page. */
+export type Point = { clientX: number; clientY: number };
 
 type Actor = {
   unit: BoardUnit;
@@ -90,7 +92,20 @@ export class BoardWorld {
   /** Throws when the browser can't give a WebGL context. */
   constructor(
     private host: HTMLElement,
-    private options: { reduced: boolean; lite: boolean; onLost: () => void; onPlace: (id: string, col: number, row: number) => void; onSelect: (id: string | null) => void; onFightEnd: (key: string) => void },
+    private options: {
+      reduced: boolean;
+      lite: boolean;
+      onLost: () => void;
+      onPlace: (id: string, col: number, row: number) => void;
+      onSelect: (id: string | null) => void;
+      onFightEnd: (key: string) => void;
+      /** A creature is being carried (its id), or was put down (null). */
+      onDrag: (id: string | null) => void;
+      /** The pointer moved while carrying, or the carry ended (null). */
+      onDragAt: (point: Point | null) => void;
+      /** A creature put down at a point on screen: true when something off the board (the bench, the shop) took it. */
+      onDrop: (id: string, point: Point) => boolean;
+    },
   ) {
     const phone = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ antialias: !options.lite && !(phone && window.devicePixelRatio >= 2) });
@@ -227,6 +242,34 @@ export class BoardWorld {
   skip() {
     if (!this.fight || this.fight.done) return;
     this.fight.time = Infinity;
+  }
+
+  /** The player's own cell under a point on screen, as column and row (row 0 in front), or null. */
+  cellAt(point: Point): { col: number; row: number } | null {
+    const cell = this.cellUnder(point);
+    return cell && cell.y < ROWS ? { col: cell.x, row: ROWS - 1 - cell.y } : null;
+  }
+
+  /** Lights the player's cell under a point, for a creature carried in from the bench. Null clears. */
+  hover(point: Point | null) {
+    this.light(point ? this.cellUnder(point) : null);
+  }
+
+  /** Where a board cell's middle is on screen. The browser tests drag to it. */
+  screenOf(x: number, y: number): Point {
+    return this.toScreen(world(x, y));
+  }
+
+  /** Where a creature is drawn on screen, or null when it is not on the board. */
+  screenOfUnit(id: string): Point | null {
+    const actor = this.actors.get(id);
+    return actor && !actor.out ? this.toScreen(actor.at.clone().setY(actor.creature.height * SIZE * 0.4)) : null;
+  }
+
+  private toScreen(at: THREE.Vector3): Point {
+    const point = at.clone().project(this.camera);
+    const box = this.renderer.domElement.getBoundingClientRect();
+    return { clientX: box.left + (point.x * 0.5 + 0.5) * box.width, clientY: box.top + (-point.y * 0.5 + 0.5) * box.height };
   }
 
   // --- building ---
@@ -574,7 +617,7 @@ export class BoardWorld {
     this.post();
   }
 
-  private ray(event: PointerEvent) {
+  private ray(event: Point) {
     const box = this.renderer.domElement.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2(((event.clientX - box.left) / box.width) * 2 - 1, -((event.clientY - box.top) / box.height) * 2 + 1), this.camera);
   }
@@ -585,7 +628,7 @@ export class BoardWorld {
     return (hit?.object.userData.actor as string | undefined) ?? null;
   }
 
-  private cellUnder(event: PointerEvent): { x: number; y: number } | null {
+  private cellUnder(event: Point): { x: number; y: number } | null {
     this.ray(event);
     const point = new THREE.Vector3();
     if (!this.raycaster.ray.intersectPlane(this.ground, point)) return null;
@@ -619,7 +662,9 @@ export class BoardWorld {
     // Only the player's own creatures can be carried.
     if (!actor || actor.unit.side !== 0 || this.fight) return;
     if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 8) return;
+    if (!drag.moved) this.options.onDrag(drag.id);
     drag.moved = true;
+    this.options.onDragAt(event);
     this.renderer.domElement.style.cursor = "grabbing";
     const point = new THREE.Vector3();
     this.ray(event);
@@ -634,6 +679,9 @@ export class BoardWorld {
     this.renderer.domElement.style.cursor = "";
     if (!drag) return;
     if (!drag.moved) return this.options.onSelect(drag.id);
+    this.options.onDrag(null);
+    this.options.onDragAt(null);
+    if (this.options.onDrop(drag.id, event)) return;
     const cell = this.cellUnder(event);
     // Board cell back to the player's own column and row: row 0 is the front.
     if (cell && cell.y < ROWS) this.options.onPlace(drag.id, cell.x, ROWS - 1 - cell.y);

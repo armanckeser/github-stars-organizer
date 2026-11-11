@@ -2,7 +2,7 @@ import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from 
 import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, poolResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
-import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
+import { RUN_PICTURE_PATH, RUN_SHARE_PATH, SHARE_PATH, VERSUS_PATH, runPictureResponse, runSharePage, sharePage, versusResponse } from "./share.ts";
 
 // BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
@@ -76,6 +76,9 @@ export default {
     const url = new URL(request.url);
     // The app's own page: anything but a plain read goes straight to the site.
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
+    if (RUN_SHARE_PATH.test(url.pathname)) return request.method === "GET" ? runSharePage(request, url) : fetch(request);
+    // The /run* route also catches pages such as /runs; those belong to the site.
+    if (!url.pathname.startsWith("/api/")) return fetch(request);
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
 
     // A match changes with every comment, so its replies set their own short cache and skip this one.
@@ -87,18 +90,21 @@ export default {
     const trainer = TRAINER_PATH.test(url.pathname);
     const versus = VERSUS_PATH.test(url.pathname);
     const pool = RUN_POOL_PATH.test(url.pathname);
-    if (card || fight || trainer || versus || pool) {
+    const runPicture = RUN_PICTURE_PATH.test(url.pathname);
+    if (card || fight || trainer || versus || pool || runPicture) {
       // Sorted, so one card asked for with its parameters in another order shares an entry.
       url.searchParams.sort();
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
       // The version goes up whenever a reply's shape changes, so a deploy never serves
       // an older shape to the newer app out of the cache.
-      const keyUrl = new URL(fight || versus || pool ? url.toString().toLowerCase() : url.toString());
+      const keyUrl = new URL(fight || versus || pool || runPicture ? url.toString().toLowerCase() : url.toString());
       keyUrl.searchParams.set("_shape", RESPONSE_SHAPE);
       const key = new Request(keyUrl.toString());
       const cached = await caches.default.match(key);
       if (cached) return cached;
-      const response = pool
+      const response = runPicture
+        ? await runPictureResponse(url.searchParams, env.GITHUB_TOKEN)
+        : pool
         ? await poolResponse(url.searchParams, env.GITHUB_TOKEN)
         : versus
         ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)

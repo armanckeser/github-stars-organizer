@@ -354,3 +354,55 @@ export function versusCard(a: VersusSide, b: VersusSide, font: string): string {
     `</svg>`
   );
 }
+
+const RUN_RULES = ["5 wins finishes a run,", "3 losses ends one."];
+
+/**
+ * A run's link preview at the size link previews ask for: the player, their ace and
+ * three cards drawn from their stars for the day. With no player the
+ * picture is the run itself, for a /run link with nobody in it. Drawn to be turned
+ * into a PNG (worker/src/share.ts), like the versus card.
+ */
+export function runCard(player: VersusSide | null, font: string): string {
+  const open = `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" viewBox="0 0 ${SHARE_WIDTH} ${SHARE_HEIGHT}" role="img" aria-label="${escapeXml(player ? `Play a run with ${player.login}'s stars` : "Play a run with your GitHub stars")}" font-family="${font}" font-weight="700"><rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="#0b0e12"/>`;
+  const mark = `<polygon points="${star(1078, 596, 9)}" fill="${STAR}"/><text x="1094" y="604" font-size="24" letter-spacing="-0.3" fill="${TEXT}">stard</text></svg>`;
+  // "Play a run", what a run is, and the rules: beside the player, or across the middle on their own.
+  const headline = (x: number, centred: boolean, says: string) => {
+    const anchor = centred ? "middle" : "start";
+    const lines = wrap(says, centred ? 44 : 28, 3);
+    const rules = centred ? [RUN_RULES.join(" ")] : RUN_RULES;
+    const below = 262 + lines.length * 42;
+    return (
+      `<text x="${x}" y="190" text-anchor="${anchor}" font-size="84" letter-spacing="-3" fill="${TEXT}">Play a run</text>` +
+      lines.map((line, i) => `<text x="${x}" y="${262 + i * 42}" text-anchor="${anchor}" font-size="32" fill="${BODY}">${escapeXml(line)}</text>`).join("") +
+      rules.map((line, i) => `<text x="${x}" y="${below + 24 + i * 34}" text-anchor="${anchor}" font-size="26" fill="${STAR}">${line}</text>`).join("")
+    );
+  };
+
+  if (!player) {
+    // Six cards in the type colours stand in for a team nobody has drawn yet.
+    const cards = Object.values(TYPE_COLOR).map((color, i) => {
+      const left = 120 + i * 168;
+      return `<rect x="${left}" y="452" width="144" height="96" rx="14" fill="#12161c" stroke="${EDGE}" stroke-width="2"/><rect x="${left}" y="452" width="144" height="14" rx="7" fill="${color}"/>`;
+    });
+    return open + headline(600, true, "Build a team from your GitHub stars and fight other teams.") + cards.join("") + mark;
+  }
+
+  const size = Math.min(56, Math.floor(320 / (Math.max(player.login.length, 6) * 0.62)));
+  let out = `<polygon points="0,0 600,0 552,${SHARE_HEIGHT} 0,${SHARE_HEIGHT}" fill="${player.tint}" opacity="0.34"/>`;
+  out += `<line x1="600" y1="0" x2="552" y2="${SHARE_HEIGHT}" stroke="#ffffff" stroke-opacity="0.25" stroke-width="3"/>`;
+  out += `<g transform="translate(36,262)"><svg width="232" height="330" viewBox="0 0 120 170">${figureSvg(player.look)}</svg></g>`;
+  out += `<clipPath id="face"><circle cx="100" cy="112" r="46"/></clipPath><circle cx="100" cy="112" r="50" fill="${player.tint}"/>`;
+  if (player.avatar) out += `<image href="${player.avatar}" x="54" y="66" width="92" height="92" clip-path="url(#face)" preserveAspectRatio="xMidYMid slice"/>`;
+  out += `<text x="168" y="${112 + size * 0.1}" font-size="${size}" letter-spacing="-1" fill="${TEXT}">${escapeXml(player.login)}</text>`;
+  // A character nobody built has the username for a name and no class worth showing.
+  const under = [player.klass === "Rookie" ? "" : player.klass, player.name.toLowerCase() === player.login.toLowerCase() ? "" : player.name].filter(Boolean).join(" · ");
+  out += `<text x="170" y="${152 + size * 0.1}" font-size="24" fill="${BODY}">${escapeXml(truncate(under, 24))}</text>`;
+  player.team.slice(0, 4).forEach((card, i) => {
+    const top = 262 + i * 80;
+    out += `<rect x="292" y="${top}" width="236" height="64" rx="12" fill="#12161c" stroke="${card.shiny ? STAR : EDGE}" stroke-width="2"/>`;
+    out += `<rect x="292" y="${top}" width="12" height="64" rx="6" fill="${card.color}"/>`;
+    out += `<text x="320" y="${top + 41}" font-size="25" letter-spacing="-0.3" fill="${TEXT}">${escapeXml(truncate(card.name, 14))}</text>`;
+  });
+  return open + out + headline(640, false, `Build a team from ${player.login}'s GitHub stars and fight other teams.`) + mark;
+}

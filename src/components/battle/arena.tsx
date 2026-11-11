@@ -109,7 +109,7 @@ export function TextBox({ children, actions, strong = false }: { children: React
 }
 
 /** A card opened large, leaning toward the pointer. Closes on Escape or a press outside. */
-export function InspectOverlay({ fighter, onClose }: { fighter: Fighter | null; onClose: () => void }) {
+export function InspectOverlay({ fighter, onClose, children }: { fighter: Fighter | null; onClose: () => void; /** What can be done with the card, under it. */ children?: React.ReactNode }) {
   useEffect(() => {
     if (!fighter) return;
     const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -125,6 +125,7 @@ export function InspectOverlay({ fighter, onClose }: { fighter: Fighter | null; 
           <a href={`https://github.com/${fighter.fullName}`} target="_blank" rel="noopener noreferrer" className="truncate underline-offset-4 hover:underline">{fighter.fullName}</a>
           <Button variant="outline" size="sm" onClick={onClose}><X /> Close</Button>
         </div>
+        {children && <div className="mt-2 space-y-2 text-sm">{children}</div>}
       </div>
     </div>
   );

@@ -61,6 +61,94 @@ Needs Tasks 1 and 2 merged.
 - A match's signed opening post holds both teams. Add what the numbers were worked out from: each repo's stars, forks, language, topics, pushed date, and the character and ace as read from the README, with the time of reading.
 - A test replays a stored opening post and gets the same teams with GitHub unreachable.
 
+## Task 6: the first minute
+
+Someone who opens a link should see a fight within seconds, with no typing.
+
+- `/battle?a=&b=&play=1` skips the team screen and starts the fight as soon as both teams load. The share picture and the "Copy link" button use this form.
+- `/run?me=<login>` starts the run on load, with no form. Without `me`, the form offers one tap on "Try with a sample account" beside the username field.
+- The site's front page for a first visit in the demo shows one button to Play above everything else.
+- Measure and put in the PR: seconds from opening each link to the first hit on screen, on a cold cache.
+
+## Task 7: say what Stard is now
+
+The README, the page tags and the repo's description still describe a stars manager and never mention the game.
+
+- `README.md`: the first screen shows the game (a GIF of a run, recorded from the live demo, under 5 MB) and one line on what Stard is, then the profile cards, then install. Keep the existing sections below. Plain words, no taglines.
+- `index.html`: title, `og:` and `twitter:` text for the site. `/run` gets its own preview picture and tags the way `/battle` does (`worker/src/share.ts`).
+- List in the PR, for the maintainer to apply by hand: a new repo description (under 350 characters) and topics.
+- No trademarked game names anywhere. "Card battle", "auto-battler" and "creatures" are fine.
+
+## Task 8: play it properly on the board
+
+- A bench: five slots between the board and the shop. Bought cards land on the bench; dragging moves a card between bench and board. The team limit counts cards on the board only.
+- Dragging a creature onto the shop sells the creature.
+- Browser tests (Playwright, software WebGL) for: drag to a cell, swap two, sell, reroll, a full run.
+- A frame counter behind `?fps=1`, and the numbers from one real phone in the PR if the agent has one; otherwise say so.
+
+## Task 9: after the run
+
+- The end screen shows the final team, the record, and a share button. The link opens a page with the team and a "Beat this team" button that starts a run against that saved team.
+- A share picture for a finished run (1200x630), drawn the way the versus picture is.
+- One line under the result: "Star Stard on GitHub". No popup.
+
+## Task 10: rename (needs the maintainer for the settings)
+
+Prepare everything in one PR; the maintainer flips the settings.
+
+- Every `github-stars-organizer` and `stars-demo.armanckeser.com` in code, docs and the Worker config, listed with what each becomes (`stard`, and the demo at `stard.armanckeser.com`).
+- The old demo address must keep working: battle links, card image links in people's READMEs and `/api/*` all answer at the old address after the change.
+- The npm package name: say in the PR what breaks if the name changes, and recommend keep or change.
+- GitHub redirects a renamed repo, but not GitHub Pages or raw image links: list every link of those kinds.
+
+## Task 11: fairness of opponents
+
+- A plain-text file `OPPONENTS.md` listing the accounts used as opponents and how to ask to be removed (open an issue). Link the file from the Play screen's start panel.
+- An account that has a `stard` repo containing a file `no-play` is never used as an opponent or read by `/api/run/pool` for someone else's run.
+
+## Task 12: a gold armband for people who starred Stard
+
+- The Worker reads the stargazers of this repo once an hour (one REST call per 100, cached) and adds `supporter: true` to a player in `/api/run/pool`, `/api/battle` and a match's opening post when the login is among them.
+- `buildTrainer` in `src/components/battle/three/trainer.ts` takes the flag and adds a gold band on the upper arm; the flat `Figure` and the character card draw the same band.
+- No stat change. The character panel on the Play screen says "Starred Stard" beside the band.
+
+## Task 13: the card face for the run
+
+- The card opened from the shop or the board still lists the two moves of the old turn-by-turn game. In a run, show what matters there: reach (up close or from behind), the four numbers, the ability and the sets (once Task 2 exists), and the price.
+- Gold has nothing to spend on once the team is full. With the bench (Task 8), add buying a larger team: 4 gold for one more board slot, up to 7.
+
+## Task 14: characters that look like the person
+
+Today a look is six numbers (`Look` in `server/character.ts`) and glasses, headphones, cap and beard share one slot, so nobody can have glasses and a beard. Well-known accounts get a look made from their username, which looks like nobody.
+
+**A character file.** `characters/<login>.md` in this repo, login in lower case. Plain `key: value` lines, written to be easy for a person or their agent to produce:
+
+```
+name: Theo
+class: scout
+motto: Ship it.
+skin: light
+hair: short
+hair-color: brown
+beard: stubble
+glasses: round
+hat: none
+headphones: no
+top: hoodie
+top-color: #1f1f1f
+```
+
+- Every key is optional. Unknown keys and values are ignored, never an error. Colours are a name from the palette or `#rrggbb`.
+- A closed list of parts, nothing free-form and no code: the same file must draw in 3D (`three/trainer.ts`), as the flat figure (`figureSvg`) and on the character card.
+- Order of preference: the character in the player's own `stard` repo or profile README, then `characters/<login>.md` here, then the look made from the username.
+- The same keys work in a file `character.md` in a player's own `stard` repo, so a player's agent can write one without a pull request here.
+
+**More parts**, so a likeness is possible. Glasses, beard, hat and headphones become separate. Add at least: hair `bald`, `buzz`, `short`, `medium`, `long`, `curly`, `bun`, `mohawk`; beard `none`, `stubble`, `full`, `goatee`, `moustache`; glasses `none`, `round`, `square`, `shades`; hat `none`, `cap`, `beanie`; top `tee`, `hoodie`, `jacket`, `sweater`, `shirt`. The look code in a card link (`encodeLook`) must still read every code already pasted into someone's README.
+
+**Files to ship.** One for `armanckeser` and one for each account in `OPPONENTS` (`src/lib/run.ts`), made from the account's public avatar: hair, beard, glasses, hat, what they usually wear. Where the avatar does not show a feature, leave the key out. `characters/README.md` says how anyone can change or remove their own file with a pull request or an issue.
+
+**Checks.** A test per part that the 3D figure and the flat figure both build. A page of all shipped characters side by side (3D and flat) as a screenshot in the PR.
+
 ## Taken (being built by the maintainer)
 
 - The Play screen (`src/routes/run.tsx`) and its 3D board (`src/components/battle/three/board.ts`): the shop, gold, placing cards and the all-at-once fight are built. Still to do there: the boost pick, showing abilities and sets, a bench, and a share link for a finished run.

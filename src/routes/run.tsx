@@ -1,16 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
-import { Coins, Crosshair, Dices, Play, RotateCcw, SkipForward, Star, Swords, Sword } from "lucide-react";
+import { CircleHelp, Coins, Crosshair, Dices, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay, repoName } from "@/components/battle/arena";
+import { Figure } from "@/components/battle/figure";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type Unit } from "@/lib/run";
 import type { Fighter } from "../../server/battle";
+import { CLASSES } from "../../server/character";
 import { plainFight } from "../../server/run/plain-fight";
 import { cellOf, type Side } from "../../server/run/types";
 
@@ -39,12 +41,12 @@ function Pips({ filled, total, tone, label }: { filled: number; total: number; t
   );
 }
 
-function ShopCard({ fighter, affordable, onBuy }: { fighter: Fighter; affordable: boolean; onBuy: () => void }) {
+function ShopCard({ fighter, affordable, onOpen }: { fighter: Fighter; affordable: boolean; onOpen: () => void }) {
   const art = useCreature(fighter);
   const type = TYPE[fighter.type];
   const reach = rangeOf(fighter) > 1;
   return (
-    <button type="button" onClick={onBuy} disabled={!affordable} aria-label={`Buy ${fighter.fullName} for ${costOf(fighter)} gold`} className="battle-deal relative flex aspect-[5/6] w-full flex-col overflow-hidden rounded-md border-2 text-left outline-none transition-transform duration-150 ease-out enabled:hover:-translate-y-1 enabled:active:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-45" style={{ borderColor: type.color, background: `linear-gradient(180deg, ${type.color}55, #0c1014 70%)` }}>
+    <button type="button" onClick={onOpen} aria-label={`Look at ${fighter.fullName}, ${costOf(fighter)} gold`} className={`battle-deal relative flex aspect-[5/6] w-full flex-col overflow-hidden rounded-md border-2 text-left outline-none transition-transform duration-150 ease-out hover:-translate-y-1 active:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring ${affordable ? "" : "opacity-45"}`} style={{ borderColor: type.color, background: `linear-gradient(180deg, ${type.color}55, #0c1014 70%)` }}>
       <span className="relative min-h-0 flex-1">
         {art ? <img src={art} alt="" className="absolute inset-0 size-full object-contain" draggable={false} /> : art === false && fighter.avatarUrl ? <img src={fighter.avatarUrl} alt="" className="absolute inset-0 size-full object-cover" /> : null}
         <span className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-[#ffd84d]"><Coins className="size-3" />{costOf(fighter)}</span>
@@ -73,7 +75,10 @@ function RunPage() {
   const [played, setPlayed] = useState<Played | null>(null);
   const [fast, setFast] = useState(false);
   const [skips, setSkips] = useState(0);
-  const [inspecting, setInspecting] = useState<Fighter | null>(null);
+  // The card being looked at: one in the shop, one of the player's on the board, or one of the other team's.
+  const [viewing, setViewing] = useState<{ fighter: Fighter; slot?: number; unit?: Unit } | null>(null);
+  const [profile, setProfile] = useState<Player | null>(null);
+  const [help, setHelp] = useState(false);
 
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? teamSizeAt(round.number) : 0;
@@ -129,6 +134,9 @@ function RunPage() {
   function sell(unit: Unit) {
     setUnits(units.filter((other) => other !== unit));
     setGold(gold + costOf(unit.fighter));
+    // The card goes back on an empty shelf, so a purchase can be taken back.
+    const empty = shop.indexOf(null);
+    if (empty !== -1) setShop(shop.map((item, i) => (i === empty ? unit.fighter : item)));
     setSelected(null);
   }
 
@@ -171,7 +179,18 @@ function RunPage() {
     return [...side(0, units), ...side(1, round?.theirs ?? [])];
   }, [units, round]);
 
-  const chosen = selected ? [...units.map((unit) => ({ unit, mine: true })), ...(round?.theirs ?? []).map((unit) => ({ unit, mine: false }))].find(({ unit, mine }) => idOf(mine ? 0 : 1, unit.fighter) === selected) : undefined;
+  function look(id: string | null) {
+    setSelected(id);
+    if (!id || fighting) return;
+    const mine = units.find((unit) => idOf(0, unit.fighter) === id);
+    const theirs = round?.theirs.find((unit) => idOf(1, unit.fighter) === id);
+    if (mine) setViewing({ fighter: mine.fighter, unit: mine });
+    else if (theirs) setViewing({ fighter: theirs.fighter });
+  }
+  const close = () => {
+    setViewing(null);
+    setSelected(null);
+  };
   const building = player !== null && round !== null && !finished && played === null;
 
   return (
@@ -186,24 +205,27 @@ function RunPage() {
           speed={fast ? 2 : 1}
           skips={skips}
           onPlace={place}
-          onSelect={setSelected}
+          onSelect={look}
           onFightEnd={(key) => setPlayed((current) => (current?.fight.key === key ? { ...current, over: true } : current))}
         />
       </Suspense>
 
       {player && round && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2 sm:p-3">
-          <div className={`${PANEL} flex items-center gap-2 px-2.5 py-1.5`}>
+          <button type="button" onClick={() => setProfile(player)} aria-label={`About ${player.login}`} className={`${PANEL} pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
             {player.avatarUrl && <img src={player.avatarUrl} alt="" className="size-6 rounded-full" />}
-            <div className="space-y-1">
+            <span className="block space-y-1">
               <Pips filled={wins} total={WINS_TO_FINISH} tone="bg-primary" label="wins" />
               <Pips filled={losses} total={LOSSES_TO_END} tone="bg-[#e5484d]" label="losses" />
-            </div>
-          </div>
+            </span>
+          </button>
           <p className={`${PANEL} whitespace-nowrap px-3 py-1.5 font-display text-sm font-bold tracking-tight sm:text-base`}>Round {round.number}</p>
-          <div className={`${PANEL} flex items-center gap-2 px-2.5 py-1.5`}>
-            <span className="max-w-28 truncate text-xs font-medium sm:max-w-40 sm:text-sm">@{round.opponent.login}</span>
-            {round.opponent.avatarUrl && <img src={round.opponent.avatarUrl} alt="" className="size-6 rounded-full" />}
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <button type="button" onClick={() => setProfile(round.opponent)} aria-label={`About ${round.opponent.login}`} className={`${PANEL} flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
+              <span className="max-w-24 truncate text-xs font-medium sm:max-w-40 sm:text-sm">@{round.opponent.login}</span>
+              {round.opponent.avatarUrl && <img src={round.opponent.avatarUrl} alt="" className="size-6 rounded-full" />}
+            </button>
+            <button type="button" onClick={() => setHelp(!help)} aria-label="How to play" aria-expanded={help} className={`${PANEL} p-2 outline-none focus-visible:ring-2 focus-visible:ring-ring`}><CircleHelp className="size-4" /></button>
           </div>
         </div>
       )}
@@ -222,25 +244,12 @@ function RunPage() {
 
       {player && error && <p className={`${PANEL} absolute inset-x-3 top-16 z-20 px-3 py-2 text-sm`} role="alert">{error}</p>}
 
-      {chosen && !fighting && !played && (
-        <div className={`${PANEL} absolute bottom-[9.75rem] left-2 z-10 w-48 space-y-1.5 p-2.5 sm:bottom-auto sm:left-3 sm:top-16 sm:w-52`}>
-          <button type="button" onClick={() => setInspecting(chosen.unit.fighter)} className="block max-w-full truncate font-display text-sm font-bold tracking-tight underline-offset-4 hover:underline">{repoName(chosen.unit.fighter)}</button>
-          <p className="text-[11px] text-white/70">{TYPE[chosen.unit.fighter.type].label} · {rangeOf(chosen.unit.fighter) > 1 ? "hits from behind" : "fights up close"}</p>
-          <dl className="grid grid-cols-4 gap-1 text-center text-[11px] tabular-nums">
-            {([["HP", chosen.unit.fighter.hp], ["ATK", chosen.unit.fighter.attack], ["GRD", chosen.unit.fighter.defense], ["SPD", chosen.unit.fighter.speed]] as const).map(([label, value]) => (
-              <div key={label} className="rounded bg-white/10 py-1"><dt className="text-white/55">{label}</dt><dd className="font-semibold">{value}</dd></div>
-            ))}
-          </dl>
-          {chosen.mine && building && units.length > 1 && <Button variant="outline" size="sm" className="w-full" onClick={() => sell(chosen.unit)}><Coins /> Sell for {costOf(chosen.unit.fighter)}</Button>}
-        </div>
-      )}
-
       {building && (
         <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#0c1014]/90 p-2 backdrop-blur-sm sm:p-3">
           <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-stretch">
             <div className="grid flex-1 grid-cols-5 gap-1.5 sm:order-2 sm:gap-2">
               {shop.map((fighter, i) => fighter
-                ? <ShopCard key={fighter.fullName} fighter={fighter} affordable={gold >= costOf(fighter) && units.length < cap} onBuy={() => buy(i)} />
+                ? <ShopCard key={fighter.fullName} fighter={fighter} affordable={gold >= costOf(fighter) && units.length < cap} onOpen={() => setViewing({ fighter, slot: i })} />
                 : <div key={i} className="aspect-[5/6] rounded-md border border-dashed border-white/10" />)}
             </div>
             <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-28 sm:flex-col sm:items-stretch sm:justify-center">
@@ -285,7 +294,53 @@ function RunPage() {
         </div>
       )}
 
-      <InspectOverlay fighter={inspecting} onClose={() => setInspecting(null)} />
+      {help && (
+        <div className={`${PANEL} absolute right-2 top-14 z-30 w-72 space-y-2 p-3 text-sm sm:right-3`}>
+          <div className="flex items-center justify-between">
+            <p className="font-display font-bold tracking-tight">How to play</p>
+            <button type="button" onClick={() => setHelp(false)} aria-label="Close" className="rounded p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="size-4" /></button>
+          </div>
+          <ul className="space-y-1.5 text-white/80">
+            <li className="flex gap-2"><Coins className="mt-0.5 size-4 shrink-0 text-[#ffd84d]" /> Tap a shop card to see the card, then buy. Cards come from your stars. {ROUND_GOLD} gold each round, {WIN_GOLD} more for a win.</li>
+            <li className="flex gap-2"><Sword className="mt-0.5 size-4 shrink-0" /> Sword cards fight up close. Put them in the front row.</li>
+            <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Target cards hit from three cells away. Keep them behind.</li>
+            <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Drag a creature to move. Tap one to see the card or sell for the full price.</li>
+            <li className="flex gap-2"><Star className="mt-0.5 size-4 shrink-0" /> Press Fight and watch. {WINS_TO_FINISH} wins finishes the run, {LOSSES_TO_END} losses ends the run.</li>
+          </ul>
+        </div>
+      )}
+
+      {profile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6" role="dialog" aria-modal="true" aria-label={profile.login} onClick={() => setProfile(null)}>
+          <div className={`${PANEL} battle-deal w-full max-w-xs space-y-3 p-4 text-center`} onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto w-fit rounded-md" style={{ background: CLASSES[profile.character.klass].color }}><Figure look={profile.character.look} className="h-40 w-auto" /></div>
+            <div>
+              <p className="font-display text-xl font-bold tracking-tight">{profile.character.name}</p>
+              <p className="text-sm">{CLASSES[profile.character.klass].label} · Lv {profile.character.level}</p>
+              {profile.character.klass !== "rookie" && <p className="text-xs text-white/70">{CLASSES[profile.character.klass].perk}</p>}
+              {profile.character.motto && <p className="mt-1 text-xs text-white/70">“{profile.character.motto}”</p>}
+            </div>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <a href={`https://github.com/${profile.login}`} target="_blank" rel="noopener noreferrer" className="truncate underline-offset-4 hover:underline">@{profile.login}</a>
+              <Button variant="outline" size="sm" onClick={() => setProfile(null)}><X /> Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <InspectOverlay fighter={viewing?.fighter ?? null} onClose={close}>
+        {viewing && (
+          <>
+            <p className="flex items-center gap-1.5 text-white/80">{rangeOf(viewing.fighter) > 1 ? <><Crosshair className="size-4" /> Hits from three cells away</> : <><Sword className="size-4" /> Fights up close</>}</p>
+            {viewing.slot !== undefined && building && (
+              <Button className="w-full" disabled={gold < costOf(viewing.fighter) || units.length >= cap} onClick={() => { buy(viewing.slot!); close(); }}>
+                <Coins /> {units.length >= cap ? `Team is full (${cap})` : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}
+              </Button>
+            )}
+            {viewing.unit && building && units.length > 1 && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.unit!); close(); }}><Coins /> Sell for {costOf(viewing.unit.fighter)}</Button>}
+          </>
+        )}
+      </InspectOverlay>
     </div>
   );
 }

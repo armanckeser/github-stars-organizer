@@ -113,8 +113,11 @@ export function topFourIn(readme: string): string[] {
 }
 
 
-async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
-  if (names.length === 0) return [];
+// GitHub answers several small queries side by side faster than one big one: a run's
+// 20 drawn repos took 7 to 8.5 s in one query and about 3 s as five queries of four.
+const FACTS_PER_QUERY = 4;
+
+async function factsQuery(token: string, names: string[]): Promise<FactsNode[]> {
   const found = await gql<Record<string, FactsNode | null>>(
     token,
     `query {${names
@@ -125,6 +128,12 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
       .join("")} }`,
   );
   return names.flatMap((_, i) => found[`r${i}`] ?? []);
+}
+
+async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < names.length; i += FACTS_PER_QUERY) chunks.push(names.slice(i, i + FACTS_PER_QUERY));
+  return (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
 }
 
 // A team is four cards: one ace the player chose and three drawn from their stars for

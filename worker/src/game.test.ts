@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import type { Fighter } from "../../server/battle.ts";
 import { NoFactsError, readOpening, replay, teamsFromFacts, type Opening } from "../../server/game.ts";
 import { GUEST, HOST, fakeGitHub, unreachable } from "./fake-github.test-helper.ts";
 import { gameResponse, openingIn } from "./game.ts";
@@ -25,7 +26,15 @@ describe("a stored opening post", () => {
     const opening = await opened(STORED_V2);
     const rebuilt = teamsFromFacts(opening);
 
-    expect(rebuilt).toEqual(opening.teams);
+    // The post was written before cards had a `home` mark. The mark changes no number,
+    // so a rebuild that adds it still plays the same match.
+    const withoutHome = (team: Fighter[]) => team.map((fighter) => {
+      const copy: Partial<Fighter> = { ...fighter };
+      delete copy.home;
+      return copy;
+    });
+    expect({ a: withoutHome(rebuilt.a), b: withoutHome(rebuilt.b) }).toEqual(opening.teams);
+    expect([...rebuilt.a, ...rebuilt.b].map((f) => f.home)).toEqual([false, false, false, false, false, false]);
     // The host fielded four cards and was cut to three: the specialist perk counted the
     // three web cards among all four, so the two web cards left still carry it.
     expect(rebuilt.a.map((f) => [f.fullName, f.attack, f.perk, f.wildcard ?? false])).toEqual([

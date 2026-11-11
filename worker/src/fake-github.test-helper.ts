@@ -69,6 +69,34 @@ export async function fakeGitHub(_input: RequestInfo | URL, init?: RequestInit):
   return Response.json({ data });
 }
 
+/** A file the fake web serves: its bytes and, if it says one, its Content-Type. */
+export type FakeFile = { body: Uint8Array | string; type?: string };
+
+/**
+ * GitHub's GraphQL (as `fakeGitHub`), its README endpoint for `readmes` (repo to
+ * markdown), and every other address from `files`; anything else is a 404.
+ * `asked` lists each address fetched, in order.
+ */
+export function fakeWeb(readmes: Record<string, string>, files: Record<string, FakeFile> = {}): { fetch: typeof fetch; asked: string[] } {
+  const asked: string[] = [];
+  const answer = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const address = input instanceof Request ? input.url : String(input);
+    asked.push(address);
+    if (address === "https://api.github.com/graphql") return fakeGitHub(input, init);
+    const readme = /^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/readme$/.exec(address);
+    if (readme) {
+      const text = readmes[readme[1]];
+      if (text === undefined) return Response.json({ message: "Not Found" }, { status: 404 });
+      const content = btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+      return Response.json({ path: "docs/README.md", content, download_url: `https://raw.githubusercontent.com/${readme[1]}/main/docs/README.md` });
+    }
+    const file = files[address];
+    if (!file) return new Response("Not Found", { status: 404 });
+    return new Response(file.body, { headers: file.type ? { "Content-Type": file.type } : {} });
+  };
+  return { fetch: answer as typeof fetch, asked };
+}
+
 /** A `fetch` for when GitHub can't be reached at all. */
 export async function unreachable(): Promise<Response> {
   throw new TypeError("fetch failed: GitHub is unreachable");

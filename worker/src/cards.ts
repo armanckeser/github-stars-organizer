@@ -1,15 +1,18 @@
 import { listCard, messageCard, reviewCard, topFourCard, type CardRepo } from "../../server/cards.ts";
+import { APP_ART, POSTER_ART, base64, readmeArt, type Draw } from "./art.ts";
 
 // The SVGs a profile README embeds (server/cards.ts draws them):
 //
 //   /api/card/top4.svg?user=<login>&repos=<owner/name,...>&ratings=<5,4.5,...>
 //   /api/card/review.svg?user=<login>&repo=<owner/name>&rating=<4.5>&text=<what they wrote>
 //   /api/card/list.svg?user=<login>&title=<name>&count=<n>&repos=<owner/name,...>
+//   /api/card/art.png?repo=<owner/name>   the app's card art (art.ts), 404 when the README has none
 //
 // Everything a card shows is in its address, so nothing is stored here. GitHub
 // fetches each card through its image proxy and keeps its own copy for a while.
 
 export const CARD_PATH = /^\/api\/card\/(top4|review|list)\.svg$/;
+export const ART_PATH = /^\/api\/card\/art\.png$/;
 
 export const LOGIN = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 export const REPO = /^[\w.-]{1,39}\/[\w.-]{1,100}$/;
@@ -23,13 +26,6 @@ type RepoNode = {
   primaryLanguage: { name: string; color: string | null } | null;
   owner: { avatarUrl: string };
 };
-
-// btoa wants a binary string; building one in chunks keeps a large avatar off the call stack.
-function base64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(binary);
-}
 
 // An SVG shown through <img> can't load outside images, so each avatar goes in as data.
 export async function avatarData(url: string): Promise<string | null> {
@@ -46,7 +42,7 @@ export async function avatarData(url: string): Promise<string | null> {
 // One fixed-shape query for the named repos. The names were checked against REPO, so
 // this never becomes a general GraphQL proxy on the owner's token. A repo that is
 // gone or private comes back null and is left off the card.
-async function fetchRepos(token: string, names: string[]): Promise<CardRepo[]> {
+async function fetchRepos(token: string, names: string[], draw: Draw): Promise<CardRepo[]> {
   const fields = "nameWithOwner stargazerCount primaryLanguage { name color } owner { avatarUrl(size: 96) }";
   const query = `query {${names
     .map((name, i) => {
@@ -63,14 +59,30 @@ async function fetchRepos(token: string, names: string[]): Promise<CardRepo[]> {
   if (!json.data) throw new Error(`GitHub returned ${response.status}`);
   const nodes = names.flatMap((_, i) => json.data![`r${i}`] ?? []);
   return Promise.all(
-    nodes.map(async (node) => ({
-      fullName: node.nameWithOwner,
-      stars: node.stargazerCount,
-      language: node.primaryLanguage?.name ?? null,
-      color: node.primaryLanguage?.color ?? null,
-      avatar: await avatarData(node.owner.avatarUrl),
-    })),
+    nodes.map(async (node) => {
+      const art = await posterArt(node.nameWithOwner, token, draw);
+      return {
+        fullName: node.nameWithOwner,
+        stars: node.stargazerCount,
+        language: node.primaryLanguage?.name ?? null,
+        color: node.primaryLanguage?.color ?? null,
+        // The art takes the avatar's place, so the avatar is only fetched without it.
+        avatar: art ? null : await avatarData(node.owner.avatarUrl),
+        art,
+      };
+    }),
   );
+}
+
+// A card without art still shows, so a README GitHub can't read leaves the poster plain.
+async function posterArt(fullName: string, token: string, draw: Draw): Promise<string | null> {
+  try {
+    const art = await readmeArt(fullName, token, draw, POSTER_ART);
+    return art && `data:image/png;base64,${base64(art)}`;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export function svg(body: string, status: number, cacheSeconds: number): Response {
@@ -94,7 +106,32 @@ function parseRating(value: string | null | undefined): number | null {
   return Number.isFinite(n) && n > 0 && n <= 5 ? Math.round(n * 2) / 2 : null;
 }
 
-export async function cardResponse(kind: string, params: URLSearchParams, token: string): Promise<Response> {
+function picture(bytes: Uint8Array | null, status: number, cacheSeconds: number): Response {
+  return new Response(bytes, {
+    status,
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": cacheSeconds > 0 ? `public, max-age=${cacheSeconds}` : "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+/** The art for a repo's card in the app, as a PNG; a 404 tells the app to show the creature. */
+export async function artResponse(params: URLSearchParams, token: string, draw: Draw): Promise<Response> {
+  const repo = params.get("repo") ?? "";
+  if (!REPO.test(repo)) return picture(null, 400, CACHE_SECONDS);
+  try {
+    const art = await readmeArt(repo, token, draw, APP_ART);
+    return picture(art, art ? 200 : 404, CACHE_SECONDS);
+  } catch (error) {
+    console.error(error);
+    return picture(null, 502, 0);
+  }
+}
+
+export async function cardResponse(kind: string, params: URLSearchParams, token: string, draw: Draw): Promise<Response> {
   const login = params.get("user") ?? "";
   if (!LOGIN.test(login)) return svg(messageCard("This card needs a GitHub username."), 400, CACHE_SECONDS);
   const names = (params.get("repos") ?? params.get("repo") ?? "")
@@ -103,7 +140,7 @@ export async function cardResponse(kind: string, params: URLSearchParams, token:
     .slice(0, MAX_REPOS);
   if (names.length === 0) return svg(messageCard("This card has no repos to show."), 400, CACHE_SECONDS);
   try {
-    const repos = await fetchRepos(token, names);
+    const repos = await fetchRepos(token, names, draw);
     if (repos.length === 0) return svg(messageCard("None of this card's repos could be found on GitHub."), 404, CACHE_SECONDS);
     if (kind === "top4") {
       // Ratings line up with the repos asked for, so a missing repo takes its rating with it.

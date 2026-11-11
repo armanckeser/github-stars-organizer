@@ -2,7 +2,7 @@ import { useState } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, X } from "lucide-react";
+import { Check, Copy, GripVertical, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,7 +68,10 @@ function SectionRow({
   onChange,
   onRemove,
   onPick,
+  markdown,
 }: {
+  /** This section alone as Markdown, for someone who wants one part in a README they already have. */
+  markdown: string;
   login: string;
   section: Section;
   count: number;
@@ -79,6 +82,12 @@ function SectionRow({
   onPick: () => void;
 }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: section.id });
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    await navigator.clipboard.writeText(markdown);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
   // The heading shows its default until someone types; emptying the field brings the default back.
   const [typing, setTyping] = useState<string | null>(null);
   const fallback = defaultHeading(section, lists);
@@ -117,6 +126,9 @@ function SectionRow({
           />
           <p className="px-1.5 text-xs tabular-nums text-muted-foreground">{summary(section, count)}</p>
         </div>
+        <Button variant="ghost" size="icon-sm" aria-label={`Copy ${heading} as Markdown`} title="Copy this part only" onClick={copy}>
+          {copied ? <Check /> : <Copy />}
+        </Button>
         <Button variant="ghost" size="icon-sm" aria-label={`Remove ${heading}`} title="Remove this section" onClick={onRemove}>
           <X />
         </Button>
@@ -176,7 +188,9 @@ export function SectionList({
   login,
   onChange,
   onPick,
+  markdownFor,
 }: {
+  markdownFor: (section: Section) => string;
   login: string;
   sections: Section[];
   counts: Record<string, number>;
@@ -213,6 +227,7 @@ export function SectionList({
               onChange={(change) => onChange(sections.map((s) => (s.id === section.id ? ({ ...s, ...change } as Section) : s)))}
               onRemove={() => onChange(sections.filter((s) => s.id !== section.id))}
               onPick={() => onPick(section.id)}
+              markdown={markdownFor(section)}
             />
           ))}
         </ul>

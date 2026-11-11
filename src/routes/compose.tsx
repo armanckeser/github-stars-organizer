@@ -201,6 +201,9 @@ function ComposePage() {
                 login={login}
                 onChange={(sections) => update((c) => ({ ...c, sections }))}
                 onPick={setPickingFor}
+                markdownFor={(section) =>
+                  composeMarkdown({ ...composition, sections: [section], options: { ...composition.options, credit: false } }, { repos: allRepos, lists: allLists, listItems: listItems ?? [] }, now).markdown
+                }
               />
             )}
             {leftOutLabel && (
@@ -250,7 +253,7 @@ function ComposePage() {
           <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-t-lg border-b bg-card px-3 py-2">
             <span className="flex items-center gap-1.5 text-sm font-medium"><FileText className="size-4 text-muted-foreground" /> README.md</span>
             <Help label="Where the README goes">
-              Paste the Markdown into the README of the repo named after your username{loginOk ? ` (${login}/${login})` : ""} to show the profile on your GitHub page. Any other README works too.
+              Paste all of the Markdown, or one part with the copy button on that part, into any README. The README of the repo named after your username{loginOk ? ` (${login}/${login})` : ""} shows on your GitHub page. Battles read your character and ace from a repo called stard{loginOk ? ` (${login}/stard)` : ""} first, then from that one.
             </Help>
             <div className="ml-auto flex items-center gap-2">
               <Tabs value={format} onValueChange={(value) => setFormat(value as typeof format)}>

@@ -96,7 +96,7 @@ The README, the page tags and the repo's description still describe a stars mana
 
 Prepare everything in one PR; the maintainer flips the settings.
 
-- Every `github-stars-organizer` and `stars-demo.armanckeser.com` in code, docs and the Worker config, listed with what each becomes (`stard`, and a new demo address the maintainer chooses).
+- Every `github-stars-organizer` and `stars-demo.armanckeser.com` in code, docs and the Worker config, listed with what each becomes (`stard`, and the demo at `stard.armanckeser.com`).
 - The old demo address must keep working: battle links, card image links in people's READMEs and `/api/*` all answer at the old address after the change.
 - The npm package name: say in the PR what breaks if the name changes, and recommend keep or change.
 - GitHub redirects a renamed repo, but not GitHub Pages or raw image links: list every link of those kinds.
@@ -105,6 +105,17 @@ Prepare everything in one PR; the maintainer flips the settings.
 
 - A plain-text file `OPPONENTS.md` listing the accounts used as opponents and how to ask to be removed (open an issue). Link the file from the Play screen's start panel.
 - An account that has a `stard` repo containing a file `no-play` is never used as an opponent or read by `/api/run/pool` for someone else's run.
+
+## Task 12: a gold armband for people who starred Stard
+
+- The Worker reads the stargazers of this repo once an hour (one REST call per 100, cached) and adds `supporter: true` to a player in `/api/run/pool`, `/api/battle` and a match's opening post when the login is among them.
+- `buildTrainer` in `src/components/battle/three/trainer.ts` takes the flag and adds a gold band on the upper arm; the flat `Figure` and the character card draw the same band.
+- No stat change. The character panel on the Play screen says "Starred Stard" beside the band.
+
+## Task 13: the card face for the run
+
+- The card opened from the shop or the board still lists the two moves of the old turn-by-turn game. In a run, show what matters there: reach (up close or from behind), the four numbers, the ability and the sets (once Task 2 exists), and the price.
+- Gold has nothing to spend on once the team is full. With the bench (Task 8), add buying a larger team: 4 gold for one more board slot, up to 7.
 
 ## Taken (being built by the maintainer)
 

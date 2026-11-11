@@ -251,3 +251,10 @@ Ideas and open items from the design conversations that the sections above don't
 - **Finding players.** People with many stars get the most from the game (bigger shop, more cards). Find them through GitHub, then send a link to a ready-made battle with their own username in it. Each message is drafted and Armanc sends.
 - **How to say what Stard is.** "Finally give your stars a use." "Starring repos always felt like collecting. Now the collection plays."
 - **No Pokemon name.** The name is a trademark of Nintendo, Creatures and Game Freak. Not in the product, the README or any post. "Creature battle" and "card battle" say enough.
+
+### Added 2026-11-11, after the board was built
+
+- Built: the Play screen (`/run`), one 3D board, a docked shop with gold, placing by drag, all-at-once fights. Tasks 1 to 11 in `docs/AGENT-TASKS.md` are what is left.
+- **Ideas not yet tasks.** Two of the same card combine into a stronger one (needs duplicates, which stars don't give; could be "two cards by the same owner"). Item drops between rounds. A daily board everyone plays with the same shop, with a leaderboard. Spectating a friend's run from a link. Sound.
+- **Card look.** The card face (HP top right, two moves, weakness and resistance along the bottom) follows the layout of trading card games in general. Before a big push, change the face so the layout reads as Stard's own: the contribution-graph backdrop is ours, the move rows and the weakness line are the borrowed parts.
+- **Real accounts as opponents.** Names and avatars come from public profiles. Keep a visible list and a way out (Task 11).

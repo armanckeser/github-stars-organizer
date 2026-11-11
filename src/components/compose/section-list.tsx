@@ -6,13 +6,16 @@ import { GripVertical, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Figure } from "@/components/battle/figure";
 import { Help } from "@/components/compose/controls";
 import { StarRating } from "@/components/repo-detail-sheet";
 import { repoCollection } from "@/lib/collections";
 import { MAX_REVIEW_CHARS, TOP_FOUR, defaultHeading, type ComposeList, type ComposeRepo, type Section } from "@/lib/published-list";
+import { CLASSES, defaultCharacter } from "../../../server/character";
 
 // What a section is and how much is in it, under its heading.
 function summary(section: Section, count: number): string {
+  if (section.kind === "character") return count === 0 ? "Needs your username" : CLASSES[section.character?.klass ?? "rookie"].label;
   if (section.kind === "topFour") return `${count} of ${TOP_FOUR} picked`;
   if (section.kind === "reviews") return count === 0 ? "No reviews yet" : `${count} ${count === 1 ? "review" : "reviews"}`;
   const kind = section.kind === "list" ? "List" : "By rating";
@@ -61,10 +64,12 @@ function SectionRow({
   count,
   lists,
   repos,
+  login,
   onChange,
   onRemove,
   onPick,
 }: {
+  login: string;
   section: Section;
   count: number;
   lists: ComposeList[];
@@ -117,6 +122,15 @@ function SectionRow({
         </Button>
       </div>
 
+      {section.kind === "character" && (
+        <div className="flex items-center gap-3 border-t px-3 py-2">
+          <div className="shrink-0 rounded-md" style={{ background: CLASSES[section.character?.klass ?? "rookie"].color }}>
+            <Figure look={(section.character ?? defaultCharacter(login)).look} className="h-14 w-auto" />
+          </div>
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">{CLASSES[section.character?.klass ?? "rookie"].perk}</p>
+          <Button variant="outline" size="sm" onClick={onPick}>{section.character ? "Edit" : "Build yours"}</Button>
+        </div>
+      )}
       {section.kind === "topFour" && (
         <div className="flex items-center gap-2 border-t px-3 py-2">
           <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
@@ -159,9 +173,11 @@ export function SectionList({
   counts,
   lists,
   repos,
+  login,
   onChange,
   onPick,
 }: {
+  login: string;
   sections: Section[];
   counts: Record<string, number>;
   lists: ComposeList[];
@@ -193,6 +209,7 @@ export function SectionList({
               count={counts[section.id] ?? 0}
               lists={lists}
               repos={repos}
+              login={login}
               onChange={(change) => onChange(sections.map((s) => (s.id === section.id ? ({ ...s, ...change } as Section) : s)))}
               onRemove={() => onChange(sections.filter((s) => s.id !== section.id))}
               onPick={() => onPick(section.id)}

@@ -31,6 +31,7 @@ All cards live under `https://stars-demo.armanckeser.com/api/card/`. Every card 
 |---|---|---|
 | Top four | `top4.svg` | `repos`: up to four `owner/name`, comma-separated, in the order to show. `ratings` (optional): one number per repo, 0.5 to 5 in halves, `0` for no rating. |
 | Review | `review.svg` | `repo`: one `owner/name`. `rating` (optional): 0.5 to 5. `text` (optional): the review, at most 400 characters; the card shows about four lines. |
+| Character | `trainer.svg` | `class`: one of `maintainer`, `scout`, `collector`, `specialist`, `veteran`, `archivist` (each has a small perk in battles; leave out for none). `look`: six numbers joined by dots for skin, hair, hair colour, top, top colour and extra, as the Profile screen's builder writes them. `name` and `motto` (optional). The battle game reads a player's character from this card's address in their profile README. Link the card to `https://stars-demo.armanckeser.com/battle?b=<username>`. |
 | List | `list.svg` | `title`: the List's name. `count`: how many repos the List has. `repos`: up to six `owner/name` to show as posters. |
 
 The Markdown, one card per paragraph:

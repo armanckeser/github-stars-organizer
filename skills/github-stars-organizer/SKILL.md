@@ -42,7 +42,8 @@ The profile is the user's taste, so get the content by asking, one question at a
 2. "Which four repos would you put on a poster?" If they want help remembering, run `npx github-stars-organizer search <words>` or show their most recent stars, but never choose for them.
 3. For each of the four, a rating out of 5 if they want ratings shown.
 4. "Which repos would you rave about, or warn people off?" For each: a rating and a sentence or two in their own words. Keep their wording. Do not write or pad a review; offer to tidy a review only when asked. Three reviews is plenty.
-5. Which of their GitHub Lists to show, and in what order. Leave private Lists out unless they name one. Leave archived repos out of every List.
+5. Whether they want a character for the battle game. If yes: a name, a motto, and a class (maintainer, scout, collector, specialist, veteran or archivist; say what each perk is). The look is easiest to build on the Profile screen at https://stars-demo.armanckeser.com/compose; offer that, or pick the six numbers with them.
+6. Which of their GitHub Lists to show, and in what order. Leave private Lists out unless they name one. Leave archived repos out of every List.
 
 Then build the Markdown, show the whole block, and wait for a yes. Offer two ways to place the block: they paste the Markdown themselves, or you put the block in the `README.md` of the repo named after their username (create that repo, public, only with their OK; keep everything the README already holds, and replace an earlier Stard block rather than adding a second one). Tell them a card that changed can take a few hours to refresh on GitHub.
 

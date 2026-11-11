@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { battle, fighterFor, instantSeed, matchup, seededRandom, typeOf, type Fighter, type RepoFacts } from "./battle.ts";
+import { battle, fieldTeam, fighterFor, instantSeed, matchup, seededRandom, typeOf, type Fighter, type RepoFacts } from "./battle.ts";
 
 const NOW = Date.parse("2026-11-10T00:00:00Z");
 const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
@@ -88,6 +88,60 @@ describe("cards", () => {
     expect(shiny.attack).toBeGreaterThan(plain.attack);
     expect(retired.retired).toBe(true);
     expect(retired.attack).toBeLessThan(plain.attack);
+  });
+});
+
+describe("classes", () => {
+  const plain = (extra: Partial<RepoFacts> = {}, name = "octo/tool") => fighterFor(facts(name, extra), "nobody", NOW);
+  const withClass = (klass: Parameters<typeof fighterFor>[3], extra: Partial<RepoFacts> = {}, name = "octo/tool", player = "nobody") =>
+    fighterFor(facts(name, extra), player, NOW, klass);
+
+  test("a rookie changes nothing", () => {
+    expect(withClass("rookie")).toEqual(plain());
+    expect(plain().perk).toBe(false);
+  });
+
+  test("a maintainer's own repos are stronger still, and other repos are not", () => {
+    const own = withClass("maintainer", {}, "octo/tool", "octo");
+    expect(own.perk).toBe(true);
+    expect(own.attack).toBeGreaterThan(fighterFor(facts("octo/tool"), "octo", NOW).attack);
+    expect(withClass("maintainer")).toEqual(plain());
+  });
+
+  test("a scout's small repos are stronger", () => {
+    expect(withClass("scout", { stars: 300 }).hp).toBeGreaterThan(plain({ stars: 300 }).hp);
+    expect(withClass("scout", { stars: 3000 })).toEqual(plain({ stars: 3000 }));
+  });
+
+  test("a veteran's old repos have more HP and defense, and the same attack", () => {
+    const old = { createdAt: daysAgo(365 * 9) };
+    expect(withClass("veteran", old).hp).toBeGreaterThan(plain(old).hp);
+    expect(withClass("veteran", old).defense).toBeGreaterThan(plain(old).defense);
+    expect(withClass("veteran", old).attack).toBe(plain(old).attack);
+    expect(withClass("veteran").perk).toBe(false);
+  });
+
+  test("an archivist's archived repos fight at full strength", () => {
+    const archived = { isArchived: true };
+    expect(withClass("archivist", archived).attack).toBe(plain().attack);
+    expect(plain(archived).attack).toBeLessThan(plain().attack);
+  });
+
+  test("a collector's team of all different types is stronger, and a team with a repeat is not", () => {
+    const mixed = [facts("a/1", { language: "Rust" }), facts("a/2", { language: "Python" }), facts("a/3")];
+    const repeat = [facts("a/1"), facts("a/2", { language: "Python" }), facts("a/3")];
+    const team = fieldTeam(mixed, "nobody", "collector", NOW);
+    expect(team.every((f) => f.perk)).toBe(true);
+    expect(team[0].hp).toBeGreaterThan(fighterFor(mixed[0], "nobody", NOW).hp);
+    expect(fieldTeam(repeat, "nobody", "collector", NOW).some((f) => f.perk)).toBe(false);
+  });
+
+  test("a specialist's three cards of one type hit harder, and the odd one out does not", () => {
+    const team = fieldTeam([facts("a/1"), facts("a/2"), facts("a/3"), facts("a/4", { language: "Rust" })], "nobody", "specialist", NOW);
+    expect(team.map((f) => f.perk)).toEqual([true, true, true, false]);
+    expect(team[0].attack).toBeGreaterThan(fighterFor(facts("a/1"), "nobody", NOW).attack);
+    expect(team[0].moves[0].damage).toBeGreaterThanOrEqual(fighterFor(facts("a/1"), "nobody", NOW).moves[0].damage);
+    expect(team[0].hp).toBe(fighterFor(facts("a/1"), "nobody", NOW).hp);
   });
 });
 

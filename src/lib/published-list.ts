@@ -4,6 +4,7 @@
 // (server/cards.ts, worker/src/cards.ts). Pure: no storage, no GitHub.
 
 import { isQuiet } from "./star-waves";
+import { CLASSES, characterParams, defaultCharacter, type Character } from "../../server/character";
 
 export type ComposeRepo = {
   id: string;
@@ -22,7 +23,9 @@ export type ComposeList = { id: string; name: string; is_private?: boolean };
 export type ComposeListItem = { list_id: string; repo_id: string };
 
 // An empty heading means the section's default one (see defaultHeading).
+// A character of null follows the username: its default figure, no class yet.
 export type Section =
+  | { id: string; kind: "character"; character: Character | null; heading: string }
   | { id: string; kind: "topFour"; repoIds: string[]; heading: string }
   | { id: string; kind: "reviews"; repoIds: string[]; heading: string }
   | { id: string; kind: "list"; listId: string; heading: string }
@@ -75,6 +78,7 @@ export function validLogin(login: string): boolean {
 
 export function defaultHeading(section: Section, lists: ComposeList[]): string {
   if (section.kind === "list") return lists.find((l) => l.id === section.listId)?.name ?? "List";
+  if (section.kind === "character") return "Character";
   if (section.kind === "topFour") return "Top four";
   if (section.kind === "reviews") return "Reviews";
   return `Rated ${section.min} or higher`;
@@ -96,6 +100,7 @@ export function defaultComposition(lists: ComposeList[], repos: ComposeRepo[], l
     title: "",
     intro: "",
     sections: [
+      { id: "character", kind: "character", character: null, heading: "" },
       { id: "topFour", kind: "topFour", repoIds: alive.slice(0, TOP_FOUR).map((r) => r.id), heading: "" },
       ...(reviewed.length ? [{ id: "reviews", kind: "reviews" as const, repoIds: reviewed.map((r) => r.id), heading: "" }] : []),
       ...lists.filter((l) => !l.is_private).map((l) => ({ id: `list:${l.id}`, kind: "list" as const, listId: l.id, heading: "" })),
@@ -116,7 +121,7 @@ function starsLabel(count: number): string {
 
 const ratingText = (rating: number) => "★".repeat(rating) + "☆".repeat(5 - rating);
 
-export function cardUrl(kind: "top4" | "review" | "list", params: Record<string, string | number | null | undefined>): string {
+export function cardUrl(kind: "top4" | "review" | "list" | "trainer", params: Record<string, string | number | null | undefined>): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== null && value !== undefined && value !== "") query.set(key, String(value));
@@ -189,6 +194,22 @@ export function composeMarkdown(
 
   for (const section of composition.sections) {
     const heading = `## ${plain(section.heading.trim() || defaultHeading(section, lists))}`;
+
+    if (section.kind === "character") {
+      // A character is only a card: the figure can't be written as text.
+      counts[section.id] = cards ? 1 : 0;
+      if (!cards) continue;
+      const character = section.character ?? defaultCharacter(login);
+      const klass = CLASSES[character.klass];
+      blocks.push(
+        cardMarkdown(
+          `${character.name}, a ${klass.label} on Stard. Battle ${login}.`,
+          cardUrl("trainer", characterParams(login, character)),
+          `${APP_URL}battle?b=${encodeURIComponent(login)}`,
+        ),
+      );
+      continue;
+    }
 
     if (section.kind === "topFour") {
       const picked = section.repoIds.flatMap((id) => repoById.get(id) ?? []).slice(0, TOP_FOUR);

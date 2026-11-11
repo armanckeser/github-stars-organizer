@@ -1,8 +1,10 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
-import { BATTLE_PATH, battleResponse } from "./battle.ts";
+import { BATTLE_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 
 type Env = { GITHUB_TOKEN: string };
+
+const RESPONSE_SHAPE = "2";
 
 // GitHub's own rule for logins: alphanumerics and single inner hyphens, at most 39.
 // Anything else is rejected before it reaches GitHub, so this stays a fixed query
@@ -72,16 +74,23 @@ export default {
 
     const card = CARD_PATH.exec(url.pathname);
     const fight = BATTLE_PATH.exec(url.pathname);
-    if (card || fight) {
+    const trainer = TRAINER_PATH.test(url.pathname);
+    if (card || fight || trainer) {
       // Sorted, so one card asked for with its parameters in another order shares an entry.
       url.searchParams.sort();
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
-      const key = new Request(fight ? url.toString().toLowerCase() : url.toString());
+      // The version goes up whenever a reply's shape changes, so a deploy never serves
+      // an older shape to the newer app out of the cache.
+      const keyUrl = new URL(fight ? url.toString().toLowerCase() : url.toString());
+      keyUrl.searchParams.set("_shape", RESPONSE_SHAPE);
+      const key = new Request(keyUrl.toString());
       const cached = await caches.default.match(key);
       if (cached) return cached;
-      const response = fight
-        ? await battleResponse(fight[1], url.searchParams, env.GITHUB_TOKEN)
-        : await cardResponse(card![1], url.searchParams, env.GITHUB_TOKEN);
+      const response = trainer
+        ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN)
+        : fight
+          ? await battleResponse(fight[1], url.searchParams, env.GITHUB_TOKEN)
+          : await cardResponse(card![1], url.searchParams, env.GITHUB_TOKEN);
       if (response.headers.get("Cache-Control") !== "no-store") context.waitUntil(caches.default.put(key, response.clone()));
       return response;
     }

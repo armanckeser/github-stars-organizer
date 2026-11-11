@@ -200,6 +200,25 @@ describe("with a username: cards", () => {
     expect(markdown).not.toContain("- [me/a]");
   });
 
+  it("draws the character as a card that links to a battle with its owner", () => {
+    const section = { id: "c", kind: "character" as const, heading: "", character: null };
+    const plain = run(compose({ login: "octo", sections: [section] }), []).markdown;
+    expect(plain).toContain("[![octo, a Rookie on Stard. Battle octo.](");
+    expect(plain).toContain(")](https://stars-demo.armanckeser.com/battle?b=octo)");
+    expect(cardParams(plain, "trainer").get("class")).toBe("rookie");
+    expect(cardParams(plain, "trainer").has("name")).toBe(false);
+
+    const built = { name: "The Octo", klass: "scout" as const, look: { skin: 1, hair: 2, hairColor: 3, top: 0, topColor: 4, extra: 1 }, motto: "Ship small" };
+    const params = cardParams(run(compose({ login: "octo", sections: [{ ...section, character: built }] }), []).markdown, "trainer");
+    expect(Object.fromEntries(params)).toEqual({ user: "octo", name: "The Octo", class: "scout", look: "1.2.3.0.4.1", motto: "Ship small" });
+  });
+
+  it("leaves the character out without a username, since a figure can't be text", () => {
+    const { markdown, counts } = run(compose({ sections: [{ id: "c", kind: "character", heading: "", character: null }] }), []);
+    expect(markdown).toBe("\n");
+    expect(counts.c).toBe(0);
+  });
+
   it("falls back to plain text for something that isn't a username", () => {
     const { markdown } = run(compose({ login: "not a name", sections: [listSection("l1")] }), [repo("a")], inList("l1", "a"));
     expect(markdown).not.toContain("/api/card/");
@@ -235,6 +254,7 @@ describe("the credit line and the default profile", () => {
     const composition = defaultComposition([...lists, { id: "l3", name: "Secret", is_private: true }], repos, "octo");
     expect(composition.login).toBe("octo");
     expect(composition.sections).toEqual([
+      { id: "character", kind: "character", character: null, heading: "" },
       { id: "topFour", kind: "topFour", repoIds: ["b", "d", "c", "a"], heading: "" },
       { id: "reviews", kind: "reviews", repoIds: ["b"], heading: "" },
       { id: "list:l1", kind: "list", listId: "l1", heading: "" },

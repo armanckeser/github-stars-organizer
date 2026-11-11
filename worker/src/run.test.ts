@@ -16,7 +16,7 @@ const POOL = 21;
 const fighter = (fullName: string, over: Partial<Fighter> = {}): Fighter => ({
   fullName, description: null, language: "TypeScript", color: null, avatarUrl: null, stars: 50, contributors: 1, commits: 1, age: 1, health: 5,
   type: "web", weakness: null, resistance: null, level: 10, hp: 100, attack: 40, defense: 30, speed: 20,
-  moves: [{ name: "Hot Reload", power: 1, damage: 20 }, { name: "Hotfix", power: 1.6, damage: 30 }], shiny: false, retired: false, perk: false, ...over,
+  moves: [{ name: "Hot Reload", power: 1, damage: 20 }, { name: "Hotfix", power: 1.6, damage: 30 }], shiny: false, home: false, retired: false, perk: false, ...over,
 });
 
 const teamOf = (login: string, over: Partial<Fighter> = {}): Team => ({

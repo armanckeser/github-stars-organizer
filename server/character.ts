@@ -8,7 +8,7 @@ export type ClassId = (typeof CLASS_IDS)[number];
 
 export const CLASSES: Record<ClassId, { label: string; perk: string; color: string }> = {
   rookie: { label: "Rookie", perk: "No perk yet. Pick a class to get one.", color: "#3a4049" },
-  maintainer: { label: "Maintainer", perk: "Repos you own are 8% stronger, on top of being shiny.", color: "#1fa866" },
+  maintainer: { label: "Maintainer", perk: "Repos you own are 8% stronger.", color: "#1fa866" },
   scout: { label: "Scout", perk: "Cards under 1,000 stars are 15% stronger.", color: "#1f8fe0" },
   collector: { label: "Collector", perk: "A team of all different types is 6% stronger.", color: "#7c5cd6" },
   specialist: { label: "Specialist", perk: "Three or more cards of one type hit 10% harder.", color: "#d9482b" },

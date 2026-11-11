@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Layers, RotateCcw, Send, SkipForward, Swords } from "lucide-react";
+import { Layers, RotateCcw, Send, SkipForward, Star, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
@@ -10,7 +10,7 @@ import { MatchList } from "@/components/battle/match-list";
 import { RepoCard } from "@/components/battle/repo-card";
 import { demoUser } from "@/lib/demo";
 import { CAN_PLAY, challenge, playingAs } from "@/lib/game-api";
-import { APP_URL, CARD_ORIGIN, validLogin } from "@/lib/published-list";
+import { APP_URL, CARD_ORIGIN, REPO_URL, validLogin } from "@/lib/published-list";
 import type { BattleResult, Fighter, Side } from "../../server/battle";
 import { CLASSES, defaultCharacter, type Character } from "../../server/character";
 
@@ -212,6 +212,12 @@ function BattlePage() {
     };
   }, [search.a, search.b]);
 
+  // The share picture is slow to draw, so the Worker draws and caches it before anyone shares the link.
+  useEffect(() => {
+    if (!search.a || !search.b || !validLogin(search.a) || !validLogin(search.b)) return;
+    fetch(`${CARD_ORIGIN}/api/card/versus.png?a=${encodeURIComponent(search.a)}&b=${encodeURIComponent(search.b)}`).catch(() => {});
+  }, [search.a, search.b]);
+
   const total = battle?.result.events.length ?? 0;
   const done = battle !== null && phase === "fight" && step >= total;
   // The fight waits while a card is being looked at.
@@ -320,8 +326,14 @@ function BattlePage() {
               Hit {Math.min(step, total)} of {total}
             </p>
             {done && <CopyButton text={share} label="Copy the result card" />}
-            <CopyButton text={`${APP_URL}battle?${query}`} label="Copy link" />
+            {!done && <CopyButton text={`${APP_URL}battle?${query}`} label="Copy link" />}
           </div>
+          {done && (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"><Star className="size-4" /> Star Stard on GitHub</a>
+              <CopyButton text={`${APP_URL}battle?${query}`} label="Share" />
+            </div>
+          )}
         </div>
       )}
 

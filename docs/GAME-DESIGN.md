@@ -246,7 +246,7 @@ Ideas and open items from the design conversations that the sections above don't
 ### Added 2026-11-11
 
 - **Freeze the facts at the start.** A battle's opening state should hold everything the result depends on: each card's numbers, and the character and ace read from the README at that moment. Today the signed opening post holds both teams; the README text and the repo facts behind the numbers are not stored. With that stored, a result can always be recomputed, whatever changes on GitHub later.
-- **`armanckeser` repos are shiny for everyone.** In the plan (change 3); the code still marks a player's own repos.
+- **`armanckeser` repos are shiny for everyone.** Built: shiny is the owner `armanckeser`, and a player's own repo shows a "home" mark.
 - **After a game, one quiet line:** star the Stard repo, and a share button with the versus picture. No popup, nothing blocking the rematch button.
 - **Finding players.** People with many stars get the most from the game (bigger shop, more cards). Find them through GitHub, then send a link to a ready-made battle with their own username in it. Each message is drafted and Armanc sends.
 - **How to say what Stard is.** "Finally give your stars a use." "Starring repos always felt like collecting. Now the collection plays."

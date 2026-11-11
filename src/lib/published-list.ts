@@ -62,6 +62,7 @@ export type Composed = {
 };
 
 export const APP_URL = "https://stars-demo.armanckeser.com/";
+export const REPO_URL = "https://github.com/armanckeser/github-stars-organizer";
 export const CARD_ORIGIN: string = (import.meta.env?.VITE_CARD_ORIGIN as string | undefined) ?? "https://stars-demo.armanckeser.com";
 export const CREDIT_LINE = `Made with [Stard](${APP_URL})`;
 export const DEFAULT_RATING_MIN = 4;

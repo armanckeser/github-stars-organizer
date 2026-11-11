@@ -4,10 +4,11 @@ import { seededRandom, type Fighter } from "../../../../server/battle";
 import { TYPE } from "../repo-card";
 import { box, cone, cylinder, part, sphere, toon, type PartOptions } from "./kit";
 
-// A repo as a creature. The repo's name picks the body plan and its details
-// (proportions, ears, horns, crest), the repo's language colours it, and the card's
-// type colours the trim. One repo always looks the same, and two TypeScript repos
-// don't look alike.
+// A repo as a creature. Words in the repo's name and description pick its body and
+// the thing floating over its head (a budgeting app is a bird with a coin, a stars
+// manager carries a star); a repo with no such words gets a body from its name alone.
+// The language colours the creature and the card's type colours the trim. One repo
+// always looks the same, and two TypeScript repos don't look alike.
 
 export type Creature = {
   root: THREE.Group;
@@ -154,6 +155,70 @@ const PLANS: Record<string, (kit: Kit) => Plan> = {
   },
 };
 
+// Words that say what a repo is, checked in the name first and then the description.
+const BODIES: [RegExp, string][] = [
+  [/bot|agent|\bai\b|gpt|llm|robot|auto|engine|compiler|kernel/, "golem"],
+  [/cli\b|shell|term|script|bash|cmd|command/, "wisp"],
+  [/web|site|css|html|browser|http|react|next|vue|\bui\b|front/, "orb"],
+  [/data|\bdb\b|sql|chart|analytic|track|stat|budget|financ|money|metric/, "bird"],
+  [/doc|book|awesome|guide|list|learn|note|blog|skill|organiz/, "tome"],
+  [/app|mobile|ios|android|swift|game|play|meme|fun/, "critter"],
+];
+
+const GOLD = "#f5c84b";
+
+function outline(points: [number, number][], depth = 0.07): THREE.BufferGeometry {
+  const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
+  return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false }).center();
+}
+
+// What floats over the creature's head, by what the repo is about.
+const EMBLEMS: [RegExp, (trim: THREE.Material) => THREE.Object3D][] = [
+  [/\bstar(s|red)?\b/, () => part(outline(Array.from({ length: 10 }, (_, i) => {
+    const reach = i % 2 ? 0.1 : 0.23;
+    const angle = (i / 10) * Math.PI * 2 + Math.PI / 2;
+    return [Math.cos(angle) * reach, Math.sin(angle) * reach] as [number, number];
+  })), toon(GOLD))],
+  [/budget|money|financ|pay|bank|invoice|price|cost/, () => part(cylinder(0.18, 0.18, 0.05, 24), toon(GOLD), { turn: [Math.PI / 2, 0, 0] })],
+  [/photo|image|gif|video|meme|media|camera|clip|scene/, () => {
+    const lens = part(cylinder(0.17, 0.17, 0.1, 24), toon("#2a2f37"), { turn: [Math.PI / 2, 0, 0] });
+    lens.add(part(sphere(0.1, 14), toon("#8fd3ff"), { at: [0, 0.04, 0], scale: [1, 0.5, 1], outline: false }));
+    return lens;
+  }],
+  [/auth|secret|leak|\block|secur|password|crypt/, () => {
+    const lock = part(new RoundedBoxGeometry(0.3, 0.24, 0.1, 2, 0.03), toon(GOLD));
+    lock.add(part(new THREE.TorusGeometry(0.09, 0.028, 8, 16, Math.PI), toon("#9aa0a6"), { at: [0, 0.12, 0], outline: false }));
+    return lock;
+  }],
+  [/fast|speed|quick|turbo|perf|instant|lightning/, () => part(outline([[0.04, 0.26], [-0.14, -0.02], [-0.02, -0.02], [-0.06, -0.26], [0.14, 0.04], [0.02, 0.04]]), toon(GOLD))],
+  [/love|health|care|wedding|wish/, () => part(outline([[0, -0.2], [-0.2, 0.02], [-0.2, 0.14], [-0.11, 0.2], [0, 0.12], [0.11, 0.2], [0.2, 0.14], [0.2, 0.02]]), toon("#e5484d"))],
+  [/\bmap|geo|track|travel|locat/, () => {
+    const pin = part(cone(0.1, 0.26), toon("#e5484d"), { turn: [Math.PI, 0, 0] });
+    pin.add(part(sphere(0.13, 14), toon("#e5484d"), { at: [0, -0.14, 0] }));
+    return pin;
+  }],
+  [/cloud|deploy|server|host|docker|kube/, () => {
+    const cloud = part(sphere(0.15, 14), toon("#eef2f6"));
+    for (const x of [-0.16, 0.16]) cloud.add(part(sphere(0.11, 12), toon("#eef2f6"), { at: [x, -0.04, 0] }));
+    return cloud;
+  }],
+  [/tool|config|build|util|plugin|sdk|framework/, (trim) => {
+    const gear = part(new THREE.TorusGeometry(0.13, 0.05, 8, 20), trim, { outline: false });
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      gear.add(part(box(0.07, 0.09, 0.09), trim, { at: [Math.cos(angle) * 0.2, Math.sin(angle) * 0.2, 0], turn: [0, 0, angle + Math.PI / 2], outline: false }));
+    }
+    return gear;
+  }],
+];
+
+/** The first match in the repo's name, else in its description. */
+function about<T>(fighter: Fighter, table: [RegExp, T][]): T | undefined {
+  const name = (fighter.fullName.split("/")[1] ?? fighter.fullName).toLowerCase();
+  const said = (fighter.description ?? "").toLowerCase();
+  return (table.find(([words]) => words.test(name)) ?? table.find(([words]) => words.test(said)))?.[1];
+}
+
 function eye(size: number, tall: number): THREE.Group {
   const group = new THREE.Group();
   group.add(part(sphere(size, 16), toon("#ffffff"), { scale: [1, tall, 0.45] }));
@@ -196,7 +261,14 @@ export function buildCreature(fighter: Fighter): Creature {
   };
 
   const plans = Object.values(PLANS);
-  const plan = plans[pick(random, plans.length)]({ body, random, base, light, dark, accent, add, limbs, spinners });
+  const drawn = plans[pick(random, plans.length)];
+  const plan = (PLANS[about(fighter, BODIES) ?? ""] ?? drawn)({ body, random, base, light, dark, accent, add, limbs, spinners });
+  const emblem = about(fighter, EMBLEMS)?.(accent);
+  if (emblem) {
+    emblem.position.set(0, plan.height + (plan.floats ? 0.25 : 0.45), 0);
+    body.add(emblem);
+    spinners.push(emblem);
+  }
 
   const tall = between(random, 1, 1.45);
   const size = plan.face.size * between(random, 0.9, 1.2);

@@ -87,18 +87,28 @@ export class ArenaWorld {
   private labels: HTMLElement[] = [];
   private host: HTMLElement;
   private reduced: boolean;
+  private disposed = false;
   private onInspect: (where: Where) => void;
 
   /** Throws when the browser can't give a WebGL context. */
-  constructor(host: HTMLElement, options: { reduced: boolean; onInspect: (where: Where) => void }) {
+  constructor(host: HTMLElement, options: { reduced: boolean; lite: boolean; onInspect: (where: Where) => void; onLost: () => void }) {
     this.host = host;
     this.reduced = options.reduced;
     this.onInspect = options.onInspect;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // A phone's screen has three times the pixels of a laptop's and a fraction of the
+    // GPU. Smoothing and soft shadows at that size are what make a phone drop the
+    // context, so a phone gets fewer pixels and plain shadows, and `lite` (the retry
+    // after a drop) gets none of the extras.
+    const phone = window.matchMedia("(pointer: coarse)").matches;
+    this.renderer = new THREE.WebGLRenderer({ antialias: !options.lite && !(phone && window.devicePixelRatio >= 2) });
+    this.renderer.setPixelRatio(options.lite ? 1 : Math.min(window.devicePixelRatio, phone ? 1.75 : 2));
+    this.renderer.shadowMap.enabled = !options.lite;
+    this.renderer.shadowMap.type = phone ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     const canvas = this.renderer.domElement;
+    canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault();
+      if (!this.disposed) options.onLost();
+    });
     canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block";
     canvas.setAttribute("aria-hidden", "true");
     host.append(canvas);
@@ -109,7 +119,7 @@ export class ArenaWorld {
     const sun = new THREE.DirectionalLight(0xffffff, 2.4);
     sun.position.set(-5, 9, 6);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.setScalar(phone ? 512 : 1024);
     Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 30 });
     sun.shadow.bias = -0.0006;
     this.scene.add(sun);
@@ -174,6 +184,7 @@ export class ArenaWorld {
   }
 
   dispose() {
+    this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.observer.disconnect();
     const canvas = this.renderer.domElement;
@@ -334,7 +345,6 @@ export class ArenaWorld {
       impact = delay + 0.72;
       const colour = TYPE[from.fighter?.type ?? "docs"].color;
       const orb = new THREE.Mesh(sphere(1, 16), new THREE.MeshBasicMaterial({ color: colour }));
-      orb.add(new THREE.PointLight(colour, 14, 7));
       const start = new THREE.Vector3();
       const end = to.home.clone().add(new THREE.Vector3(0, 0.6, 0));
       this.after(delay, () => {

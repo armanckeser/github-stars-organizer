@@ -1,10 +1,10 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ChartColumn, Cpu, Globe, Smartphone, Star, Terminal, type LucideIcon } from "lucide-react";
 import { seededRandom, type CardType, type Fighter } from "../../../server/battle";
 
 // A repo as a trading card (issue #45). One rule for the look: the frame is the
 // card's type, the art is the repo's language colour under a commit-graph pattern
-// with the owner's avatar, and every number on the card is a fact about the repo.
+// with the repo's creature, and every number on the card is a fact about the repo.
 // Everything is sized in container units, so the same card works on the bench at
 // 60px wide and in the inspect view at 360px.
 
@@ -60,6 +60,24 @@ function CommitGrid({ seed, ink }: { seed: string; ink: string }) {
   );
 }
 
+/**
+ * The picture of the repo's creature (three/portrait.ts). Null until the 3D engine has
+ * loaded and drawn it, false when this browser can't draw it.
+ */
+function useCreature(fighter: Fighter): string | null | false {
+  const [art, setArt] = useState<{ of: Fighter; image: string | false } | null>(null);
+  useEffect(() => {
+    let live = true;
+    import("./three/portrait")
+      .then(({ portrait }) => live && setArt({ of: fighter, image: portrait(fighter) }))
+      .catch(() => live && setArt({ of: fighter, image: false }));
+    return () => {
+      live = false;
+    };
+  }, [fighter]);
+  return art?.of === fighter ? art.image : null;
+}
+
 function MoveRow({ fighter, index }: { fighter: Fighter; index: 0 | 1 }) {
   const move = fighter.moves[index];
   return (
@@ -75,6 +93,7 @@ function MoveRow({ fighter, index }: { fighter: Fighter; index: 0 | 1 }) {
 
 export function RepoCard({ fighter, tilt = false, className = "" }: { fighter: Fighter; tilt?: boolean; className?: string }) {
   const frame = useRef<HTMLDivElement>(null);
+  const creature = useCreature(fighter);
   const type = TYPE[fighter.type];
   const language = fighter.color && /^#[0-9a-f]{6}$/i.test(fighter.color) ? fighter.color : NO_LANGUAGE;
   const ink = isLight(language) ? "#14171a" : "#ffffff";
@@ -127,7 +146,8 @@ export function RepoCard({ fighter, tilt = false, className = "" }: { fighter: F
             style={{ background: language, margin: "1.6cqw 3cqw 0", borderRadius: "1.6cqw", border: "0.9cqw solid #cfc6ae" }}
           >
             <CommitGrid seed={fighter.fullName} ink={ink} />
-            {fighter.avatarUrl && (
+            {creature && <img src={creature} alt="" className="absolute inset-0 h-full w-full object-contain" style={{ filter: "drop-shadow(0 1.5cqw 2cqw rgba(0,0,0,0.35))" }} draggable={false} />}
+            {creature === false && fighter.avatarUrl && (
               <img
                 src={fighter.avatarUrl}
                 alt=""

@@ -51,7 +51,7 @@ async function newGame(params: URLSearchParams, token: string, key: string): Pro
   const empty = full.find((side) => side.team.length === 0);
   if (empty) return json({ error: `${empty.login} has no public repos to play with.` }, 404);
   const [a, b] = evened(...full);
-  const opening: Opening = { v: 1, players: { a: playerOf(a), b: playerOf(b) }, teams: { a: a.team, b: b.team } };
+  const opening: Opening = { v: 2, players: { a: playerOf(a), b: playerOf(b) }, teams: { a: a.team, b: b.team }, facts: { a: a.facts, b: b.facts } };
   const payload = encodeOpening(opening);
   return json({
     title: `${TITLE}: ${a.login} vs ${b.login}`,
@@ -88,13 +88,20 @@ const DISCUSSION = `id number title url body updatedAt author { login } reposito
 export type Thread = { repo: string; number: number; url: string; title: string; id: string };
 type Match = { thread: Thread; state: GameState };
 
-// A thread is a match when its opening carries teams this Worker signed, and the
-// thread sits in the challenger's own repo, written by the challenger.
-async function matchFrom(discussion: DiscussionNode, token: string, key: string, now: number): Promise<Match | string> {
-  const found = readOpening(discussion.body);
+/** The opening in a thread's first post, once its signature checks out. Needs nothing from GitHub. */
+export async function openingIn(body: string, key: string): Promise<Opening | string> {
+  const found = readOpening(body);
   const opening = found ? decodeOpening(found.payload) : null;
   if (!found || !opening) return "This thread isn't a Stard battle.";
   if ((await sign(key, found.payload)) !== found.signature) return "This battle's opening post was changed, so the match can't be trusted.";
+  return opening;
+}
+
+// A thread is a match when its opening carries teams this Worker signed, and the
+// thread sits in the challenger's own repo, written by the challenger.
+async function matchFrom(discussion: DiscussionNode, token: string, key: string, now: number): Promise<Match | string> {
+  const opening = await openingIn(discussion.body, key);
+  if (typeof opening === "string") return opening;
   const host = opening.players.a.login.toLowerCase();
   if (discussion.author?.login.toLowerCase() !== host || discussion.repository.owner.login.toLowerCase() !== host) {
     return "This battle wasn't opened by its challenger in their own repo.";

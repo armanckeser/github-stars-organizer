@@ -13,16 +13,51 @@
 // - A move comment that was edited is a forfeit by whoever edited it.
 // - The teams in the opening post are signed by the Worker (worker/src/game.ts), so
 //   the host can't touch up the stats.
+// - Since v2 the opening also holds the facts each team was worked out from, read once
+//   from GitHub when the challenge was made, so the teams can be worked out again later
+//   with GitHub out of the picture (teamsFromFacts).
 
-import { matchup, seededRandom, type Fighter, type Side } from "./battle.ts";
-import type { ClassId, Look } from "./character.ts";
+import { fieldTeam, matchup, seededRandom, type Fighter, type RepoFacts, type Side } from "./battle.ts";
+import { defaultCharacter, type Character, type ClassId, type Look } from "./character.ts";
 
 export type Action = { kind: "attack" } | { kind: "special" } | { kind: "guard" } | { kind: "switch"; to: number };
 
 export type GamePlayer = { login: string; name: string; klass: ClassId; look: Look; level: number; avatarUrl: string | null };
 
-/** What the opening post carries. `a` hosts the thread and made the challenge; `b` was challenged. */
-export type Opening = { v: 1; players: Record<Side, GamePlayer>; teams: Record<Side, Fighter[]> };
+/** Where a team's ace came from: the top four in a Stard profile, a pinned repo, the stars, or the player's own repos. */
+export type TeamSource = "profile" | "pinned" | "stars" | "repos";
+
+/** A repo as GitHub described it when the match opened: everything its card's numbers come from. */
+export type FrozenRepo = RepoFacts & {
+  topics: string[];
+  /** Drawn from the player's stars for the day, not chosen by them. */
+  wildcard: boolean;
+};
+
+/** What one side's team was worked out from, read from GitHub once, at `readAt`. */
+export type SideFacts = {
+  /** When GitHub was read, as an ISO time. A card's freshness and age are measured from here. */
+  readAt: string;
+  /** The character as read from the README's trainer card. Null when the README has none. */
+  character: Character | null;
+  /** The ace's full name, and where it was found. */
+  ace: string | null;
+  source: TeamSource;
+  /** Every card the side fielded, in order, before the two teams were cut to the same size. */
+  repos: FrozenRepo[];
+};
+
+type OpeningV1 = { v: 1; players: Record<Side, GamePlayer>; teams: Record<Side, Fighter[]> };
+type OpeningV2 = { v: 2; players: Record<Side, GamePlayer>; teams: Record<Side, Fighter[]>; facts: Record<Side, SideFacts> };
+
+/**
+ * What the opening post carries. `a` hosts the thread and made the challenge; `b` was
+ * challenged. A v1 opening, from before the facts were stored, holds the teams only.
+ */
+export type Opening = OpeningV1 | OpeningV2;
+
+/** An opening from before the facts were stored: its teams stand, but can't be worked out again. */
+export class NoFactsError extends Error {}
 
 export type GameComment = {
   id: string;
@@ -130,10 +165,35 @@ export function encodeOpening(opening: Opening): string {
 export function decodeOpening(payload: string): Opening | null {
   try {
     const opening = JSON.parse(fromBase64Url(payload)) as Opening;
-    return opening?.v === 1 && opening.players?.a && opening.players?.b && Array.isArray(opening.teams?.a) && Array.isArray(opening.teams?.b) ? opening : null;
+    const teamsHeld = opening?.players?.a && opening.players?.b && Array.isArray(opening.teams?.a) && Array.isArray(opening.teams?.b);
+    if (!teamsHeld) return null;
+    if (opening.v === 1) return opening;
+    const factsHeld = opening.v === 2 && Array.isArray(opening.facts?.a?.repos) && Array.isArray(opening.facts?.b?.repos);
+    return factsHeld ? opening : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Both teams worked out again from the facts frozen in the opening, with no call to
+ * GitHub: today's rules applied to what GitHub said at the time. Throws NoFactsError
+ * for a v1 opening, which has no facts to work from.
+ */
+export function teamsFromFacts(opening: Opening): Record<Side, Fighter[]> {
+  if (opening.v === 1) throw new NoFactsError("This match was opened before its facts were stored, so its teams can't be worked out again.");
+  const side = (key: Side): Fighter[] => {
+    const facts = opening.facts[key];
+    const login = opening.players[key].login;
+    const klass = (facts.character ?? defaultCharacter(login)).klass;
+    const fielded = fieldTeam(facts.repos, login, klass, Date.parse(facts.readAt));
+    // The teams were cut to the same size after each was fielded whole, so a perk that
+    // looks at the whole team still counts the cards that were cut.
+    return fielded
+      .map((fighter, i) => (facts.repos[i].wildcard ? { ...fighter, wildcard: true } : fighter))
+      .slice(0, opening.teams[key].length);
+  };
+  return { a: side("a"), b: side("b") };
 }
 
 /** The opening post: a few lines for people, then the signed teams where the page doesn't show them. */

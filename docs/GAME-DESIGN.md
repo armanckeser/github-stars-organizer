@@ -10,6 +10,42 @@ The plan for making battles fun, fair and worth coming back to. The 3D arena is 
 - **Nothing to collect.** A team is whatever is pinned. Starring a repo changes nothing.
 - **Playing needs `npx`.** The demo can only watch.
 
+## Open decision: turns or a run
+
+Decided 2026-11-11: the run. A friend's point: picking a move each turn is an old format, and the instant battle in the demo is something people watch, not play. The alternative is an auto-battler run, the format of Super Auto Pets, Backpack Battles and The Bazaar.
+
+**What those games do**
+
+- The player builds between fights and the fight plays out with no input. All choices are in the build: what to take, what order to stand in, what to combine.
+- Nobody waits for an opponent. Each fight is against a team another player saved at the same round of their own run. Super Auto Pets: "The multiplayer is asynchronous so you aren't rushed or put under a time commitment."
+- A run is short and ends: Super Auto Pets runs to 10 wins or out of lives.
+- Teamfight Tactics' own review of a set: the game is best with many workable teams, never add a rule that limits which cards go together, and give variety through a one-of-three pick (augments) with a reroll. https://teamfighttactics.leagueoflegends.com/en-us/news/dev/dev-teamfight-tactics-dragonlands-learnings/
+
+**How a Stard run would work**
+
+1. Start with the ace.
+2. Each round, a shop shows three repos from the player's stars. Take one, or reroll once. This is the variable reward: someone with 2,000 stars never sees the same shop twice.
+3. Put the team in order, front to back. Order decides who is hit first and who a card's trait helps.
+4. The fight plays in the 3D arena with no input, 20 to 30 seconds, against a saved team from another player at the same round.
+5. After rounds 2 and 4, pick one of three boosts.
+6. The run ends at 5 wins or 3 losses. About five minutes.
+
+- **Sets.** Cards that share a language or a topic give a bonus at 2 and at 3 (three TypeScript cards, two `cli` cards). Types become sets. No rule ever forbids a mix.
+- **Saved teams.** A finished round is saved as a signed snapshot: the cards with their numbers frozen, the order, the boosts. A fight is worked out from two snapshots and a seed, so anyone can replay a fight and get the same result even after the repos change.
+- **Challenge a person.** A challenge link fights that person's latest saved team. No waiting for a reply.
+- **Demo.** Playable with no login: type a username, draft from that account's public stars, fight saved teams. Well-known accounts are seeded so the first visitor has opponents.
+
+**What this replaces**
+
+- Change 5 (sealed moves, both players posting each turn, paste-to-play) is not needed. The hardest part of the plan goes away.
+- The 50-move pool shrinks to one ability per card that fires by a rule ("start of fight", "when hit", "when a teammate faints").
+- Kept: stat budget by rarity, critical hits, conditions, shiny, the ace, the arena.
+
+**Cost**
+
+- The player no longer chooses during a fight. One option in between: one call per fight (when to fire the ace's big move).
+- A match against a friend is two saved teams meeting, not a live back-and-forth.
+
 ## The five changes
 
 ### 1. Play against the computer in the demo (build first)
@@ -206,3 +242,12 @@ Ideas and open items from the design conversations that the sections above don't
 - A deep link to `/compose` answers with a 404 status before the app loads.
 - Two real accounts have not played a whole match.
 - A real README trainer card has not been read by the game end to end.
+
+### Added 2026-11-11
+
+- **Freeze the facts at the start.** A battle's opening state should hold everything the result depends on: each card's numbers, and the character and ace read from the README at that moment. Today the signed opening post holds both teams; the README text and the repo facts behind the numbers are not stored. With that stored, a result can always be recomputed, whatever changes on GitHub later.
+- **`armanckeser` repos are shiny for everyone.** In the plan (change 3); the code still marks a player's own repos.
+- **After a game, one quiet line:** star the Stard repo, and a share button with the versus picture. No popup, nothing blocking the rematch button.
+- **Finding players.** People with many stars get the most from the game (bigger shop, more cards). Find them through GitHub, then send a link to a ready-made battle with their own username in it. Each message is drafted and Armanc sends.
+- **How to say what Stard is.** "Finally give your stars a use." "Starring repos always felt like collecting. Now the collection plays."
+- **No Pokemon name.** The name is a trademark of Nintendo, Creatures and Game Freak. Not in the product, the README or any post. "Creature battle" and "card battle" say enough.

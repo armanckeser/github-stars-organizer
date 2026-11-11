@@ -12,7 +12,7 @@ Rules for every task:
 
 ## The contract all tasks share
 
-Put these in `server/run/types.ts` (Task 1 creates the file; other tasks import from there).
+These are in `server/run/types.ts`. Import from there; a change to them needs a note in the PR, since every task depends on them.
 
 ```ts
 type Card = {
@@ -40,7 +40,7 @@ function fight(a: Snapshot, b: Snapshot, seed: string): FightEvent[]; // pure, s
 - `server/run/fight.ts`: the `fight` function above. Front cards trade hits; speed decides who acts first; 6.25% critical hits at 1.5x; a fight is capped at 40 actions, then the side with more total HP left wins, else a draw.
 - Randomness comes only from the seed (reuse the seeded generator in `server/battle.ts`).
 - `server/run/stats.ts`: a card's numbers from repo facts. Total by rarity is 400/415/430/445/460; each of the four stats gets 15 to 40% of the total, split by the repo's facts (see "stat budget" in the design doc). Shiny adds 5%.
-- The local branch `play-vs-computer` has an unfinished stat budget and balance test for the old turn-based game. Take what fits; it was never run.
+- The branch `play-vs-computer` has an unfinished stat budget and balance test for the old turn-based game. Take what fits; it was never run.
 - Test: over 2,000 fights between random teams, the side listed first wins 47 to 53%, and the team with more total stars wins 45 to 60%.
 
 ## Task 2: abilities, sets and boosts
@@ -74,7 +74,7 @@ Needs Tasks 1 and 2 merged.
 - A match's signed opening post holds both teams. Add what the numbers were worked out from: each repo's stars, forks, language, topics, pushed date, and the character and ace as read from the README, with the time of reading.
 - A test replays a stored opening post and gets the same teams with GitHub unreachable.
 
-## Not for agents (kept for the main session)
+## Taken (being built by the maintainer)
 
 - The run screen: shop, ordering, boost pick, and playing `FightEvent[]` in the 3D arena.
 - Card art from README images.

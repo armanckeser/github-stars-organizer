@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowLeftRight, ExternalLink, Shield, Sparkles, Swords } fro
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
-import { ArenaFigures, ArenaScene, InspectOverlay, Nameplate, Stage, TextBox, repoName, type Stance } from "@/components/battle/arena";
+import { ArenaScene, ArenaStage, InspectOverlay, Nameplate, TextBox, repoName, type SideView, type Stance } from "@/components/battle/arena";
 import { RepoCard } from "@/components/battle/repo-card";
 import { CAN_PLAY, fetchMatch, playingAs, postComment, type Match } from "@/lib/game-api";
 import type { Fighter, Side } from "../../server/battle";
@@ -182,27 +182,38 @@ function GamePage() {
     // A knocked-out card has already been replaced by the next in line.
     return lastEvent.knockedOut ? (state.status === "won" ? "ko" : "enter") : "hit";
   };
-  const stageOf = (side: Side) => {
+  const sideOf = (side: Side): SideView => {
+    const hit = lastEvent && lastEvent.side !== side && lastEvent.damage !== undefined ? { damage: lastEvent.damage, critical: lastEvent.critical ?? false } : undefined;
+    return {
+      fighter: state.teams[side][state.sides[side].active],
+      look: state.players[side].look,
+      stance: stanceOf(side),
+      hit,
+      special: lastEvent?.side === side && lastEvent.action === "special",
+      guarding: state.sides[side].guarding,
+      won: state.status === "won" && state.winner === side,
+    };
+  };
+  const plateOf = (side: Side) => {
     const sideState = state.sides[side];
     const fighter = state.teams[side][sideState.active];
-    const struck = lastEvent && lastEvent.side !== side && lastEvent.damage !== undefined && !lastEvent.knockedOut ? { damage: lastEvent.damage, critical: lastEvent.critical ?? false } : undefined;
     const player = state.players[side];
     return (
-      <>
-        <Stage fighter={fighter} near={side === near} stance={stanceOf(side)} hit={struck} guarding={sideState.guarding} beat={state.events.length} onInspect={() => setInspecting(fighter)} />
-        <Nameplate
-          near={side === near}
-          owner={`${player.name}${player.klass === "rookie" ? "" : ` · ${CLASSES[player.klass].label}`}`}
-          avatarUrl={player.avatarUrl}
-          fighter={fighter}
-          hp={sideState.hp[sideState.active]}
-          left={sideState.hp.filter((v) => v > 0).length}
-          total={sideState.hp.length}
-          energy={sideState.energy[sideState.active]}
-        />
-      </>
+      <Nameplate
+        near={side === near}
+        owner={`${player.name}${player.klass === "rookie" ? "" : ` · ${CLASSES[player.klass].label}`}`}
+        avatarUrl={player.avatarUrl}
+        fighter={fighter}
+        hp={sideState.hp[sideState.active]}
+        left={sideState.hp.filter((v) => v > 0).length}
+        total={sideState.hp.length}
+        energy={sideState.energy[sideState.active]}
+        onInspect={() => setInspecting(fighter)}
+      />
     );
   };
+  const nearSide = sideOf(near);
+  const farSide = sideOf(other(near));
 
   const can = (kind: Action["kind"]) => legal.some((action) => action.kind === kind);
   const attack = myTurn && mine ? preview(state, seed, mine, { kind: "attack" }) : null;
@@ -218,14 +229,14 @@ function GamePage() {
         <Link to="/battle" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" /> Battle</Link>
         <h1 className="min-w-0 flex-1 truncate font-display text-xl font-bold tracking-tight sm:text-2xl">{state.players.a.name} vs {state.players.b.name}</h1>
         <a href={match.thread.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          The thread on GitHub <ExternalLink className="size-3.5" />
+          GitHub thread <ExternalLink className="size-3.5" />
         </a>
       </div>
 
       <ArenaScene>
-        <ArenaFigures near={state.players[near].look} far={state.players[other(near)].look} />
-        {stageOf(other(near))}
-        {stageOf(near)}
+        <ArenaStage near={nearSide} far={farSide} beat={state.events.length} onInspect={(where) => setInspecting(where === "near" ? nearSide.fighter : farSide.fighter)} />
+        {plateOf(other(near))}
+        {plateOf(near)}
         <TextBox strong={state.status !== "active"}>
           {lastEvent && state.status === "active" ? `${describe(state, lastEvent)} ${statusLine(state, mine)}` : statusLine(state, mine)}
         </TextBox>

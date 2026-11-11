@@ -144,11 +144,23 @@ export class BoardWorld {
       this.trainers[side] = null;
       if (!look) return;
       const trainer = buildTrainer(look);
-      trainer.root.position.copy(side === 0 ? new THREE.Vector3(-COLS * CELL * 0.5 - 0.8, 0.05, CELL * 0.4) : new THREE.Vector3(COLS * CELL * 0.5 + 0.9, 0.05, -CELL * 0.9));
       trainer.root.scale.setScalar(0.8);
-      trainer.root.rotation.y = side === 0 ? Math.PI * 0.75 : -Math.PI * 0.25;
       this.scene.add(trainer.root);
       this.trainers[side] = trainer;
+    });
+    this.post();
+  }
+
+  // Where the two characters stand: beside the board on a wide screen, and at its near
+  // and far ends on an upright phone, where the sides are off the screen.
+  private post() {
+    const upright = this.camera.aspect < 1;
+    this.trainers.forEach((trainer, side) => {
+      if (!trainer) return;
+      const sign = side === 0 ? 1 : -1;
+      if (upright) trainer.root.position.set(-sign * CELL * 1.5, 0.05, sign * (ROWS * CELL + 0.75));
+      else trainer.root.position.set(-sign * (COLS * CELL * 0.5 + 0.85), 0.05, sign * CELL * (side === 0 ? 0.4 : 0.9));
+      trainer.root.rotation.y = upright ? (side === 0 ? Math.PI : 0) : side === 0 ? Math.PI * 0.75 : -Math.PI * 0.25;
     });
   }
 
@@ -463,14 +475,15 @@ export class BoardWorld {
     // The shop covers the bottom of the view, so the camera aims in front of the board to lift the board clear.
     if (this.camera.aspect < 1) {
       this.camera.fov = 50;
-      this.eye.set(0, 10.6, 8.5);
-      this.aim.set(0, 0, 0.55);
+      this.eye.set(0, 12.2, 7.4);
+      this.aim.set(0, 0, 0.5);
     } else {
       this.camera.fov = 34;
       this.eye.set(0, 7.0, 7.8);
       this.aim.set(0, 0, 0.85);
     }
     this.camera.updateProjectionMatrix();
+    this.post();
   }
 
   private ray(event: PointerEvent) {

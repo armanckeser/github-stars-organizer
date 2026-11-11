@@ -7,6 +7,7 @@ import { DEMO } from "@/lib/demo";
 import { APP_MODE } from "@/lib/mode";
 import { importFromGitHub, scoreHealth } from "@/lib/local-sync";
 import { DemoUserForm } from "@/components/demo-user-form";
+import { PlayFirst } from "@/components/play-first";
 import { AstralImportDialog } from "@/components/astral-import-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -218,6 +219,7 @@ function AllStarsPage() {
 
   return (
     <div className="space-y-6">
+      <PlayFirst />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">

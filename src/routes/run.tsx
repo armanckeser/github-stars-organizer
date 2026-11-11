@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo, useState } from "react";
-import { CircleHelp, Coins, Crosshair, Dices, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { CircleHelp, Coins, Crosshair, Dices, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay, repoName } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
+import { RunStart } from "@/components/battle/run-start";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
 import { demoUser } from "@/lib/demo";
@@ -79,6 +79,14 @@ function RunPage() {
   const [profile, setProfile] = useState<Player | null>(null);
   const [help, setHelp] = useState(false);
 
+  // A link with ?me= starts the run on load, so opening the link is all it takes.
+  const linked = search.me && validLogin(search.me) ? search.me.trim() : null;
+  useEffect(() => {
+    if (linked) void start(linked);
+    // Once, for the address the page was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? teamSizeAt(round.number) : 0;
   const fighting = played !== null && !played.over;
@@ -100,13 +108,14 @@ function RunPage() {
     }
   }
 
-  async function start(event?: React.FormEvent) {
-    event?.preventDefault();
-    if (!validLogin(login)) return;
+  async function start(who = login.trim()) {
+    if (!validLogin(who)) return;
     setLoading(true);
     setError("");
     try {
-      const me = await fetchPlayer(login.trim());
+      // Round 1's opponent is known from the name alone, so both teams are read at once.
+      fetchPlayer(opponentLogin(who, 1)).catch(() => {});
+      const me = await fetchPlayer(who);
       const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
       setPlayer(me);
       setUnits(team);
@@ -231,13 +240,7 @@ function RunPage() {
 
       {!player && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 p-4">
-          <form onSubmit={start} className={`${PANEL} w-full max-w-sm space-y-3 p-5`}>
-            <h1 className="font-display text-2xl font-bold tracking-tight">Play</h1>
-            <p className="text-sm text-white/70">Build a team from your stars. {WINS_TO_FINISH} wins finishes a run, {LOSSES_TO_END} losses ends one.</p>
-            <Input value={login} onChange={(e) => setLogin(e.target.value.replace(/^@/, ""))} placeholder="Your GitHub username" aria-label="Your GitHub username" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
-            <Button type="submit" className="w-full" disabled={!validLogin(login) || loading}><Play /> {loading ? "Reading your stars..." : "Start a run"}</Button>
-            {error && <p className="text-sm text-[#ff8f93]" role="alert">{error}</p>}
-          </form>
+          <RunStart login={login} onLogin={setLogin} onStart={(who) => void start(who)} loading={loading} error={error} starting={linked} intro={`Build a team from your stars. ${WINS_TO_FINISH} wins finishes a run, ${LOSSES_TO_END} losses ends one.`} className={`${PANEL} w-full max-w-md p-5`} />
         </div>
       )}
 

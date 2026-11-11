@@ -1,4 +1,5 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
+import { BATTLE_PATH, battleResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 
 type Env = { GITHUB_TOKEN: string };
@@ -70,14 +71,18 @@ export default {
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
 
     const card = CARD_PATH.exec(url.pathname);
-    if (card) {
+    const fight = BATTLE_PATH.exec(url.pathname);
+    if (card || fight) {
       // Sorted, so one card asked for with its parameters in another order shares an entry.
       url.searchParams.sort();
-      const cardKey = new Request(url.toString());
-      const cachedCard = await caches.default.match(cardKey);
-      if (cachedCard) return cachedCard;
-      const response = await cardResponse(card[1], url.searchParams, env.GITHUB_TOKEN);
-      if (response.headers.get("Cache-Control") !== "no-store") context.waitUntil(caches.default.put(cardKey, response.clone()));
+      // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
+      const key = new Request(fight ? url.toString().toLowerCase() : url.toString());
+      const cached = await caches.default.match(key);
+      if (cached) return cached;
+      const response = fight
+        ? await battleResponse(fight[1], url.searchParams, env.GITHUB_TOKEN)
+        : await cardResponse(card![1], url.searchParams, env.GITHUB_TOKEN);
+      if (response.headers.get("Cache-Control") !== "no-store") context.waitUntil(caches.default.put(key, response.clone()));
       return response;
     }
     if (url.pathname !== "/api/lists") return json({ error: "Not found." }, 404);

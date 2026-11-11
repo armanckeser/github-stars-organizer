@@ -197,3 +197,16 @@ input[type="search"]::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
+
+/* The Battle screen: the card that hits moves toward the other side, the card that is hit shakes. */
+@keyframes battle-lunge-right {
+  40% { transform: translateX(14%) rotate(2deg); }
+}
+@keyframes battle-lunge-left {
+  40% { transform: translateX(-14%) rotate(-2deg); }
+}
+@keyframes battle-hit {
+  20% { transform: translateX(-3%); filter: brightness(1.6); }
+  40% { transform: translateX(3%); }
+  60% { transform: translateX(-2%); filter: none; }
+}

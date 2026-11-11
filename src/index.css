@@ -665,3 +665,149 @@ button.hud-chip:hover {
     padding: 4px 5px;
   }
 }
+
+/* The boost pick (src/components/run/boost-pick.tsx): three lit medallions held over the board, the board dimmed but in view. */
+.boost-pick {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1rem;
+  background: radial-gradient(70% 60% at 50% 48%, rgb(6 8 11 / 0.45), rgb(6 8 11 / 0.86));
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+  animation: boost-in 220ms ease-out both;
+}
+.boost-row {
+  display: flex;
+  justify-content: center;
+  gap: clamp(0.75rem, 4vw, 3rem);
+}
+.boost-medal {
+  width: clamp(6.5rem, 26vw, 12rem);
+  text-align: center;
+  outline: none;
+  animation: boost-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--order) * 70ms + 60ms);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease-out, filter 260ms ease-out;
+}
+.boost-coin {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 14px 18px rgb(0 0 0 / 0.7));
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), filter 180ms ease-out;
+}
+.boost-coin::before {
+  /* The enamel's light thrown on the board under the medallion. */
+  content: "";
+  position: absolute;
+  inset: 12% 8% -14%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--enamel) 55%, transparent), transparent);
+  filter: blur(14px);
+  opacity: 0.55;
+  z-index: -1;
+  transition: opacity 180ms ease-out;
+}
+.boost-coin img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.boost-coin-blank {
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #f0c76a, #9a6a12);
+}
+.boost-medal:hover .boost-coin,
+.boost-medal:focus-visible .boost-coin {
+  transform: translateY(-8px) rotate(-3deg);
+  filter: drop-shadow(0 22px 22px rgb(0 0 0 / 0.75)) brightness(1.08);
+}
+.boost-medal:hover .boost-coin::before,
+.boost-medal:focus-visible .boost-coin::before {
+  opacity: 0.95;
+}
+.boost-medal:focus-visible {
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.boost-medal[data-state="chosen"] {
+  transform: translateY(-14px) scale(1.1);
+}
+.boost-medal[data-state="passed"] {
+  opacity: 0;
+  transform: translateY(24px) scale(0.92);
+}
+.boost-peek,
+.boost-return {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 2.25rem;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: 700 14px/1 var(--font-display);
+  font-stretch: 108%;
+  color: rgb(230 237 243 / 0.8);
+  background: rgb(255 255 255 / 0.07);
+  outline: none;
+  transition: background 120ms ease-out, opacity 200ms ease-out;
+}
+.boost-peek:hover,
+.boost-return:hover {
+  background: rgb(255 255 255 / 0.13);
+}
+.boost-peek:disabled {
+  opacity: 0;
+}
+.boost-return {
+  position: absolute;
+  top: 3.5rem;
+  left: 50%;
+  z-index: 20;
+  translate: -50% 0;
+  color: #ffe08a;
+  background: rgb(9 12 16 / 0.88);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.5);
+}
+@keyframes boost-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes boost-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boost-pick,
+  .boost-medal {
+    animation: none;
+  }
+  .boost-medal,
+  .boost-coin {
+    transition: opacity 120ms linear;
+  }
+  .boost-medal:hover .boost-coin,
+  .boost-medal:focus-visible .boost-coin,
+  .boost-medal[data-state] {
+    transform: none;
+  }
+}
+@media (max-width: 639px) {
+  .boost-medal .text-lg {
+    font-size: 15px;
+  }
+  .boost-medal .text-\[13px\] {
+    font-size: 12px;
+  }
+}

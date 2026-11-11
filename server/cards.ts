@@ -291,3 +291,66 @@ export function battleCard(a: BattleSide, b: BattleSide, winner: "a" | "b" | nul
 export function messageCard(message: string): string {
   return card(96, message, `<text x="${PAD}" y="54" font-size="15" fill="${BODY}">${escapeXml(truncate(message, 90))}</text>`);
 }
+
+// The colour of each card type, the same six the app uses.
+export const TYPE_COLOR = { systems: "#d9482b", scripts: "#7c5cd6", web: "#1f8fe0", apps: "#1fa866", data: "#d99a0b", docs: "#77818d" } as const;
+
+export type VersusSide = {
+  login: string;
+  /** The character's name and class, and the class colour the side is tinted with. */
+  name: string;
+  klass: string;
+  tint: string;
+  look: Character["look"];
+  avatar: string | null;
+  team: { name: string; color: string; shiny: boolean }[];
+};
+
+const SHARE_WIDTH = 1200;
+const SHARE_HEIGHT = 630;
+
+/**
+ * Two players face to face before a battle, at the size link previews ask for. Drawn
+ * to be turned into a PNG (worker/src/share.ts), so it names one font, the one the
+ * Worker carries, in place of the system fonts the other cards use.
+ */
+export function versusCard(a: VersusSide, b: VersusSide, font: string): string {
+  const side = (player: VersusSide, right: boolean): string => {
+    // Everything is laid out for the left side; the right side mirrors each x.
+    const x = (value: number) => (right ? SHARE_WIDTH - value : value);
+    const anchor = right ? "end" : "start";
+    const size = Math.min(56, Math.floor(320 / (Math.max(player.login.length, 6) * 0.62)));
+    const id = right ? "b" : "a";
+    let out = `<g transform="translate(${x(36)},262) scale(${right ? -1 : 1},1)"><svg width="232" height="330" viewBox="0 0 120 170">${figureSvg(player.look)}</svg></g>`;
+    out += `<clipPath id="face-${id}"><circle cx="${x(100)}" cy="112" r="46"/></clipPath>`;
+    out += `<circle cx="${x(100)}" cy="112" r="50" fill="${player.tint}"/>`;
+    if (player.avatar) out += `<image href="${player.avatar}" x="${x(100) - 46}" y="66" width="92" height="92" clip-path="url(#face-${id})" preserveAspectRatio="xMidYMid slice"/>`;
+    out += `<text x="${x(168)}" y="${112 + size * 0.1}" text-anchor="${anchor}" font-size="${size}" letter-spacing="-1" fill="${TEXT}">${escapeXml(player.login)}</text>`;
+    // A character nobody built has the username for a name and no class worth showing.
+    const under = [player.klass === "Rookie" ? "" : player.klass, player.name.toLowerCase() === player.login.toLowerCase() ? "" : player.name].filter(Boolean).join(" · ");
+    out += `<text x="${x(170)}" y="${152 + size * 0.1}" text-anchor="${anchor}" font-size="24" fill="${BODY}">${escapeXml(truncate(under, 24))}</text>`;
+    player.team.slice(0, 4).forEach((card, i) => {
+      const top = 262 + i * 80;
+      const left = right ? x(548) : 292;
+      out += `<rect x="${left}" y="${top}" width="256" height="64" rx="12" fill="#12161c" stroke="${card.shiny ? STAR : EDGE}" stroke-width="2"/>`;
+      out += `<rect x="${right ? left + 244 : left}" y="${top}" width="12" height="64" rx="6" fill="${card.color}"/>`;
+      out += `<text x="${right ? left + 228 : left + 28}" y="${top + 41}" text-anchor="${anchor}" font-size="25" letter-spacing="-0.3" fill="${TEXT}">${escapeXml(truncate(card.name, 15))}</text>`;
+    });
+    return out;
+  };
+  const title = `${a.login} vs ${b.login}`;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" viewBox="0 0 ${SHARE_WIDTH} ${SHARE_HEIGHT}" role="img" aria-label="${escapeXml(title)}" font-family="${font}" font-weight="700">` +
+    `<rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="#0b0e12"/>` +
+    `<polygon points="0,0 648,0 552,${SHARE_HEIGHT} 0,${SHARE_HEIGHT}" fill="${a.tint}" opacity="0.34"/>` +
+    `<polygon points="648,0 ${SHARE_WIDTH},0 ${SHARE_WIDTH},${SHARE_HEIGHT} 552,${SHARE_HEIGHT}" fill="${b.tint}" opacity="0.3"/>` +
+    `<line x1="648" y1="0" x2="552" y2="${SHARE_HEIGHT}" stroke="#ffffff" stroke-opacity="0.25" stroke-width="3"/>` +
+    side(a, false) +
+    side(b, true) +
+    `<text x="605" y="165" text-anchor="middle" font-size="128" letter-spacing="-5" fill="${STAR}">VS</text>` +
+    `<text x="600" y="160" text-anchor="middle" font-size="128" letter-spacing="-5" fill="#ffffff">VS</text>` +
+    `<polygon points="${star(566, 596, 9)}" fill="${STAR}"/>` +
+    `<text x="582" y="604" font-size="24" letter-spacing="-0.3" fill="${TEXT}">stard</text>` +
+    `</svg>`
+  );
+}

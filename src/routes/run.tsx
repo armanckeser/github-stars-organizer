@@ -13,7 +13,7 @@ import { APP_URL, validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type Unit } from "@/lib/run";
 import type { Fighter } from "../../server/battle";
 import { CLASSES } from "../../server/character";
-import { plainFight } from "../../server/run/plain-fight";
+import { fight as playFight } from "../../server/run/fight";
 import { cellOf, type Side } from "../../server/run/types";
 
 // The Play screen: a run, played on one board. The player buys cards from the shop
@@ -157,7 +157,7 @@ function RunPage() {
   function fight() {
     if (!player || !round) return;
     const seed = `${player.login}|${round.opponent.login}|${round.number}|${today()}`;
-    const events = plainFight(snapshot(player.login, round.number, units), snapshot(round.opponent.login, round.number, round.theirs), seed);
+    const events = playFight(snapshot(player.login, round.number, units), snapshot(round.opponent.login, round.number, round.theirs), seed);
     setSelected(null);
     setPlayed({ fight: { key: `${seed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner: winnerOf(events), over: false });
   }

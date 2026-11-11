@@ -1,4 +1,4 @@
-import { battle, fieldTeam, instantSeed, type Fighter, type RepoFacts } from "../../server/battle.ts";
+import { battle, drawFromStars, fieldTeam, instantSeed, type Fighter, type RepoFacts } from "../../server/battle.ts";
 import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
 import { characterFrom, characterIn, characterLevel, defaultCharacter, type Character } from "../../server/character.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
@@ -41,10 +41,10 @@ type FactsNode = {
   releases: { totalCount: number };
 };
 
-type TeamSource = "profile" | "pinned" | "repos";
+type TeamSource = "profile" | "pinned" | "stars" | "repos";
 // `custom` says the character came from a trainer card in the README, not the default.
 type Player = Character & TrainerFacts & { custom: boolean };
-type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[] };
+export type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[] };
 
 // What GitHub knows about a person that their character shows.
 const PLAYER = `createdAt followers { totalCount }
@@ -62,11 +62,11 @@ function trainerFacts(node: PlayerNode): TrainerFacts {
   };
 }
 
-class NoSuchUser extends Error {}
+export class NoSuchUser extends Error {}
 
 // GitHub answers a query that names a missing repo with data and an error side by
 // side, so partial data is fine here; only a reply with no data at all is a failure.
-async function gql<T>(token: string, query: string): Promise<T> {
+export async function gql<T>(token: string, query: string): Promise<T> {
   const response = await fetch("https://api.github.com/graphql", {
     method: "POST",
     headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json", "User-Agent": "stars-demo-lists" },
@@ -105,9 +105,27 @@ export function topFourIn(readme: string): string[] {
   return repos.split(",").filter((name) => REPO.test(name)).slice(0, TEAM_SIZE);
 }
 
-// A player's team is the top four in their Stard profile. Someone who hasn't made a
-// profile still gets a team they chose: their pinned repos, then their own most-starred.
-async function teamFor(token: string, login: string, now: number): Promise<Team> {
+const WILDCARDS = 1;
+
+async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
+  if (names.length === 0) return [];
+  const found = await gql<Record<string, FactsNode | null>>(
+    token,
+    `query {${names
+      .map((repo, i) => {
+        const [owner, repoName] = repo.split("/");
+        return ` r${i}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(repoName)}) { ${FACTS} }`;
+      })
+      .join("")} }`,
+  );
+  return names.flatMap((_, i) => found[`r${i}`] ?? []);
+}
+
+// A player's team is the four they chose plus one wildcard drawn from their stars for
+// the day. The four are the top four in their Stard profile, else their pinned repos.
+// Someone who chose neither plays a whole team drawn from their stars; someone with
+// no stars either plays their own most-starred repos.
+export async function teamFor(token: string, login: string, now: number): Promise<Team> {
   const name = JSON.stringify(login);
   const data = await gql<{
     user: (PlayerNode & {
@@ -116,6 +134,7 @@ async function teamFor(token: string, login: string, now: number): Promise<Team>
       profile: { readme: { text?: string } | null } | null;
       pinnedItems: { nodes: (FactsNode | Record<string, never>)[] };
       repositories: { nodes: FactsNode[] };
+      starredRepositories: { nodes: { nameWithOwner: string; isPrivate: boolean }[] };
     }) | null;
   }>(
     token,
@@ -126,38 +145,38 @@ async function teamFor(token: string, login: string, now: number): Promise<Team>
       profile: repository(name: ${name}) { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
       pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${FACTS} } } }
       repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${FACTS} } }
+      starredRepositories(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { nodes { nameWithOwner isPrivate } }
     } }`,
   );
   if (!data.user) throw new NoSuchUser(login);
   const user = data.user;
 
-  let source: TeamSource = "profile";
-  let nodes: FactsNode[] = [];
   const readme = user.profile?.readme?.text ?? "";
   const built = characterIn(readme, user.login);
   const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
-  const picked = topFourIn(readme);
-  if (picked.length > 0) {
-    const found = await gql<Record<string, FactsNode | null>>(
-      token,
-      `query {${picked
-        .map((repo, i) => {
-          const [owner, repoName] = repo.split("/");
-          return ` r${i}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(repoName)}) { ${FACTS} }`;
-        })
-        .join("")} }`,
-    );
-    nodes = picked.flatMap((_, i) => found[`r${i}`] ?? []);
-  }
-  if (nodes.length === 0) {
+
+  let source: TeamSource = "profile";
+  let chosen = await factsFor(token, topFourIn(readme));
+  if (chosen.length === 0) {
     source = "pinned";
-    nodes = user.pinnedItems.nodes.filter((node): node is FactsNode => "nameWithOwner" in node);
+    chosen = user.pinnedItems.nodes.filter((node): node is FactsNode => "nameWithOwner" in node);
   }
-  if (nodes.length === 0) {
+  const stars = user.starredRepositories.nodes.filter((repo) => !repo.isPrivate).map((repo) => repo.nameWithOwner);
+  if (chosen.length === 0 && stars.length > 0) source = "stars";
+  // Drawn in one go: the wildcard, and the whole team when nothing was chosen.
+  const drawn = await factsFor(
+    token,
+    drawFromStars(stars, chosen.map((node) => node.nameWithOwner), (chosen.length === 0 ? TEAM_SIZE : 0) + WILDCARDS, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
+  );
+  if (chosen.length === 0 && drawn.length === 0) {
     source = "repos";
-    nodes = user.repositories.nodes;
+    chosen = user.repositories.nodes;
   }
-  return { login: user.login, avatarUrl: user.avatarUrl, source, character, team: fieldTeam(nodes.map(toFacts), user.login, character.klass, now) };
+  // The wildcard is the last card drawn, when there is a team for it to join.
+  const wildcards = chosen.length > 0 ? drawn.length : Math.min(WILDCARDS, Math.max(0, drawn.length - 1));
+  const nodes = [...chosen, ...drawn];
+  const team = fieldTeam(nodes.map(toFacts), user.login, character.klass, now).map((fighter, i) => (i >= nodes.length - wildcards ? { ...fighter, wildcard: true } : fighter));
+  return { login: user.login, avatarUrl: user.avatarUrl, source, character, team };
 }
 
 function json(body: unknown, status: number, cacheSeconds: number): Response {

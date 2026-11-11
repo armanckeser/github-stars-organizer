@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { battle, fieldTeam, fighterFor, instantSeed, matchup, seededRandom, typeOf, type Fighter, type RepoFacts } from "./battle.ts";
+import { battle, drawFromStars, fieldTeam, fighterFor, instantSeed, matchup, seededRandom, typeOf, type Fighter, type RepoFacts } from "./battle.ts";
 
 const NOW = Date.parse("2026-11-10T00:00:00Z");
 const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
@@ -88,6 +88,25 @@ describe("cards", () => {
     expect(shiny.attack).toBeGreaterThan(plain.attack);
     expect(retired.retired).toBe(true);
     expect(retired.attack).toBeLessThan(plain.attack);
+  });
+});
+
+describe("drawing from stars", () => {
+  const stars = ["a/1", "a/2", "a/3", "a/4", "a/5", "a/6"];
+
+  test("is the same for the same seed and differs between seeds", () => {
+    expect(drawFromStars(stars, [], 3, "octo|2026-11-10")).toEqual(drawFromStars(stars, [], 3, "octo|2026-11-10"));
+    const days = new Set(Array.from({ length: 12 }, (_, day) => drawFromStars(stars, [], 1, `octo|${day}`)[0]));
+    expect(days.size).toBeGreaterThan(1);
+  });
+
+  test("never draws a repo twice or one that is already on the team", () => {
+    const drawn = drawFromStars(stars, ["A/1", "a/2"], 10, "seed");
+    expect(drawn).toHaveLength(4);
+    expect(new Set(drawn).size).toBe(4);
+    expect(drawn).not.toContain("a/1");
+    expect(drawn).not.toContain("a/2");
+    expect(drawFromStars([], [], 2, "seed")).toEqual([]);
   });
 });
 

@@ -66,6 +66,8 @@ export type Fighter = {
   retired: boolean;
   /** The player's class makes this card stronger. */
   perk: boolean;
+  /** Drawn from the player's stars for the day, not chosen by them. */
+  wildcard?: boolean;
 };
 
 export type Side = "a" | "b";
@@ -319,6 +321,20 @@ export function battle(a: Fighter[], b: Fighter[], seed: string): BattleResult {
 
 function hpLeft(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0);
+}
+
+/**
+ * Repos drawn from someone's stars: `count` of them, none from `exclude`, the same
+ * draw for the same seed. The seed is the username and the date, so a player's
+ * wildcard changes every day and everyone sees the same one.
+ */
+export function drawFromStars(starred: string[], exclude: string[], count: number, seed: string): string[] {
+  const taken = new Set(exclude.map((name) => name.toLowerCase()));
+  const pool = starred.filter((name) => !taken.has(name.toLowerCase()));
+  const random = seededRandom(seed);
+  const drawn: string[] = [];
+  while (drawn.length < count && pool.length > 0) drawn.push(pool.splice(Math.floor(random() * pool.length), 1)[0]);
+  return drawn;
 }
 
 /** The seed for an instant battle: the same matchup gives the same fight all day (UTC). */

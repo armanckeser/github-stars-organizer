@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { openBattleThread, parseBattleComment, parseChallenge, postBattleComment } from "./game-github.ts";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createAuth, type Auth } from "./auth.ts";
@@ -472,6 +473,33 @@ export function createApp(options: AppOptions): Hono {
       return {};
     });
     return c.json(result);
+  });
+
+  // A battle's thread and its moves, posted as whoever the token belongs to (server/game-github.ts).
+  app.post("/api/game/challenge", async (c) => {
+    const payload = await c.req.json().catch(() => ({}));
+    const token = resolveGitHubToken(payload);
+    if (!token) return c.json(NO_TOKEN, 400);
+    try {
+      const { title, body } = parseChallenge(payload);
+      const github = createGitHubClient(token, options.githubApiUrl);
+      const { login } = await tokenInfo(github);
+      return c.json(await openBattleThread(github.graphql, login, title, body));
+    } catch (error) {
+      return gitHubRefused(c, "open the battle's thread", error);
+    }
+  });
+
+  app.post("/api/game/comment", async (c) => {
+    const payload = await c.req.json().catch(() => ({}));
+    const token = resolveGitHubToken(payload);
+    if (!token) return c.json(NO_TOKEN, 400);
+    try {
+      const { repo, number, body } = parseBattleComment(payload);
+      return c.json(await postBattleComment(createGitHubClient(token, options.githubApiUrl).graphql, repo, number, body));
+    } catch (error) {
+      return gitHubRefused(c, "post to the battle's thread", error);
+    }
   });
 
   app.post("/api/star-self", async (c) => {

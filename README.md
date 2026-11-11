@@ -49,6 +49,7 @@ I starred hundreds of repos over the years and could never find anything again. 
 | **Similar repos** | For any star, and active alternatives for the ones nobody maintains anymore. |
 | **Tags, ratings, notes** | On top of your stars, searchable and filterable. |
 | **Explore** | Charts of your stars by language, health and last commit, and what kinds of repos you starred over time. |
+| **Awesome list** | Your Lists as a README for your own awesome repo: pick sections and highlights, leave out archived and quiet repos, then copy or download the Markdown. |
 | **AI sorting** | Claude Code, Codex or any agent that can run `curl` reads your stars, suggests Lists and sorts repos into them once you agree. The robot icon beside **Import Stars** gives you the prompt, or install the skill with `npx skills add armanckeser/github-stars-organizer`. [AGENT-API.md](AGENT-API.md) has the API. |
 | **Search for your agent** | `npx github-stars-organizer search pdf parser` lists the stars that match, with their Lists and whether each is still alive. To have Claude Code or Codex check your stars before suggesting a library or tool, add this line to your `CLAUDE.md` or `AGENTS.md`: "Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred. If my pick is quiet or hasn't released in a year, say so and name the current alternative." |
 | **Backups** | A backup before every launch, and a restore that only adds back what's missing. |

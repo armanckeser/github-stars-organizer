@@ -51,7 +51,7 @@ export function parseBackup(json: unknown): Backup {
   const result = backupSchema.safeParse(json);
   if (result.success) return result.data;
   const header = json as { format?: unknown; version?: unknown } | null;
-  if (header?.format !== BACKUP_FORMAT) throw new InvalidBackupError("This file isn't a Stars Organizer backup.");
+  if (header?.format !== BACKUP_FORMAT) throw new InvalidBackupError("This file isn't a Stard backup.");
   if (typeof header.version === "number" && header.version > BACKUP_VERSION) {
     throw new InvalidBackupError("This backup was made by a newer version. Update with `npx github-stars-organizer@latest`.");
   }

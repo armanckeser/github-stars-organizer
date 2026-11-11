@@ -47,7 +47,7 @@ export default defineConfig({
   ],
   // The demo's /api/lists is a Cloudflare Worker in production; in dev it is
   // `npm run dev` in worker/, on wrangler's default port.
-  server: process.env.VITE_DEMO === "1" ? { proxy: { "/api": "http://localhost:8787" } } : undefined,
+  server: process.env.VITE_DEMO === "1" ? { proxy: { "/api": process.env.DEMO_WORKER ?? "http://localhost:8787" } } : undefined,
   // The version the npx package publishes, shown in the app's footer.
   define: { __APP_VERSION__: JSON.stringify(cliPackage.version) },
   resolve: {

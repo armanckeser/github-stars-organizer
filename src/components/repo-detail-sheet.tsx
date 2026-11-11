@@ -40,7 +40,7 @@ function HealthBar({ value, max = 10, label, detail }: { value: number; max?: nu
   );
 }
 
-function StarRating({ value, onChange }: { value: number | null; onChange: (rating: number | null) => void }) {
+export function StarRating({ value, onChange }: { value: number | null; onChange: (rating: number | null) => void }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const display = hovered ?? value ?? 0;
 

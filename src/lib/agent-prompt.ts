@@ -14,10 +14,21 @@ export function agentPrompt(signInEnabled: boolean): string {
   // The demo has no API of its own; it shows the prompt for the npx version it points people to.
   const origin = APP_MODE === "demo" ? NPX_ORIGIN : window.location.origin;
   if (APP_MODE === "local" || APP_MODE === "demo") {
-    return `Stars Organizer is running at ${origin}. Read ${AGENT_GUIDE_URL}, then fetch my stars and Lists with POST /api/local/import. ${ASK}`;
+    return `Stard is running at ${origin}. Read ${AGENT_GUIDE_URL}, then fetch my stars and Lists with POST /api/local/import. ${ASK}`;
   }
   const auth = signInEnabled
     ? " Send every request with the header Authorization: Bearer <AGENT_API_TOKEN> (I'll give you the token)."
     : "";
-  return `Stars Organizer is self-hosted at ${origin}. Read ${AGENT_GUIDE_URL}#self-hosted, then fetch my stars and Lists with GET /api/agent/stars.${auth} ${ASK}`;
+  return `Stard is self-hosted at ${origin}. Read ${AGENT_GUIDE_URL}#self-hosted, then fetch my stars and Lists with GET /api/agent/stars.${auth} ${ASK}`;
+}
+
+// The prompt on the Profile screen. The agent builds the same README the screen does,
+// but gets the top four and the reviews by asking, in the person's own words.
+export function profilePrompt(): string {
+  return [
+    "Help me make my Stard profile: a block for my GitHub profile README with my top four repos, a few reviews and my Lists, drawn as cards.",
+    `Read ${AGENT_GUIDE_URL}#profile-cards first.`,
+    "Then interview me, one question at a time: which four repos I would put on a poster and why, which repos I would rave about or warn people off (ask for a rating out of 5 and a sentence or two; keep my wording, don't write the reviews for me), and which of my GitHub Lists to show.",
+    "Build the card links, show me the finished Markdown, and only after I say yes put the Markdown in the README of the repo named after my GitHub username.",
+  ].join(" ");
 }

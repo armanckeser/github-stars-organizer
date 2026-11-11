@@ -59,7 +59,7 @@ export function TokenTip() {
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        The <code>repo</code> scope lets Stars Organizer read your stars, edit your Lists and unstar repos. It never reads or changes code.
+        The <code>repo</code> scope lets Stard read your stars, edit your Lists and unstar repos. It never reads or changes code.
       </p>
     </HeaderTip>
   );

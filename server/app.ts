@@ -480,7 +480,7 @@ export function createApp(options: AppOptions): Hono {
     try {
       await starSelf(createGitHubClient(token, options.githubApiUrl));
     } catch (error) {
-      return gitHubRefused(c, "star Stars Organizer", error);
+      return gitHubRefused(c, "star Stard", error);
     }
     return c.json({});
   });

@@ -46,7 +46,9 @@ export function LeftOutSheet({
       >
         <SheetHeader>
           <SheetTitle className="font-display text-lg">Left out</SheetTitle>
-          <SheetDescription>Repos in your sections that the README does not list.</SheetDescription>
+          <SheetDescription>
+            Archived repos are never listed. A quiet repo has had no push in about six months; keep one when the repo is finished and still good.
+          </SheetDescription>
         </SheetHeader>
         <div className="space-y-6 px-4 pb-6">
           {quiet.length > 0 && (

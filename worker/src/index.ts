@@ -1,4 +1,5 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
+import { CARD_PATH, cardResponse } from "./cards.ts";
 
 type Env = { GITHUB_TOKEN: string };
 
@@ -67,6 +68,18 @@ export default {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
+
+    const card = CARD_PATH.exec(url.pathname);
+    if (card) {
+      // Sorted, so one card asked for with its parameters in another order shares an entry.
+      url.searchParams.sort();
+      const cardKey = new Request(url.toString());
+      const cachedCard = await caches.default.match(cardKey);
+      if (cachedCard) return cachedCard;
+      const response = await cardResponse(card[1], url.searchParams, env.GITHUB_TOKEN);
+      if (response.headers.get("Cache-Control") !== "no-store") context.waitUntil(caches.default.put(cardKey, response.clone()));
+      return response;
+    }
     if (url.pathname !== "/api/lists") return json({ error: "Not found." }, 404);
 
     const login = url.searchParams.get("user") ?? "";

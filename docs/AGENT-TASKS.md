@@ -37,7 +37,7 @@ function fight(a: Snapshot, b: Snapshot, seed: string): FightEvent[]; // pure, s
 
 ## Task 1: fight engine and fair numbers
 
-- `server/run/fight.ts`: the `fight` function above. Front cards trade hits; speed decides who acts first; 6.25% critical hits at 1.5x; a fight is capped at 40 actions, then the side with more total HP left wins, else a draw.
+- `server/run/fight.ts`: the `fight` function above. It takes the place of `server/run/plain-fight.ts` (hits only), which the Play screen (`src/routes/run.tsx`) uses today: switch that import and delete the plain one. Front cards trade hits; speed decides who acts first; 6.25% critical hits at 1.5x; a fight is capped at 40 actions, then the side with more total HP left wins, else a draw.
 - Randomness comes only from the seed (reuse the seeded generator in `server/battle.ts`).
 - `server/run/stats.ts`: a card's numbers from repo facts. Total by rarity is 400/415/430/445/460; each of the four stats gets 15 to 40% of the total, split by the repo's facts (see "stat budget" in the design doc). Shiny adds 5%.
 - The branch `play-vs-computer` has an unfinished stat budget and balance test for the old turn-based game. Take what fits; it was never run.
@@ -57,6 +57,7 @@ Needs Task 1's types (not its engine: write against the contract).
 Needs Tasks 1 and 2 merged.
 
 - `worker/src/run.ts`, routes under `/api/run/`. The Worker stays stateless: the whole run travels in a token signed with `BATTLE_KEY` (the way match state is signed in `worker/src/game.ts`).
+- `GET /api/run/pool?login=` exists (`poolResponse` in `worker/src/battle.ts`): the ace and 20 cards drawn from the account's stars for the day. The Play screen runs the whole run in the browser from that today (`src/lib/run.ts`); this task moves the run behind signed tokens so a result can be trusted.
 - `POST /api/run/new {login}`: reads the account's stars once and freezes every card's numbers into the token. Returns the ace and the first shop.
 - `POST /api/run/pick {token, pick | reroll, order, boost?}`: applies the choice, finds the opponent, runs `fight`, returns the events, the new token and the next shop. The run ends at 5 wins or 3 losses.
 - Opponents for now: a team drafted by a simple bot (takes the highest-rarity card offered, orders by guard) from the stars of an account in a fixed list of well-known public accounts, to the same round. Same account + round + day gives the same team. Saved teams from real players come later.
@@ -76,5 +77,5 @@ Needs Tasks 1 and 2 merged.
 
 ## Taken (being built by the maintainer)
 
-- The run screen: shop, ordering, boost pick, and playing `FightEvent[]` in the 3D arena.
+- The Play screen (`src/routes/run.tsx`): shop, ordering and the fight in the 3D arena are built. Still to do there: the boost pick, showing abilities and sets, and a share link for a finished run.
 - Card art from README images.

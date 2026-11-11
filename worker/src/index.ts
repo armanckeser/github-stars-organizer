@@ -1,5 +1,5 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
-import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, poolResponse, trainerResponse, type Team } from "./battle.ts";
+import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, poolResponse, trainerResponse, type RunPool } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
 import { RUN_PATH, RunRefused, runResponse } from "./run.ts";
@@ -9,7 +9,7 @@ import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string };
 
-const RESPONSE_SHAPE = "3";
+const RESPONSE_SHAPE = "4";
 
 // GitHub's own rule for logins: alphanumerics and single inner hyphens, at most 39.
 // Anything else is rejected before it reaches GitHub, so this stays a fixed query
@@ -73,7 +73,7 @@ function cacheKeyFor(url: URL, lowerCase: boolean): Request {
 
 // A run reads an account's cards through the same cache entry as GET /api/run/pool,
 // so the opponents' teams cost GitHub one read an hour each.
-async function cachedPool(origin: string, login: string, env: Env, context: ExecutionContext): Promise<Team> {
+async function cachedPool(origin: string, login: string, env: Env, context: ExecutionContext): Promise<RunPool> {
   const url = new URL("/api/run/pool", origin);
   url.searchParams.set("login", login);
   const key = cacheKeyFor(url, true);
@@ -82,7 +82,7 @@ async function cachedPool(origin: string, login: string, env: Env, context: Exec
     response = await poolResponse(url.searchParams, env.GITHUB_TOKEN);
     if (response.headers.get("Cache-Control") !== "no-store") context.waitUntil(caches.default.put(key, response.clone()));
   }
-  const body = (await response.json()) as Team & { error?: string };
+  const body = (await response.json()) as RunPool & { error?: string };
   if (!response.ok) throw new RunRefused(body.error ?? "GitHub didn't answer. Try again shortly.", response.status);
   return body;
 }

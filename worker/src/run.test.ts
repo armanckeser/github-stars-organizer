@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Fighter } from "../../server/battle.ts";
 import { defaultCharacter } from "../../server/character.ts";
-import { OPPONENTS } from "../../server/run/rules.ts";
-import type { Team } from "./battle.ts";
+import { OPPONENTS, type RunFighter } from "../../server/run/rules.ts";
+import { rarityOf } from "../../server/run/stats.ts";
+import type { Card } from "../../server/run/types.ts";
+import type { RunPool } from "./battle.ts";
 import { RunRefused, runResponse, type RunDeps } from "./run.ts";
 
 // The run's routes, driven the way the Play screen drives them: JSON in, JSON out.
@@ -13,13 +15,17 @@ const NOW = Date.parse("2026-11-11T12:00:00Z");
 const PLAYER = "greendale";
 const POOL = 21;
 
-const fighter = (fullName: string, over: Partial<Fighter> = {}): Fighter => ({
-  fullName, description: null, language: "TypeScript", color: null, avatarUrl: null, stars: 50, contributors: 1, commits: 1, age: 1, health: 5,
-  type: "web", weakness: null, resistance: null, level: 10, hp: 100, attack: 40, defense: 30, speed: 20,
-  moves: [{ name: "Hot Reload", power: 1, damage: 20 }, { name: "Hotfix", power: 1.6, damage: 30 }], shiny: false, home: false, retired: false, perk: false, ...over,
-});
+const fighter = (fullName: string, over: Partial<Fighter> = {}): RunFighter => {
+  const base: Fighter = {
+    fullName, description: null, language: "TypeScript", color: null, avatarUrl: null, stars: 50, contributors: 1, commits: 1, age: 1, health: 5,
+    type: "web", weakness: null, resistance: null, level: 10, hp: 100, attack: 40, defense: 30, speed: 20,
+    moves: [{ name: "Hot Reload", power: 1, damage: 20 }, { name: "Hotfix", power: 1.6, damage: 30 }], shiny: false, home: false, retired: false, perk: false, ...over,
+  };
+  const card: Card = { fullName, type: base.type, sets: [], rarity: rarityOf(base.stars), hp: base.hp, attack: base.attack, guard: base.defense, speed: base.speed, range: 1, ability: "none", shiny: false };
+  return { ...base, card };
+};
 
-const teamOf = (login: string, over: Partial<Fighter> = {}): Team => ({
+const teamOf = (login: string, over: Partial<Fighter> = {}): RunPool => ({
   login, avatarUrl: null, source: "stars",
   character: { ...defaultCharacter(login), level: 1, since: null, followers: 0, ownStars: 0, custom: false },
   team: Array.from({ length: POOL }, (_, i) => fighter(`${login}/repo-${i}`, over)),

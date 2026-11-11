@@ -19,8 +19,10 @@ export const REROLL_COST = 1;
 /** Accounts whose teams a run is played against until players' own saved teams exist. */
 export const OPPONENTS = ["sindresorhus", "t3dotgg", "antfu", "gaearon", "yyx990803", "kentcdodds", "tj", "mitchellh", "simonw", "rauchg", "addyosmani", "torvalds"];
 
+/** A repo as a run deals it: the fighter the board draws, and the card the fight reads (server/run/stats.ts). */
+export type RunFighter = Fighter & { card: Card };
 /** A card on a player's half of the board. Row 0 is the front. */
-export type Unit = { fighter: Fighter; col: number; row: number };
+export type Unit = { fighter: RunFighter; col: number; row: number };
 /** Whoever a shop is drawn for: an account and its cards, the ace first. */
 export type Pool<T extends { fullName: string }> = { login: string; team: T[] };
 
@@ -31,23 +33,7 @@ export const rangeOf = (card: { type: string }): Card["range"] => (card.type ===
 export const priceOf = (rarity: Card["rarity"]) => rarity + 1;
 export const costOf = (fighter: Fighter) => priceOf(rarityOf(fighter));
 
-export function toCard(fighter: Fighter): Card {
-  return {
-    fullName: fighter.fullName,
-    type: fighter.type,
-    sets: [fighter.language?.toLowerCase(), fighter.type].filter((set): set is string => Boolean(set)),
-    rarity: rarityOf(fighter),
-    hp: fighter.hp,
-    attack: fighter.attack,
-    guard: fighter.defense,
-    speed: fighter.speed,
-    range: rangeOf(fighter),
-    ability: "none",
-    shiny: fighter.shiny,
-  };
-}
-
-export const snapshot = (login: string, round: number, units: Unit[]): Snapshot => ({ login, round, units: units.map((unit) => ({ card: toCard(unit.fighter), col: unit.col, row: unit.row })), boosts: [] });
+export const snapshot = (login: string, round: number, units: Unit[]): Snapshot => ({ login, round, units: units.map((unit) => ({ card: unit.fighter.card, col: unit.col, row: unit.row })), boosts: [] });
 
 export function shuffled<T>(items: T[], seed: string): T[] {
   const random = seededRandom(seed);
@@ -86,7 +72,7 @@ export function opponentLogin(login: string, round: number, day = today()): stri
 }
 
 /** The other account's team at this round, built the way a player builds one: each round a shop from its stars, one card taken. */
-export function opponentUnits(opponent: Pool<Fighter>, round: number, day = today()): Unit[] {
+export function opponentUnits(opponent: Pool<RunFighter>, round: number, day = today()): Unit[] {
   const team = opponent.team.slice(0, 1);
   for (let r = 1; team.length > 0 && team.length < teamSizeAt(round); r++) {
     const [pick] = shopFor(opponent, team, r, 0, 1, day);

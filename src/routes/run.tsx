@@ -10,8 +10,7 @@ import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type Unit } from "@/lib/run";
-import type { Fighter } from "../../server/battle";
+import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { CLASSES } from "../../server/character";
 import { fight as playFight } from "../../server/run/fight";
 import { cellOf, type Side } from "../../server/run/types";
@@ -27,7 +26,7 @@ export const Route = createFileRoute("/run")({
 
 const Board3D = lazy(() => import("@/components/battle/board3d"));
 const REPO_URL = "https://github.com/armanckeser/github-stars-organizer";
-const idOf = (side: Side, fighter: Fighter) => `${side}:${fighter.fullName}`;
+const idOf = (side: Side, fighter: RunFighter) => `${side}:${fighter.fullName}`;
 const PANEL = "rounded-lg border border-white/15 bg-[#0c1014]/90 shadow-lg backdrop-blur-sm";
 
 type Round = { number: number; opponent: Player; theirs: Unit[] };
@@ -41,7 +40,7 @@ function Pips({ filled, total, tone, label }: { filled: number; total: number; t
   );
 }
 
-function ShopCard({ fighter, affordable, onOpen }: { fighter: Fighter; affordable: boolean; onOpen: () => void }) {
+function ShopCard({ fighter, affordable, onOpen }: { fighter: RunFighter; affordable: boolean; onOpen: () => void }) {
   const art = useCreature(fighter);
   const type = TYPE[fighter.type];
   const reach = rangeOf(fighter) > 1;
@@ -70,13 +69,13 @@ function RunPage() {
   const [losses, setLosses] = useState(0);
   const [gold, setGold] = useState(START_GOLD);
   const [rerolls, setRerolls] = useState(0);
-  const [shop, setShop] = useState<(Fighter | null)[]>([]);
+  const [shop, setShop] = useState<(RunFighter | null)[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [played, setPlayed] = useState<Played | null>(null);
   const [fast, setFast] = useState(false);
   const [skips, setSkips] = useState(0);
   // The card being looked at: one in the shop, one of the player's on the board, or one of the other team's.
-  const [viewing, setViewing] = useState<{ fighter: Fighter; slot?: number; unit?: Unit } | null>(null);
+  const [viewing, setViewing] = useState<{ fighter: RunFighter; slot?: number; unit?: Unit } | null>(null);
   const [profile, setProfile] = useState<Player | null>(null);
   const [help, setHelp] = useState(false);
 

@@ -1,5 +1,5 @@
-import type { Fighter } from "../../server/battle";
 import type { Character } from "../../server/character";
+import type { RunFighter } from "../../server/run/rules";
 import { CARD_ORIGIN } from "./published-list";
 
 // The Play screen's side of a run. The rules live in server/run/rules.ts, which the
@@ -7,7 +7,7 @@ import { CARD_ORIGIN } from "./published-list";
 
 export * from "../../server/run/rules";
 
-export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: Fighter[] };
+export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: RunFighter[] };
 
 export async function fetchPlayer(login: string): Promise<Player> {
   const response = await fetch(`${CARD_ORIGIN}/api/run/pool?login=${encodeURIComponent(login)}`);

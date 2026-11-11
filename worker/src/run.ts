@@ -2,10 +2,10 @@ import type { Fighter } from "../../server/battle.ts";
 import { fight as runFight } from "../../server/run/fight.ts";
 import {
   LOSSES_TO_END, REROLL_COST, ROUND_GOLD, SHOP_SIZE, START_GOLD, WINS_TO_FINISH, WIN_GOLD,
-  freeCell, inHalf, opponentLogin, opponentUnits, priceOf, shopFor, shuffled, teamSizeAt, toCard, winnerOf,
+  freeCell, inHalf, opponentLogin, opponentUnits, priceOf, shopFor, shuffled, teamSizeAt, winnerOf, type RunFighter,
 } from "../../server/run/rules.ts";
 import type { Card, Fight, FightEvent, Placed, Side, Snapshot } from "../../server/run/types.ts";
-import type { Team } from "./battle.ts";
+import type { RunPool, Team } from "./battle.ts";
 import { LOGIN } from "./cards.ts";
 import { sign } from "./game.ts";
 
@@ -26,8 +26,8 @@ export const RUN_PATH = /^\/api\/run\/(new|act)$/;
 /** The fight engine. Task 2 swaps in its rules here (`fightWith`). */
 const fight: Fight = runFight;
 
-/** A card's numbers, frozen when the run starts. The pool already carries server/run/stats.ts numbers (poolResponse). */
-const cardOf = (fighter: Fighter): Card => toCard(fighter);
+/** A card's numbers, frozen when the run starts: the pool deals each fighter with its run card (poolResponse). */
+const cardOf = (fighter: RunFighter): Card => fighter.card;
 
 // Ids for the boost pick until server/run/boosts.ts (Task 2) supplies the real list.
 const BOOST_IDS = ["first-shield", "critical-2x", "last-stand"];
@@ -116,7 +116,7 @@ type Choice =
 const CHOICES = ["buy", "sell", "reroll", "place", "fight"] as const;
 
 /** What the Worker gives a run: its key, a way to read an account's cards for the day, and the time. */
-export type RunDeps = { key: string | undefined; read: (login: string) => Promise<Team>; now: number };
+export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; now: number };
 
 /** A choice the rules don't allow, or a request that can't be read. The message is shown to the player. */
 export class RunRefused extends Error {

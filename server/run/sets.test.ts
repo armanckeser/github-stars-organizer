@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMON_TOPICS, FAMILY_SETS, SETS, setHooks, setsFor } from "./sets.ts";
+import { COMMON_TOPICS, FAMILY_SETS, SETS, setHooks, setsFor, teamSets } from "./sets.ts";
 import { card, firedBy, greendale, missingEffect, trial } from "./testbed.ts";
 import type { Snapshot } from "./types.ts";
 
@@ -61,5 +61,24 @@ describe("setsFor", () => {
 
   it("has no language set when the repo has no language", () => {
     expect(setsFor(null, [])).toEqual([]);
+  });
+});
+
+describe("teamSets", () => {
+  const team = (sets: string[][]) => ({ units: sets.map((cardSets, col) => ({ card: card(`greendale/${col}`, { sets: cardSets }), col, row: 0 })) });
+
+  // Regression guarded: the screen lists a team's bonuses from teamSets; a bonus shown
+  // for one card, or the two-card text for three, would promise what the fight never does.
+  it("gives no bonus to a set on one card, the two-card bonus to two and the three-card bonus to three or more", () => {
+    const sets = teamSets(team([["rust", "cli"], ["rust", "cli"], ["rust"], ["go"]]));
+    const bySet = Object.fromEntries(sets.map((entry) => [entry.set, entry]));
+    const rust = SETS.find((bonus) => bonus.set === "rust")!;
+    const cli = SETS.find((bonus) => bonus.set === "cli")!;
+
+    expect(bySet.rust.members).toEqual([0, 1, 2]);
+    expect(bySet.rust.tier).toBe(rust.three);
+    expect(bySet.cli.tier).toBe(cli.two);
+    expect(bySet.go.tier).toBeUndefined();
+    expect(sets.map((entry) => entry.set)).toEqual(["rust", "cli", "go"]);
   });
 });

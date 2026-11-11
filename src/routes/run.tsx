@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
-import { CircleHelp, Coins, Crosshair, Dices, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
+import { CircleHelp, Coins, Crosshair, Dices, Layers, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
@@ -8,10 +8,14 @@ import { InspectOverlay, repoName } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
+import { BoostPick } from "@/components/run/boost-pick";
+import { RunCard } from "@/components/run/run-card";
+import { TeamBonuses } from "@/components/run/team-bonuses";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { CLASSES } from "../../server/character";
+import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
 import { fight as playFight } from "../../server/run/fight";
 import { cellOf, type Side } from "../../server/run/types";
 
@@ -78,6 +82,9 @@ function RunPage() {
   const [viewing, setViewing] = useState<{ fighter: RunFighter; slot?: number; unit?: Unit } | null>(null);
   const [profile, setProfile] = useState<Player | null>(null);
   const [help, setHelp] = useState(false);
+  const [boosts, setBoosts] = useState<string[]>([]);
+  // Three boosts to pick one from, after rounds 2 and 4; null the rest of the time.
+  const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
 
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? teamSizeAt(round.number) : 0;
@@ -113,6 +120,8 @@ function RunPage() {
       setWins(0);
       setLosses(0);
       setGold(START_GOLD);
+      setBoosts([]);
+      setOffer(null);
       await openRound(me, team, 1);
     } catch (cause) {
       setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The cards couldn't be read. Check the connection and try again.");
@@ -156,7 +165,7 @@ function RunPage() {
   function fight() {
     if (!player || !round) return;
     const seed = `${player.login}|${round.opponent.login}|${round.number}|${today()}`;
-    const events = playFight(snapshot(player.login, round.number, units), snapshot(round.opponent.login, round.number, round.theirs), seed);
+    const events = playFight(snapshot(player.login, round.number, units, boosts), snapshot(round.opponent.login, round.number, round.theirs), seed);
     setSelected(null);
     setPlayed({ fight: { key: `${seed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner: winnerOf(events), over: false });
   }
@@ -170,6 +179,8 @@ function RunPage() {
     setLosses(lost);
     if (won >= WINS_TO_FINISH || lost >= LOSSES_TO_END) return setPlayed(null);
     setGold(gold + ROUND_GOLD + (played.winner === 0 ? WIN_GOLD : 0));
+    // The same seed as the Worker's offer (worker/src/run.ts), so both offer the same three.
+    if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${today()}|${round.number}`, boosts) });
     void openRound(player, units, round.number + 1);
   }
 
@@ -191,6 +202,7 @@ function RunPage() {
     setSelected(null);
   };
   const building = player !== null && round !== null && !finished && played === null;
+  const viewingTeam = viewing && viewing.slot === undefined && !viewing.unit ? (round?.theirs ?? []) : units;
 
   return (
     <div className="relative mx-auto h-[calc(100dvh-7rem)] min-h-[540px] w-full max-w-6xl overflow-hidden rounded-xl border bg-[#080b0f] text-white">
@@ -228,6 +240,15 @@ function RunPage() {
           </div>
         </div>
       )}
+
+      {player && round && (
+        <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex items-start justify-between gap-2 px-2 sm:top-16 sm:px-3">
+          <TeamBonuses cards={units.map((unit) => unit.fighter.card)} boosts={boosts} />
+          <TeamBonuses cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} className="ml-auto" />
+        </div>
+      )}
+
+      {offer && building && <BoostPick offer={offer.ids} round={offer.round} onPick={(id) => { setBoosts([...boosts, id]); setOffer(null); }} />}
 
       {!player && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 p-4">
@@ -304,6 +325,7 @@ function RunPage() {
             <li className="flex gap-2"><Sword className="mt-0.5 size-4 shrink-0" /> Sword cards fight up close. Put them in the front row.</li>
             <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Target cards hit from three cells away. Keep them behind.</li>
             <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Drag a creature to move. Tap one to see the card or sell for the full price.</li>
+            <li className="flex gap-2"><Layers className="mt-0.5 size-4 shrink-0 text-[#35c450]" /> Two or three cards that share a language or topic give each other a bonus.</li>
             <li className="flex gap-2"><Star className="mt-0.5 size-4 shrink-0" /> Press Fight and watch. {WINS_TO_FINISH} wins finishes the run, {LOSSES_TO_END} losses ends the run.</li>
           </ul>
         </div>
@@ -327,10 +349,9 @@ function RunPage() {
         </div>
       )}
 
-      <InspectOverlay fighter={viewing?.fighter ?? null} onClose={close}>
+      <InspectOverlay fighter={viewing?.fighter ?? null} onClose={close} card={viewing && <RunCard fighter={viewing.fighter} team={viewingTeam.map((unit) => unit.fighter)} />}>
         {viewing && (
           <>
-            <p className="flex items-center gap-1.5 text-white/80">{rangeOf(viewing.fighter) > 1 ? <><Crosshair className="size-4" /> Hits from three cells away</> : <><Sword className="size-4" /> Fights up close</>}</p>
             {viewing.slot !== undefined && building && (
               <Button className="w-full" disabled={gold < costOf(viewing.fighter) || units.length >= cap} onClick={() => { buy(viewing.slot!); close(); }}>
                 <Coins /> {units.length >= cap ? `Team is full (${cap})` : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}

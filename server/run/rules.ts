@@ -33,7 +33,8 @@ export const rangeOf = (card: { type: string }): Card["range"] => (card.type ===
 export const priceOf = (rarity: Card["rarity"]) => rarity + 1;
 export const costOf = (fighter: Fighter) => priceOf(rarityOf(fighter));
 
-export const snapshot = (login: string, round: number, units: Unit[]): Snapshot => ({ login, round, units: units.map((unit) => ({ card: unit.fighter.card, col: unit.col, row: unit.row })), boosts: [] });
+/** A team as the fight reads it. `boosts` are the ids picked so far in the run (server/run/boosts.ts). */
+export const snapshot = (login: string, round: number, units: Unit[], boosts: string[] = []): Snapshot => ({ login, round, units: units.map((unit) => ({ card: unit.fighter.card, col: unit.col, row: unit.row })), boosts });
 
 export function shuffled<T>(items: T[], seed: string): T[] {
   const random = seededRandom(seed);

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { seededRandom, type Fighter } from "../../../../server/battle";
 import type { Look } from "../../../../server/character";
+import type { Condition } from "../../../../server/run/hooks";
+import { CONDITION_NAMES, sourceOf, type Source } from "../../../../server/run/names";
 import { COLS, ROWS, TICK_MS, type FightEvent, type Side } from "../../../../server/run/types";
 import { buildCreature, type Creature } from "./creature";
 import { dispose, easeOut, overshoot, sphere, toon } from "./kit";
@@ -25,6 +27,11 @@ type Actor = {
   hp: number;
   bar: THREE.Group;
   fill: THREE.Mesh;
+  /** The condition the creature has, shown over its HP bar. */
+  badge: THREE.Mesh;
+  /** When each ability, set or boost was last named over the creature, and when the next name may show. */
+  named: Map<string, number>;
+  nextName: number;
   grow: number;
   lunge: THREE.Vector3;
   flash: number;
@@ -41,6 +48,14 @@ const SIZE = 0.7;
 const MINE = [0x0e3a25, 0x0a5a2c];
 const THEIRS = [0x2a1d24, 0x3a2129];
 const FLOOR: [string, number][] = [["#10151b", 0.62], ["#0e2a1d", 0.2], ["#0a3d22", 0.12], ["#14602c", 0.06]];
+
+/** The colours an ability, set bonus or boost is named in over a creature: background, then text. */
+const NAMED: Record<Source["kind"], [string, string]> = { ability: ["#3ea6ff", "#06121d"], set: ["#35c450", "#04140a"], boost: ["#ffd84d", "#1d1600"], condition: ["#a47cff", "#ffffff"] };
+const CONDITION_COLOR: Record<Condition, string> = { "merge-conflict": "#ff8f3d", "rate-limited": "#3ea6ff", deprecated: "#a47cff", flaky: "#ffd84d" };
+const HEAL = "#5be37a";
+/** Names over one creature show at least this far apart, and the same name at most this often, in fight seconds. */
+const NAME_GAP = 0.32;
+const NAME_REPEAT = 2.4;
 
 const world = (x: number, y: number) => new THREE.Vector3((x - (COLS - 1) / 2) * CELL, 0.1, (ROWS - 0.5 - y) * CELL);
 
@@ -69,6 +84,7 @@ export class BoardWorld {
   private raycaster = new THREE.Raycaster();
   private ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.1);
   private labels = new Set<HTMLElement>();
+  private badges = new Map<Condition, THREE.CanvasTexture>();
   private disposed = false;
 
   /** Throws when the browser can't give a WebGL context. */
@@ -122,6 +138,7 @@ export class BoardWorld {
     cancelAnimationFrame(this.raf);
     this.observer.disconnect();
     for (const label of this.labels) label.remove();
+    for (const texture of this.badges.values()) texture.dispose();
     dispose(this.scene);
     this.renderer.dispose();
     this.renderer.forceContextLoss();
@@ -181,6 +198,9 @@ export class BoardWorld {
         actor.won = false;
         actor.hp = unit.fighter.hp;
         actor.bar.visible = true;
+        actor.badge.visible = false;
+        actor.named.clear();
+        actor.nextName = 0;
         this.fill(actor);
         if (actor.grow < 1) this.tween(0, 0.35, (k) => (actor.grow = overshoot(k)));
       }
@@ -278,10 +298,14 @@ export class BoardWorld {
     fill.position.z = 0.002;
     back.renderOrder = 10;
     fill.renderOrder = 11;
-    bar.add(back, fill);
+    const badge = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.21), new THREE.MeshBasicMaterial({ depthTest: false, transparent: true }));
+    badge.position.set(0, 0.19, 0.004);
+    badge.renderOrder = 12;
+    badge.visible = false;
+    bar.add(back, fill, badge);
     this.scene.add(creature.root, bar);
     const home = world(unit.x, unit.y);
-    const actor: Actor = { unit, creature, home, at: home.clone(), facing: 0, hp: unit.fighter.hp, bar, fill, grow: 0, lunge: new THREE.Vector3(), flash: 0, squash: 0, out: false, won: false };
+    const actor: Actor = { unit, creature, home, at: home.clone(), facing: 0, hp: unit.fighter.hp, bar, fill, badge, named: new Map(), nextName: 0, grow: 0, lunge: new THREE.Vector3(), flash: 0, squash: 0, out: false, won: false };
     this.actors.set(unit.id, actor);
     this.tween(0, 0.4, (k) => (actor.grow = overshoot(k)));
     return actor;
@@ -297,7 +321,7 @@ export class BoardWorld {
   }
 
   private fill(actor: Actor) {
-    const share = Math.max(0, actor.hp / actor.unit.fighter.hp);
+    const share = Math.max(0, Math.min(1, actor.hp / actor.unit.fighter.hp));
     actor.fill.scale.x = Math.max(0.001, share);
     actor.fill.position.x = -0.42 * (1 - share);
   }
@@ -321,6 +345,22 @@ export class BoardWorld {
       actor.bar.visible = false;
       if (quick) actor.grow = 0;
       else this.tween(0.12, 0.4, (k) => (actor.grow = 1 - easeOut(k)));
+    } else if (event.kind === "ability") {
+      if (!quick) this.name(actor, event.ability);
+    } else if (event.kind === "hp") {
+      actor.hp = Math.max(0, Math.min(actor.unit.fighter.hp, actor.hp + event.change));
+      this.fill(actor);
+      if (quick) return;
+      if (event.change > 0) actor.flash = 0.5;
+      this.label(this.over(actor, 0.5), event.change > 0 ? `+${event.change}` : String(event.change), { color: event.change > 0 ? HEAL : CONDITION_COLOR[event.cause as Condition] ?? "#ff8f93" });
+    } else if (event.kind === "condition") {
+      const condition = event.condition as Condition;
+      actor.badge.visible = event.on && condition in CONDITION_NAMES;
+      if (actor.badge.visible) {
+        const material = actor.badge.material as THREE.MeshBasicMaterial;
+        material.map = this.badgeFor(condition);
+        material.needsUpdate = true;
+      }
     } else if (event.kind === "hit") {
       const target = this.actors.get(fight.ids[event.side === 0 ? 1 : 0][event.target]);
       if (!target) return;
@@ -333,7 +373,7 @@ export class BoardWorld {
         target.flash = 1;
         target.squash = event.critical ? 0.3 : 0.16;
         if (event.critical) this.shake = 0.12;
-        this.label(target.at.clone().setY(target.creature.height * SIZE + 0.5), event.damage, event.critical);
+        this.label(this.over(target, 0.5), String(event.damage), event.critical ? { color: "#ffd84d", size: 22 } : {});
       };
       if (actor.unit.ranged) {
         const shot = new THREE.Mesh(sphere(0.11, 10), new THREE.MeshBasicMaterial({ color: actor.unit.fighter.color && /^#[0-9a-f]{6}$/i.test(actor.unit.fighter.color) ? actor.unit.fighter.color : 0xffffff }));
@@ -354,22 +394,70 @@ export class BoardWorld {
     }
   }
 
-  private label(at: THREE.Vector3, damage: number, critical: boolean) {
-    if (this.options.reduced) return;
+  /** A point over the creature's head. */
+  private over(actor: Actor, above: number) {
+    return actor.at.clone().setY(actor.creature.height * SIZE + above);
+  }
+
+  /** A number or a name that rises over the board and fades. */
+  private label(at: THREE.Vector3, text: string, style: { color?: string; size?: number; background?: string }) {
+    if (this.options.reduced && !style.background) return;
     const point = at.project(this.camera);
     const label = document.createElement("span");
-    label.textContent = String(damage);
-    label.style.cssText = `position:absolute;left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;transform:translate(-50%,-50%);pointer-events:none;z-index:5;font:700 ${critical ? 22 : 15}px/1 var(--font-display, system-ui);color:${critical ? "#ffd84d" : "#fff"};text-shadow:0 1px 0 #000,0 0 6px #000;transition:transform .6s ease-out,opacity .6s ease-in`;
+    label.textContent = text;
+    const pill = style.background ? `background:${style.background};padding:2px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 4px #0008;` : "text-shadow:0 1px 0 #000,0 0 6px #000;";
+    const life = style.background ? 1100 : 650;
+    label.style.cssText = `position:absolute;left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;transform:translate(-50%,-50%);pointer-events:none;z-index:5;font:700 ${style.size ?? (style.background ? 12 : 15)}px/1.2 var(--font-display, system-ui);color:${style.color ?? "#fff"};${pill}transition:transform ${life}ms ease-out,opacity ${life}ms ease-in`;
+    if (style.background) label.dataset.named = text;
     this.host.append(label);
     this.labels.add(label);
     requestAnimationFrame(() => {
-      label.style.transform = "translate(-50%,-190%)";
+      if (!this.options.reduced) label.style.transform = `translate(-50%,${style.background ? -260 : -190}%)`;
       label.style.opacity = "0";
     });
     setTimeout(() => {
       label.remove();
       this.labels.delete(label);
-    }, 650);
+    }, life);
+  }
+
+  /** Names the ability, set bonus or boost that just fired, over the creature. Names queue a little apart, and the same one does not repeat on every hit. */
+  private name(actor: Actor, id: string) {
+    const last = actor.named.get(id);
+    if (last !== undefined && this.now - last < NAME_REPEAT) return;
+    actor.named.set(id, this.now);
+    const at = Math.max(this.now, actor.nextName);
+    actor.nextName = at + NAME_GAP;
+    const source = sourceOf(id);
+    const [background, color] = NAMED[source.kind];
+    const fight = this.fight;
+    this.after(at - this.now, () => {
+      if (this.disposed || this.fight !== fight || actor.out) return;
+      actor.squash = Math.max(actor.squash, 0.1);
+      this.label(this.over(actor, 0.95), source.name, { background, color });
+    });
+  }
+
+  private badgeFor(condition: Condition): THREE.CanvasTexture {
+    const made = this.badges.get(condition);
+    if (made) return made;
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 64;
+    const pen = canvas.getContext("2d")!;
+    pen.fillStyle = CONDITION_COLOR[condition];
+    pen.beginPath();
+    pen.roundRect(4, 6, 248, 52, 26);
+    pen.fill();
+    pen.fillStyle = "#0b0f14";
+    pen.font = "700 30px system-ui, sans-serif";
+    pen.textAlign = "center";
+    pen.textBaseline = "middle";
+    pen.fillText(CONDITION_NAMES[condition], 128, 33);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.badges.set(condition, texture);
+    return texture;
   }
 
   // --- time ---

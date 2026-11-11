@@ -275,8 +275,8 @@ input[type="search"]::-webkit-search-cancel-button {
 
 /* The Play shop (src/components/run/shop.tsx): a card's frame is the metal of its cost, its art is lit from behind. */
 .shop-bar {
-  background: linear-gradient(180deg, rgb(6 8 11 / 0) 0%, rgb(6 8 11 / 0.78) 22%, rgb(6 8 11 / 0.94));
-  padding-top: 1.75rem;
+  background: linear-gradient(180deg, rgb(9 12 16 / 0.9), rgb(6 8 11 / 0.97));
+  box-shadow: 0 -26px 44px rgb(6 8 11 / 0.5);
 }
 .shop-card {
   background: linear-gradient(155deg, var(--metal-light), var(--metal-dark) 38%, var(--metal-dark) 62%, var(--metal-light) 82%, var(--metal-dark));
@@ -382,6 +382,116 @@ input[type="search"]::-webkit-search-cancel-button {
   }
   .shop-card:hover {
     transform: none;
+  }
+}
+
+/* The shop folds down under its tab, which keeps the gold; the camera eases out to fill the room it leaves. */
+.shop-dock {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop-dock:not([data-open]) {
+  transform: translateY(var(--drawer));
+}
+.shop-tab {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  display: flex;
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 16px;
+  translate: -50% 0;
+  border-radius: 12px 12px 0 0;
+  background: rgb(9 12 16 / 0.9);
+  outline: none;
+}
+.shop-tab:hover {
+  background: rgb(16 20 26 / 0.95);
+}
+.shop-tab:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.shop-dock-fight {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100% + 0px);
+  margin-bottom: 0;
+  transition: opacity 160ms ease-out;
+}
+.shop-dock[data-open] .shop-dock-fight {
+  opacity: 0;
+  pointer-events: none;
+}
+.shop-dock:not([data-open]) .shop-dock-fight {
+  bottom: calc(100% + 6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shop-dock,
+  .shop-dock-fight {
+    transition: none;
+  }
+}
+
+/* The arena takes the whole screen in full screen, and on a phone turned wide, where TFT plays. */
+.arena[data-full] {
+  border-radius: 0;
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .arena {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    height: 100dvh;
+    min-height: 0;
+    max-width: none;
+    border-radius: 0;
+  }
+  .hud-top {
+    padding-top: 6px;
+    padding-bottom: 0.75rem;
+  }
+  .checks-rail {
+    top: 40px;
+  }
+  /* One row of short cards, with the side controls stacked tight, so the open shop keeps a quarter of the height as TFT's does. */
+  .shop-bar {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    box-shadow: 0 -14px 24px rgb(6 8 11 / 0.4);
+  }
+  .shop-card,
+  .shop-empty {
+    aspect-ratio: 16 / 9;
+  }
+  .dock-side {
+    gap: 6px;
+  }
+  .dock-fight {
+    height: 2.5rem;
+  }
+  .team-slots {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .team-slots-word {
+    display: none;
+  }
+  /* Cards this short carry their sets as dots, as on an upright phone. */
+  .shop-sets-named {
+    display: none;
+  }
+  .shop-sets-dots {
+    display: flex;
+  }
+  .checks {
+    width: 9.5rem;
+    padding: 4px;
+  }
+  .check-row {
+    height: 22px;
+    font-size: 12px;
   }
 }
 

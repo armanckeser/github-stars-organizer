@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { CircleHelp, Coins, Crosshair, Dices, Layers, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, Dices, Layers, Maximize, Minimize, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
@@ -36,6 +36,8 @@ export const Route = createFileRoute("/run")({
 const Board3D = lazy(() => import("@/components/battle/board3d"));
 const REPO_URL = "https://github.com/armanckeser/github-stars-organizer";
 const idOf = (side: Side, fighter: RunFighter) => `${side}:${fighter.fullName}`;
+/** The shop's tab, which stays on screen when the shop folds down. */
+const SHOP_TAB = 40;
 const PANEL = "rounded-lg border border-white/15 bg-[#0c1014]/90 shadow-lg backdrop-blur-sm";
 
 type Round = { number: number; opponent: Player; theirs: Unit[] };
@@ -59,6 +61,26 @@ function useHeight(): [number, (element: HTMLElement | null) => void] {
     setHeight(element.offsetHeight);
   }, []);
   return [height, ref];
+}
+
+/** The arena on the whole screen, where the browser allows it, turned wide on a phone that can lock its turn (Android; an iPhone can do neither). */
+function useFullscreen(): [boolean, ((element: HTMLElement | null) => void), (() => void) | null] {
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    const changed = () => setFull(document.fullscreenElement !== null && document.fullscreenElement === element);
+    document.addEventListener("fullscreenchange", changed);
+    return () => document.removeEventListener("fullscreenchange", changed);
+  }, [element]);
+  const able = typeof document !== "undefined" && document.fullscreenEnabled && element !== null;
+  const toggle = async () => {
+    if (!element) return;
+    if (document.fullscreenElement) return document.exitFullscreen();
+    await element.requestFullscreen({ navigationUI: "hide" });
+    // A desktop browser has no turn to lock and refuses; the arena is full screen either way.
+    await (screen.orientation as ScreenOrientation & { lock?: (orientation: "landscape") => Promise<void> }).lock?.("landscape").catch(() => undefined);
+  };
+  return [full, setElement, able ? () => void toggle() : null];
 }
 
 function RunPage() {
@@ -90,7 +112,10 @@ function RunPage() {
   // Three boosts to pick one from, after rounds 2 and 4; null the rest of the time.
   const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
 
-  const [hud, hudRef] = useHeight();
+  const [drawer, drawerRef] = useHeight();
+  // The shop rises at the start of each round and folds down to its tab when the player wants the board.
+  const [shopOpen, setShopOpen] = useState(true);
+  const [full, arenaRef, toggleFull] = useFullscreen();
   // For screenshots of the boost pick: `stardOffer(2)` in the console, development builds only.
   useEffect(() => {
     if (!import.meta.env.DEV || !player) return;
@@ -221,6 +246,8 @@ function RunPage() {
     void openRound(player, cardsOf(roster), round.number + 1);
   }
 
+  useEffect(() => setShopOpen(true), [round?.number]);
+
   const boardUnits = useMemo<BoardUnit[]>(() => {
     const side = (which: Side, team: Unit[]) => team.map((unit) => ({ id: idOf(which, unit.fighter), side: which, fighter: unit.fighter, ...cellOf(which, unit), ranged: rangeOf(unit.fighter) > 1 }));
     const drafts = bench.flatMap((fighter, slot) => (fighter ? [{ id: idOf(0, fighter), side: 0 as Side, fighter, x: 0, y: 0, ranged: rangeOf(fighter) > 1, bench: slot }] : []));
@@ -245,7 +272,7 @@ function RunPage() {
   const viewingTeam = viewing && viewing.slot === undefined && !viewing.unit ? (round?.theirs ?? []) : units;
 
   return (
-    <div className="relative mx-auto h-[calc(100dvh-7rem)] min-h-[540px] w-full max-w-6xl overflow-hidden rounded-xl bg-[#080b0f] text-white">
+    <div ref={arenaRef} data-full={full ? "" : undefined} className="arena relative mx-auto h-[calc(100dvh-7rem)] min-h-[540px] w-full max-w-6xl overflow-hidden rounded-xl bg-[#080b0f] text-white">
       <Suspense fallback={null}>
         <Board3D
           units={boardUnits}
@@ -256,7 +283,7 @@ function RunPage() {
           speed={fast ? 2 : 1}
           skips={skips}
           room={Math.max(0, cap - units.length)}
-          inset={hud}
+          inset={building ? SHOP_TAB + (shopOpen ? drawer : 0) : 0}
           onSelect={look}
           onFightEnd={(key) => setPlayed((current) => (current?.fight.key === key ? { ...current, over: true } : current))}
           onMove={move}
@@ -283,13 +310,14 @@ function RunPage() {
               <span className="max-w-24 truncate text-xs font-medium sm:max-w-40 sm:text-sm">@{round.opponent.login}</span>
               {round.opponent.avatarUrl && <img src={round.opponent.avatarUrl} alt="" className="size-6 rounded-full" />}
             </button>
+            {toggleFull && <button type="button" onClick={toggleFull} aria-label={full ? "Leave full screen" : "Full screen"} className="hud-chip p-2 outline-none focus-visible:ring-2 focus-visible:ring-ring">{full ? <Minimize className="size-4" /> : <Maximize className="size-4" />}</button>}
             <button type="button" onClick={() => setHelp(!help)} aria-label="How to play" aria-expanded={help} className={`hud-chip p-2 outline-none focus-visible:ring-2 focus-visible:ring-ring`}><CircleHelp className="size-4" /></button>
           </div>
         </div>
       )}
 
       {player && round && (
-        <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex items-start justify-between gap-2 px-1 sm:top-20 sm:px-2">
+        <div className="checks-rail pointer-events-none absolute inset-x-0 top-14 z-10 flex items-start justify-between gap-2 px-1 sm:top-20 sm:px-2">
           <Checks title="Checks" cards={units.map((unit) => unit.fighter.card)} boosts={boosts} />
           <Checks title="Theirs" cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} align="right" />
         </div>
@@ -312,18 +340,27 @@ function RunPage() {
       {player && error && <p className={`${PANEL} absolute inset-x-3 top-16 z-20 px-3 py-2 text-sm`} role="alert">{error}</p>}
 
       {building && (
-        <div ref={hudRef} className="shop-bar absolute inset-x-0 bottom-0 z-10 px-2 pb-2 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3">
-          <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
-            <div className="sm:order-2 sm:flex-1"><Shop shop={shop} held={cardsOf(roster)} gold={gold} draftsFull={!bench.includes(null)} onOpen={(slot) => shop[slot] && setViewing({ fighter: shop[slot]!, slot })} /></div>
-            <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-24 sm:flex-col sm:items-stretch sm:justify-center">
-              <p className="flex items-center gap-2 font-display text-2xl font-[800] tabular-nums text-[#ffe08a] [font-stretch:110%] sm:justify-center" aria-label={`${gold} gold`}><span className="hud-coin" />{gold}</p>
-              <button type="button" className="hud-button flex h-9 items-center justify-center gap-1.5 px-3 text-sm" disabled={gold < REROLL_COST} onClick={reroll} aria-label={`Reroll for ${REROLL_COST} gold`}><Dices className="size-4" /> <span className="shop-coin" />{REROLL_COST}</button>
-              <TeamSlots className="sm:hidden" count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
-              <button type="button" className="hud-button hud-fight flex h-9 items-center gap-1.5 px-4 text-sm sm:hidden" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-4" /> Fight</button>
-            </div>
-            <div className="hidden sm:order-3 sm:flex sm:w-28 sm:flex-col sm:items-stretch sm:justify-center sm:gap-2">
-              <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
-              <button type="button" className="hud-button hud-fight flex h-12 items-center justify-center gap-2 text-base" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
+        <div className="shop-dock absolute inset-x-0 bottom-0 z-10" data-open={shopOpen ? "" : undefined} style={{ "--drawer": `${drawer}px` } as React.CSSProperties}>
+          {/* The tab: the gold, and the shop folding up or down under it, as TFT keeps the gold over the shop's middle. */}
+          <button type="button" className="shop-tab" onClick={() => setShopOpen(!shopOpen)} aria-expanded={shopOpen} aria-controls="shop-drawer" aria-label={`${gold} gold. ${shopOpen ? "Fold the shop" : "Open the shop"}`}>
+            <span className="hud-coin" />
+            <span className="font-display text-xl font-[800] tabular-nums text-[#ffe08a] [font-stretch:110%]">{gold}</span>
+            {shopOpen ? <ChevronDown className="size-4 text-white/55" /> : <ChevronUp className="size-4 text-white/55" />}
+          </button>
+          {/* With the shop folded, Fight stays in its corner. */}
+          <button type="button" className="hud-button hud-fight shop-dock-fight flex h-10 items-center gap-2 px-4 text-sm" onClick={fight} disabled={loading || units.length === 0} tabIndex={shopOpen ? -1 : 0} aria-hidden={shopOpen}><Swords className="size-4" /> Fight</button>
+          <div ref={drawerRef} id="shop-drawer" className="shop-bar px-2 pb-2 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3" inert={!shopOpen}>
+            <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
+              <div className="sm:order-2 sm:flex-1"><Shop shop={shop} held={cardsOf(roster)} gold={gold} draftsFull={!bench.includes(null)} onOpen={(slot) => shop[slot] && setViewing({ fighter: shop[slot]!, slot })} /></div>
+              <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-24 sm:flex-col sm:items-stretch sm:justify-center">
+                <button type="button" className="hud-button flex h-9 items-center justify-center gap-1.5 px-3 text-sm sm:h-auto sm:flex-col sm:gap-1 sm:py-2.5" disabled={gold < REROLL_COST} onClick={reroll} aria-label={`Reroll for ${REROLL_COST} gold`}><Dices className="size-4 sm:size-5" /><span className="flex items-center gap-1"><span className="shop-coin" />{REROLL_COST}</span></button>
+                <TeamSlots className="sm:hidden" count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
+                <button type="button" className="hud-button hud-fight flex h-9 items-center gap-1.5 px-4 text-sm sm:hidden" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-4" /> Fight</button>
+              </div>
+              <div className="dock-side hidden sm:order-3 sm:flex sm:w-28 sm:flex-col sm:items-stretch sm:justify-center sm:gap-2">
+                <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
+                <button type="button" className="dock-fight hud-button hud-fight flex h-12 items-center justify-center gap-2 text-base" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
+              </div>
             </div>
           </div>
         </div>

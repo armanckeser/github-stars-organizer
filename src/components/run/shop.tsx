@@ -70,7 +70,7 @@ function ShopCard({ fighter, held, affordable, onOpen }: { fighter: RunFighter; 
       <span className="shop-card-art absolute inset-[3px] overflow-hidden rounded-[7px]">
         {art ? <img src={art} alt="" draggable={false} className="absolute inset-x-0 -bottom-[6%] mx-auto h-[118%] w-auto max-w-none object-contain transition-transform duration-200 ease-out group-hover:scale-[1.04] sm:left-auto sm:right-[-10%] sm:h-[112%]" /> : null}
         <span className="absolute inset-x-0 bottom-0 h-[46%] bg-gradient-to-t from-[#06080b] via-[#06080bcc] to-transparent" />
-        <span className="absolute left-1.5 top-1.5 hidden flex-col gap-0.5 sm:flex">
+        <span className="shop-sets-named absolute left-1.5 top-1.5 hidden flex-col gap-0.5 sm:flex">
           {sets.map(({ set, count, live }) => (
             <span key={set} className="flex items-center gap-1 text-[12px] font-semibold leading-tight text-white [text-shadow:0_1px_2px_#000,0_0_8px_#000]">
               {count > 1 ? <span className={`shop-count ${live ? "shop-count-live" : ""}`}>{count}</span> : <span className="shop-dot" style={set === language ? { background: languageColor(fighter.color) } : undefined} data-topic={set === language ? undefined : ""} />}
@@ -79,7 +79,7 @@ function ShopCard({ fighter, held, affordable, onOpen }: { fighter: RunFighter; 
           ))}
         </span>
         {/* On a phone the sets are dots only, and a count where the card advances one. */}
-        <span className="absolute left-1 top-1 flex gap-0.5 sm:hidden">
+        <span className="shop-sets-dots absolute left-1 top-1 flex gap-0.5 sm:hidden">
           {sets.map(({ set, count, live }) => (count > 1 ? <span key={set} className={`shop-count ${live ? "shop-count-live" : ""}`}>{count}</span> : <span key={set} className="shop-dot" style={set === language ? { background: languageColor(fighter.color) } : undefined} data-topic={set === language ? undefined : ""} />))}
         </span>
         <span className="absolute inset-x-1.5 bottom-1 flex items-end justify-end gap-1 sm:justify-between">

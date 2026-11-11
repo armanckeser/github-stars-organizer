@@ -72,6 +72,18 @@ const BENCH_Z = ROWS * CELL + 0.95;
 const BENCH_X = -0.55;
 const BENCH_DEPTH = 1.02;
 const BENCH_SCALE = 0.82;
+
+/** How far into the free band the scene may reach, as a share of it. */
+const FIT_MARGIN = 0.96;
+type Frame = { box: THREE.Box3; pitch: number; steepest: number; fov: number; top: number };
+/**
+ * What the camera keeps in view and how steeply it looks down. A wide screen frames the
+ * board with the characters beside it; an upright phone looks down more steeply, so the
+ * board's depth fills the height, and keeps the Archive and the player's character in
+ * front of the Drafts. `top` is the screen kept clear for the top bar.
+ */
+const WIDE_FRAME: Frame = { box: new THREE.Box3(new THREE.Vector3(-3.6, 0, -ROWS * CELL + 0.2), new THREE.Vector3(3.6, 1.55, ROWS * CELL + 0.95 + 0.55)), pitch: 0.82, steepest: 0.82, fov: 34, top: 44 };
+const UPRIGHT_FRAME: Frame = { box: new THREE.Box3(new THREE.Vector3(-3.15, 0, -ROWS * CELL - 0.9), new THREE.Vector3(2.7, 1.3, ROWS * CELL + 0.95 + 1.85)), pitch: 1.0, steepest: 1.17, fov: 40, top: 56 };
 const SHELF = 0x2a3038;
 const DRAFT = [0x3b434d, 0x353c45];
 const DRAFT_LIT = 0x8b949e;
@@ -98,6 +110,10 @@ export class BoardWorld {
   /** Screen pixels the shop covers along the bottom, and how far the view has eased toward it. */
   private inset = 0;
   private shown = 0;
+  /** The inset the camera was last fitted to, and the host size, so it refits only when either moves. */
+  private fitted = { inset: -1, width: 0, height: 0 };
+  private upright = false;
+  private probe = new THREE.PerspectiveCamera(36, 1, 0.1, 120);
   private actors = new Map<string, Actor>();
   private trainers: [Trainer | null, Trainer | null] = [null, null];
   private looks: [string, string] = ["", ""];
@@ -228,7 +244,7 @@ export class BoardWorld {
   // Where the two characters stand: beside the board on a wide screen, and at its near
   // and far ends on an upright phone, where the sides are off the screen.
   private post() {
-    const upright = this.camera.aspect < 1;
+    const upright = this.upright;
     // The Archive closes the Drafts row on a wide screen; on a phone, where the row fills the width, it sits in front of the row's end.
     if (upright) this.archive.root.position.set(BENCH_X + BENCH_SIZE * BENCH_PITCH * 0.36, 0.02, BENCH_Z + 1.35);
     else this.archive.root.position.set(BENCH_X + (BENCH_SIZE / 2) * BENCH_PITCH + 0.85, 0.02, BENCH_Z - 0.05);
@@ -752,8 +768,7 @@ export class BoardWorld {
     // The shop covers the bottom of the screen: draw the scene as the top part of a taller picture, so the board centres above it.
     const ease = this.options.reduced ? 1 : 1 - Math.exp(-seconds * 8);
     this.shown += (this.inset - this.shown) * ease;
-    const { clientWidth: width, clientHeight: height } = this.host;
-    if (width && height && Math.abs(this.shown - (this.camera.view?.offsetY ?? 0)) > 0.25) this.camera.setViewOffset(width, height + this.shown, 0, this.shown, width, height);
+    if (Math.abs(this.shown - this.fitted.inset) > 0.25) this.fit();
   }
 
   /** The lid eases toward open while a sellable creature is held over the box, and cracks open while anything is carried. */
@@ -776,20 +791,92 @@ export class BoardWorld {
     const { clientWidth: width, clientHeight: height } = this.host;
     if (!width || !height) return;
     this.renderer.setSize(width, height, false);
-    this.camera.aspect = width / height;
-    // Framed on the board and the Drafts shelf in front of it.
-    if (this.camera.aspect < 1) {
-      this.camera.fov = 50;
-      this.eye.set(0, 16.2, 10.6);
-      this.aim.set(0, 0, 1.75);
-    } else {
-      this.camera.fov = 34;
-      this.eye.set(0, 10.2, 10.6);
-      this.aim.set(0, 0, 0.95);
+    const upright = width < height;
+    if (upright !== this.upright) {
+      this.upright = upright;
+      this.post();
     }
-    if (this.shown > 0.25) this.camera.setViewOffset(width, height + this.shown, 0, this.shown, width, height);
-    this.camera.updateProjectionMatrix();
-    this.post();
+    this.fit();
+  }
+
+  /**
+   * Frames the board, the Drafts and the Archive in the part of the screen nothing
+   * covers: below the top bar, above the shop. The scene is drawn as part of a taller
+   * picture whose middle is that free band, so the shop can rise and fall over it and
+   * the camera dollies to keep everything in view.
+   */
+  private fit() {
+    const { clientWidth: width, clientHeight: height } = this.host;
+    if (!width || !height) return;
+    const { box, pitch, steepest, fov, top } = this.upright ? UPRIGHT_FRAME : WIDE_FRAME;
+    const full = Math.max(1, height + this.shown - top);
+    const free = Math.max(0.2, (height - this.shown - top) / full);
+    for (const camera of [this.camera, this.probe]) {
+      camera.fov = fov;
+      camera.aspect = width / full;
+    }
+    this.probe.updateProjectionMatrix();
+    // A band taller than the scene is wide leaves floor showing under it: look down more steeply, which draws the board's depth longer, until the height is used too.
+    let shallow = pitch;
+    let steep = steepest;
+    let view = this.viewAt(box, pitch, free);
+    for (let step = 0; steep - shallow > 0.01 && step < 10; step += 1) {
+      const middle = (shallow + steep) / 2;
+      const tried = this.viewAt(box, middle, free);
+      const slack = tried.high - tried.low < 2 * free * FIT_MARGIN * 0.97;
+      if (slack) {
+        shallow = middle;
+        view = tried;
+      } else steep = middle;
+    }
+    this.aim.copy(view.aim);
+    this.eye.copy(view.aim).addScaledVector(view.direction, view.distance);
+    this.camera.setViewOffset(width, full, 0, this.shown - top, width, height);
+    this.fitted = { inset: this.shown, width, height };
+  }
+
+  /** The camera looking down at `pitch`, as near as it can stand with the box in the band, aimed so the box's near and far ends sit evenly. */
+  private viewAt(box: THREE.Box3, pitch: number, free: number) {
+    const direction = new THREE.Vector3(0, Math.sin(pitch), Math.cos(pitch));
+    const aim = box.getCenter(new THREE.Vector3()).setY(0.3);
+    for (let pass = 0; pass < 4; pass += 1) {
+      const [low, high] = this.spread(box, aim, direction, this.distanceToFit(box, aim, direction, free));
+      aim.z -= ((low + high) / 2 / Math.max(0.01, high - low)) * (box.max.z - box.min.z);
+    }
+    const distance = this.distanceToFit(box, aim, direction, free);
+    const [low, high] = this.spread(box, aim, direction, distance);
+    return { aim, direction, distance, low, high };
+  }
+
+  /** The nearest distance from `aim` along `direction` at which every corner of `box` lands inside the free band. */
+  private distanceToFit(box: THREE.Box3, aim: THREE.Vector3, direction: THREE.Vector3, free: number): number {
+    let near = 2;
+    let far = 90;
+    for (let step = 0; step < 22; step += 1) {
+      const middle = (near + far) / 2;
+      const [low, high, side] = this.spread(box, aim, direction, middle);
+      if (side <= FIT_MARGIN && high <= free * FIT_MARGIN && low >= -free * FIT_MARGIN) far = middle;
+      else near = middle;
+    }
+    return far;
+  }
+
+  /** Where the box's corners land seen from `distance`: the lowest and highest, and the widest to either side. */
+  private spread(box: THREE.Box3, aim: THREE.Vector3, direction: THREE.Vector3, distance: number): [number, number, number] {
+    this.probe.position.copy(aim).addScaledVector(direction, distance);
+    this.probe.lookAt(aim);
+    this.probe.updateMatrixWorld();
+    let low = Infinity;
+    let high = -Infinity;
+    let side = 0;
+    const corner = new THREE.Vector3();
+    for (let index = 0; index < 8; index += 1) {
+      corner.set(index & 1 ? box.max.x : box.min.x, index & 2 ? box.max.y : box.min.y, index & 4 ? box.max.z : box.min.z).project(this.probe);
+      low = Math.min(low, corner.y);
+      high = Math.max(high, corner.y);
+      side = Math.max(side, Math.abs(corner.x));
+    }
+    return [low, high, side];
   }
 
   private ray(event: Point) {

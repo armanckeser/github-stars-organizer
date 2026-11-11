@@ -25,13 +25,19 @@ describe("a stored opening post", () => {
     const opening = await opened(STORED_V2);
     const rebuilt = teamsFromFacts(opening);
 
-    expect(rebuilt).toEqual(opening.teams);
+    // A stored post was written by older code, and the rules for a card's numbers change
+    // (a new field, a new stat budget). What must hold for every stored post is which
+    // cards each side plays, in which order, and which were drawn. That the numbers match
+    // under the same code is checked on a freshly opened match below.
+    const shape = (team: typeof rebuilt.a) => team.map((f) => [f.fullName, f.wildcard ?? false]);
+    expect(shape(rebuilt.a)).toEqual(shape(opening.teams.a));
+    expect(shape(rebuilt.b)).toEqual(shape(opening.teams.b));
     // The host fielded four cards and was cut to three: the specialist perk counted the
     // three web cards among all four, so the two web cards left still carry it.
-    expect(rebuilt.a.map((f) => [f.fullName, f.attack, f.perk, f.wildcard ?? false])).toEqual([
-      ["greendale/dreamatorium", 103, true, false],
-      ["troy-barnes/blanket-fort", 67, true, true],
-      ["inspector-spacetime/constables", 101, false, true],
+    expect(rebuilt.a.map((f) => [f.fullName, f.perk, f.wildcard ?? false])).toEqual([
+      ["greendale/dreamatorium", true, false],
+      ["troy-barnes/blanket-fort", true, true],
+      ["inspector-spacetime/constables", false, true],
     ]);
     expect(rebuilt.b.map((f) => f.fullName)).toEqual(["greendale/paintball-assassin", "greendale/human-being", "city-college/mascot"]);
   });

@@ -1,16 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Layers, RotateCcw, Send, SkipForward, Star, Swords } from "lucide-react";
+import { Layers, RotateCcw, Send, SkipForward, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
 import { ArenaScene, ArenaStage, InspectOverlay, Nameplate, TextBox, repoName, type SideView, type Stance } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
 import { MatchList } from "@/components/battle/match-list";
+import { StarStard } from "@/components/star-stard";
 import { RepoCard } from "@/components/battle/repo-card";
 import { demoUser } from "@/lib/demo";
 import { CAN_PLAY, challenge, playingAs } from "@/lib/game-api";
-import { APP_URL, CARD_ORIGIN, REPO_URL, validLogin } from "@/lib/published-list";
+import { APP_URL, CARD_ORIGIN, validLogin } from "@/lib/published-list";
 import type { BattleResult, Fighter, Side } from "../../server/battle";
 import { CLASSES, defaultCharacter, type Character } from "../../server/character";
 
@@ -330,7 +331,7 @@ function BattlePage() {
           </div>
           {done && (
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"><Star className="size-4" /> Star Stard on GitHub</a>
+              <StarStard />
               <CopyButton text={`${APP_URL}battle?${query}`} label="Share" />
             </div>
           )}

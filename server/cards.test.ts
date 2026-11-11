@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, topFourCard, wrap, type CardRepo } from "./cards.ts";
+import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, runCard, topFourCard, wrap, type CardRepo } from "./cards.ts";
+import { defaultCharacter } from "./character.ts";
 
 function repo(fullName: string, extra: Partial<CardRepo> = {}): CardRepo {
   return { fullName, stars: 1234, language: "TypeScript", color: "#3178c6", avatar: null, ...extra };
@@ -76,5 +77,26 @@ describe("the cards", () => {
 
   test("a card that can't be drawn says why", () => {
     expect(messageCard("This card has no repos to show.")).toContain("This card has no repos to show.");
+  });
+});
+
+describe("runCard", () => {
+  const side = {
+    login: "greendale", name: "greendale", klass: "Rookie", tint: "#1f8fe0", look: defaultCharacter("greendale").look, avatar: null,
+    team: ["dreamatorium", "paintball-assassin", "human-being", "kickpuncher", "blanket-fort"].map((name) => ({ name, color: "#1f8fe0", shiny: false })),
+  };
+
+  test("draws a finished run at the link-preview size with the record and every card", () => {
+    const svg = runCard(side, 5, 1, "Space Grotesk");
+    expect(svg).toContain('width="1200" height="630"');
+    expect(svg).toContain(">5 wins</text>");
+    expect(svg).toContain(">1 loss</text>");
+    for (const name of ["dreamatorium", "paintball-assas…", "human-being", "kickpuncher", "blanket-fort"]) expect(svg).toContain(`>${name}</text>`);
+  });
+
+  test("says one win and no losses in the singular and plural", () => {
+    const svg = runCard({ ...side, team: [] }, 1, 0, "Space Grotesk");
+    expect(svg).toContain(">1 win</text>");
+    expect(svg).toContain(">0 losses</text>");
   });
 });

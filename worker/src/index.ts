@@ -4,8 +4,11 @@ import { CARD_PATH, cardResponse } from "./cards.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
 import { RUN_PATH, RunRefused, runResponse } from "./run.ts";
 import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
+import { TEAM_PAGE_PATH, TEAM_PATH, teamPage, teamResponse } from "./team.ts";
+import { TEAM_PICTURE_PATH, teamPictureResponse } from "./team-picture.ts";
 
-// BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts) and a run's token (worker/src/run.ts):
+// BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts), a run's token (worker/src/run.ts)
+// and a finished run's team (worker/src/team.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string };
 
@@ -105,11 +108,24 @@ export default {
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
     const run = RUN_PATH.exec(url.pathname);
     if (run) return runResponse(run[1], request, { key: env.BATTLE_KEY, read: (login) => cachedPool(url.origin, login, env, context), now: Date.now() });
+    // A finished run's team: saved by replaying the run, read back from its token, its page and its picture.
+    if (TEAM_PAGE_PATH.test(url.pathname)) return request.method === "GET" ? teamPage(request, url, env.BATTLE_KEY) : fetch(request);
+    if (TEAM_PATH.test(url.pathname)) return teamResponse(request, url, { key: env.BATTLE_KEY, read: (login) => cachedPool(url.origin, login, env, context), now: Date.now() });
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
 
     // A match changes with every comment, so its replies set their own short cache and skip this one.
     const match = GAME_PATH.exec(url.pathname);
     if (match) return gameResponse(match[1], url.searchParams, env.GITHUB_TOKEN, env.BATTLE_KEY);
+
+    if (TEAM_PICTURE_PATH.test(url.pathname)) {
+      // A token is case-sensitive, so its picture is keyed exactly as asked.
+      const key = cacheKeyFor(url, false);
+      const cached = await caches.default.match(key);
+      if (cached) return cached;
+      const response = await teamPictureResponse(url.searchParams, env.BATTLE_KEY);
+      if (response.ok) context.waitUntil(caches.default.put(key, response.clone()));
+      return response;
+    }
 
     const card = CARD_PATH.exec(url.pathname);
     const fight = BATTLE_PATH.exec(url.pathname);

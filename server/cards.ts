@@ -354,3 +354,41 @@ export function versusCard(a: VersusSide, b: VersusSide, font: string): string {
     `</svg>`
   );
 }
+
+/**
+ * A finished run's team, at the size link previews ask for: the player on the left as
+ * a side of the versus picture is drawn, the record and the team on the right.
+ */
+export function runCard(player: VersusSide, wins: number, losses: number, font: string): string {
+  const size = Math.min(56, Math.floor(320 / (Math.max(player.login.length, 6) * 0.62)));
+  const under = [player.klass === "Rookie" ? "" : player.klass, player.name.toLowerCase() === player.login.toLowerCase() ? "" : player.name].filter(Boolean).join(" · ");
+  const winsText = `${wins} ${wins === 1 ? "win" : "wins"}`;
+  const lossesText = `${losses} ${losses === 1 ? "loss" : "losses"}`;
+  let out = `<g transform="translate(36,262)"><svg width="232" height="330" viewBox="0 0 120 170">${figureSvg(player.look)}</svg></g>`;
+  out += `<clipPath id="face"><circle cx="100" cy="112" r="46"/></clipPath>`;
+  out += `<circle cx="100" cy="112" r="50" fill="${player.tint}"/>`;
+  if (player.avatar) out += `<image href="${player.avatar}" x="54" y="66" width="92" height="92" clip-path="url(#face)" preserveAspectRatio="xMidYMid slice"/>`;
+  out += `<text x="168" y="${112 + size * 0.1}" font-size="${size}" letter-spacing="-1" fill="${TEXT}">${escapeXml(player.login)}</text>`;
+  out += `<text x="170" y="${152 + size * 0.1}" font-size="24" fill="${BODY}">${escapeXml(truncate(under, 24))}</text>`;
+  out += `<text x="565" y="175" font-size="112" letter-spacing="-4" fill="${STAR}">${winsText}</text>`;
+  out += `<text x="560" y="170" font-size="112" letter-spacing="-4" fill="#ffffff">${winsText}</text>`;
+  out += `<text x="562" y="230" font-size="40" letter-spacing="-0.5" fill="${BODY}">${lossesText}</text>`;
+  player.team.slice(0, 6).forEach((card, i) => {
+    const left = 560 + Math.floor(i / 3) * 300;
+    const top = 290 + (i % 3) * 80;
+    out += `<rect x="${left}" y="${top}" width="280" height="64" rx="12" fill="#12161c" stroke="${card.shiny ? STAR : EDGE}" stroke-width="2"/>`;
+    out += `<rect x="${left}" y="${top}" width="12" height="64" rx="6" fill="${card.color}"/>`;
+    out += `<text x="${left + 28}" y="${top + 41}" font-size="25" letter-spacing="-0.3" fill="${TEXT}">${escapeXml(truncate(card.name, 16))}</text>`;
+  });
+  const title = `${player.login}'s team: ${winsText}, ${lossesText}`;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" viewBox="0 0 ${SHARE_WIDTH} ${SHARE_HEIGHT}" role="img" aria-label="${escapeXml(title)}" font-family="${font}" font-weight="700">` +
+    `<rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="#0b0e12"/>` +
+    `<polygon points="0,0 560,0 464,${SHARE_HEIGHT} 0,${SHARE_HEIGHT}" fill="${player.tint}" opacity="0.34"/>` +
+    `<line x1="560" y1="0" x2="464" y2="${SHARE_HEIGHT}" stroke="#ffffff" stroke-opacity="0.25" stroke-width="3"/>` +
+    out +
+    `<polygon points="${star(1086, 596, 9)}" fill="${STAR}"/>` +
+    `<text x="1102" y="604" font-size="24" letter-spacing="-0.3" fill="${TEXT}">stard</text>` +
+    `</svg>`
+  );
+}

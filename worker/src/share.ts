@@ -23,7 +23,7 @@ const FONT_FAMILY = "Space Grotesk";
 
 let ready: Promise<void> | undefined;
 
-async function png(svg: string): Promise<Uint8Array> {
+export async function png(svg: string): Promise<Uint8Array> {
   await (ready ??= initWasm(wasm));
   const drawn = new Resvg(svg, { font: { fontBuffers: [new Uint8Array(font)], loadSystemFonts: false, defaultFontFamily: FONT_FAMILY } }).render();
   const bytes = drawn.asPng();

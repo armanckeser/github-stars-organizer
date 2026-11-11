@@ -1,19 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
-import { CircleHelp, Coins, Crosshair, Dices, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
+import { CircleHelp, Coins, Crosshair, Dices, Play, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay, repoName } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
+import { RunEnd } from "@/components/run/run-end";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
 import { demoUser } from "@/lib/demo";
-import { APP_URL, validLogin } from "@/lib/published-list";
+import { validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
 import { CLASSES } from "../../server/character";
 import { fight as playFight } from "../../server/run/fight";
-import { cellOf, type Side } from "../../server/run/types";
+import { cellOf, type Side, type Snapshot } from "../../server/run/types";
 
 // The Play screen: a run, played on one board. The player buys cards from the shop
 // along the bottom, drags them around their half, and presses Fight; every creature
@@ -21,11 +22,14 @@ import { cellOf, type Side } from "../../server/run/types";
 
 export const Route = createFileRoute("/run")({
   component: RunPage,
-  validateSearch: (search: Record<string, unknown>): { me?: string } => ({ me: typeof search.me === "string" ? search.me : undefined }),
+  validateSearch: (search: Record<string, unknown>): { me?: string; against?: string } => ({
+    me: typeof search.me === "string" ? search.me : undefined,
+    // A finished run's team from its share link (/team): every round is played against that team.
+    against: typeof search.against === "string" ? search.against : undefined,
+  }),
 });
 
 const Board3D = lazy(() => import("@/components/battle/board3d"));
-const REPO_URL = "https://github.com/armanckeser/github-stars-organizer";
 const idOf = (side: Side, fighter: RunFighter) => `${side}:${fighter.fullName}`;
 const PANEL = "rounded-lg border border-white/15 bg-[#0c1014]/90 shadow-lg backdrop-blur-sm";
 
@@ -78,17 +82,23 @@ function RunPage() {
   const [viewing, setViewing] = useState<{ fighter: RunFighter; slot?: number; unit?: Unit } | null>(null);
   const [profile, setProfile] = useState<Player | null>(null);
   const [help, setHelp] = useState(false);
+  // The team as fought at each round, for the end screen's share link.
+  const [history, setHistory] = useState<Snapshot[]>([]);
+  const [against, setAgainst] = useState<SavedTeam | null>(null);
 
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? teamSizeAt(round.number) : 0;
   const fighting = played !== null && !played.over;
 
-  async function openRound(me: Player, team: Unit[], number: number) {
+  async function openRound(me: Player, team: Unit[], number: number, saved = against) {
     setLoading(true);
     setError("");
     try {
-      const opponent = await fetchPlayer(opponentLogin(me.login, number));
-      setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
+      if (saved) setRound({ number, ...savedRound(saved, number) });
+      else {
+        const opponent = await fetchPlayer(opponentLogin(me.login, number));
+        setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
+      }
       setRerolls(0);
       setShop(shopFor(me, team.map((unit) => unit.fighter), number, 0));
       setPlayed(null);
@@ -106,14 +116,16 @@ function RunPage() {
     setLoading(true);
     setError("");
     try {
-      const me = await fetchPlayer(login.trim());
+      const [me, saved] = await Promise.all([fetchPlayer(login.trim()), search.against ? openTeam(search.against) : null]);
       const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
+      setAgainst(saved);
+      setHistory([]);
       setPlayer(me);
       setUnits(team);
       setWins(0);
       setLosses(0);
       setGold(START_GOLD);
-      await openRound(me, team, 1);
+      await openRound(me, team, 1, saved);
     } catch (cause) {
       setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The cards couldn't be read. Check the connection and try again.");
       setLoading(false);
@@ -156,7 +168,11 @@ function RunPage() {
   function fight() {
     if (!player || !round) return;
     const seed = `${player.login}|${round.opponent.login}|${round.number}|${today()}`;
-    const events = playFight(snapshot(player.login, round.number, units), snapshot(round.opponent.login, round.number, round.theirs), seed);
+    const mine = snapshot(player.login, round.number, units);
+    // A saved team fights with the boosts it had at that round, as the Worker replays it (worker/src/team.ts).
+    const theirs = against ? savedSnapshotAt(against, round.number) : snapshot(round.opponent.login, round.number, round.theirs);
+    const events = playFight(mine, theirs, seed);
+    setHistory([...history, mine]);
     setSelected(null);
     setPlayed({ fight: { key: `${seed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner: winnerOf(events), over: false });
   }
@@ -281,15 +297,7 @@ function RunPage() {
 
       {player && finished && !played && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 p-4">
-          <div className={`${PANEL} w-full max-w-sm space-y-3 p-5 text-center`}>
-            <p className="font-display text-2xl font-bold tracking-tight">{wins >= WINS_TO_FINISH ? "Run finished" : "Run over"}</p>
-            <p className="text-sm text-white/70">{wins} {wins === 1 ? "win" : "wins"}, {losses} {losses === 1 ? "loss" : "losses"}.</p>
-            <Button className="w-full" onClick={() => void start()} disabled={loading}><RotateCcw /> New run</Button>
-            <div className="flex items-center justify-between gap-2">
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-white/70 underline-offset-4 hover:text-white hover:underline"><Star className="size-4" /> Star Stard on GitHub</a>
-              <CopyButton text={`${APP_URL}run`} label="Share" />
-            </div>
-          </div>
+          <RunEnd login={player.login} rounds={history} team={units} wins={wins} losses={losses} against={against ? search.against : undefined} loading={loading} onNewRun={() => void start()} />
         </div>
       )}
 

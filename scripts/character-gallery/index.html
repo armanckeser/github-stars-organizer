@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Stard characters</title>
+    <style>
+      body { margin: 0; padding: 24px; background: #0c1014; color: #e8e6e1; font: 14px system-ui, sans-serif; }
+      h1 { margin: 0 0 16px; font-size: 20px; }
+      #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+      .card { background: #161b22; border-radius: 8px; padding: 8px; text-align: center; }
+      .pair { display: flex; justify-content: center; align-items: end; gap: 4px; }
+      .pair img { height: 150px; }
+      .login { margin-top: 6px; font-weight: 600; }
+      .parts { color: #8b949e; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <h1>Shipped characters: 3D and flat</h1>
+    <div id="grid"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -47,6 +47,15 @@ describe("the cards", () => {
     expect(Number(/height="(\d+)"/.exec(unrated)![1])).toBeLessThan(Number(/height="(\d+)"/.exec(rated)![1]));
   });
 
+  test("a poster shows the README's art in the avatar's place", () => {
+    const art = "data:image/png;base64,QVJU";
+    const avatar = "data:image/png;base64,RkFDRQ==";
+    const withArt = topFourCard("octo", [repo("a/one", { art, avatar })]);
+    expect(withArt).toContain(`href="${art}"`);
+    expect(withArt).not.toContain(avatar);
+    expect(topFourCard("octo", [repo("a/one", { avatar })])).toContain(`href="${avatar}"`);
+  });
+
   test("text a person typed can't add markup", () => {
     const svg = reviewCard("octo", repo("a/one"), 4, `</text><script>alert("x")</script> & more`);
     expect(svg).not.toContain("<script>");

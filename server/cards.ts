@@ -16,6 +16,8 @@ export type CardRepo = {
   color: string | null;
   /** The owner's avatar as a data: URI, or null to leave the avatar out. */
   avatar: string | null;
+  /** A picture from the repo's README as a data: URI; shown in the avatar's place. */
+  art?: string | null;
 };
 
 export const CARD_WIDTH = 880;
@@ -124,9 +126,14 @@ function poster(x: number, y: number, w: number, repo: CardRepo): string {
   const nameTop = y + h - m - lineHeight * (lines.length - 1);
   const avatar = w * 0.24;
   const clip = `av${clipCount++}`;
+  // The art sits between the star count and the owner's name, as large as the name leaves room for.
+  const artTop = y + m + small + m * 0.7;
+  const artHeight = nameTop - lineHeight * 0.95 - small - m * 0.5 - artTop;
 
   let out = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${color}"/>`;
-  if (repo.avatar) {
+  if (repo.art && artHeight > w * 0.25) {
+    out += `<image href="${escapeXml(repo.art)}" x="${x + m}" y="${artTop}" width="${w - m * 2}" height="${artHeight}" preserveAspectRatio="xMidYMid meet"/>`;
+  } else if (repo.avatar) {
     out += `<clipPath id="${clip}"><rect x="${x + m}" y="${y + m}" width="${avatar}" height="${avatar}" rx="${avatar * 0.18}"/></clipPath>`;
     out += `<image href="${escapeXml(repo.avatar)}" x="${x + m}" y="${y + m}" width="${avatar}" height="${avatar}" clip-path="url(#${clip})" preserveAspectRatio="xMidYMid slice"/>`;
   }

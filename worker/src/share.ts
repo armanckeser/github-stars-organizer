@@ -1,10 +1,8 @@
-import { Resvg, initWasm } from "@resvg/resvg-wasm";
-import wasm from "@resvg/resvg-wasm/index_bg.wasm";
 import { TYPE_COLOR, versusCard, type VersusSide } from "../../server/cards.ts";
 import { CLASSES } from "../../server/character.ts";
 import { NoSuchUser, evened, teamFor, type Team } from "./battle.ts";
 import { LOGIN, avatarData } from "./cards.ts";
-import font from "./SpaceGrotesk-Bold.ttf";
+import { FONT_FAMILY, png } from "./draw.ts";
 
 // What a battle link looks like when it is shared (Slack, X, Discord, iMessage).
 // Those read a page's tags without running it, and the app is one static page, so
@@ -19,17 +17,6 @@ export const VERSUS_PATH = /^\/api\/card\/versus\.png$/;
 export const SHARE_PATH = /^\/battle\/?$/;
 
 const CACHE_SECONDS = 3600;
-const FONT_FAMILY = "Space Grotesk";
-
-let ready: Promise<void> | undefined;
-
-async function png(svg: string): Promise<Uint8Array> {
-  await (ready ??= initWasm(wasm));
-  const drawn = new Resvg(svg, { font: { fontBuffers: [new Uint8Array(font)], loadSystemFonts: false, defaultFontFamily: FONT_FAMILY } }).render();
-  const bytes = drawn.asPng();
-  drawn.free();
-  return bytes;
-}
 
 async function sideOf(team: Team): Promise<VersusSide> {
   // GitHub serves avatars at any size; the card shows this one large.

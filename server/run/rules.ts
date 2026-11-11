@@ -1,4 +1,5 @@
 import { seededRandom, type Fighter } from "../battle.ts";
+import { rarityOf as rarityForStars } from "./stats.ts";
 import { COLS, ROWS, type Card, type FightEvent, type Side, type Snapshot } from "./types.ts";
 
 // A run's rules, shared by the Play screen and the Worker that referees a run
@@ -23,8 +24,7 @@ export type Unit = { fighter: Fighter; col: number; row: number };
 /** Whoever a shop is drawn for: an account and its cards, the ace first. */
 export type Pool<T extends { fullName: string }> = { login: string; team: T[] };
 
-const RARITY_STARS = [100, 1000, 10000, 50000];
-const rarityOf = (fighter: Fighter) => RARITY_STARS.filter((stars) => fighter.stars >= stars).length as Card["rarity"];
+const rarityOf = (fighter: Fighter) => rarityForStars(fighter.stars);
 /** Cards that work on text and numbers hit from behind; the rest fight up close. */
 export const rangeOf = (card: { type: string }): Card["range"] => (card.type === "data" || card.type === "docs" || card.type === "scripts" ? 3 : 1);
 /** Gold a card costs, and gives back when sold: 1 for a common up to 5 for a legendary. */

@@ -2,6 +2,7 @@ import { battle, drawFromStars, fieldTeam, instantSeed, type Fighter, type RepoF
 import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
 import { characterFrom, characterIn, characterLevel, defaultCharacter, type Character } from "../../server/character.ts";
 import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
+import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -239,13 +240,26 @@ export async function trainerResponse(params: URLSearchParams, token: string): P
 }
 
 /** The cards a run is played with: the ace first, then the day's draws from the player's stars. */
+/**
+ * A run's cards carry the run's numbers (server/run/stats.ts) in place of the battle's,
+ * so the fight and the board's HP bars read the same values on the Play screen and the Worker.
+ */
+function withRunNumbers(player: Team): Team {
+  const readAt = Date.parse(player.facts.readAt);
+  const team = player.team.map((fighter, i) => {
+    const card = cardFor(player.facts.repos[i], readAt);
+    return { ...fighter, hp: card.hp, attack: card.attack, defense: card.guard, speed: card.speed, shiny: card.shiny };
+  });
+  return { ...player, team };
+}
+
 export async function poolResponse(params: URLSearchParams, token: string): Promise<Response> {
   const login = params.get("login") ?? "";
   if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
   try {
     const player = await teamFor(token, login, Date.now(), POOL_SIZE);
     if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
-    return json(player, 200, CACHE_SECONDS);
+    return json(withRunNumbers(player), 200, CACHE_SECONDS);
   } catch (error) {
     if (error instanceof NoSuchUser) return json({ error: `No GitHub user called ${error.message}.` }, 404, CACHE_SECONDS);
     console.error(error);

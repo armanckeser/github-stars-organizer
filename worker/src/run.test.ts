@@ -23,6 +23,7 @@ const teamOf = (login: string, over: Partial<Fighter> = {}): Team => ({
   login, avatarUrl: null, source: "stars",
   character: { ...defaultCharacter(login), level: 1, since: null, followers: 0, ownStars: 0, custom: false },
   team: Array.from({ length: POOL }, (_, i) => fighter(`${login}/repo-${i}`, over)),
+  facts: { readAt: new Date(NOW).toISOString(), character: null, ace: null, source: "stars", repos: [] },
 });
 
 const STRONG = { hp: 1000, attack: 400, defense: 100, speed: 100 };

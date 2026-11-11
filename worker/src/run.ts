@@ -1,5 +1,5 @@
 import type { Fighter } from "../../server/battle.ts";
-import { plainFight } from "../../server/run/plain-fight.ts";
+import { fight as runFight } from "../../server/run/fight.ts";
 import {
   LOSSES_TO_END, REROLL_COST, ROUND_GOLD, SHOP_SIZE, START_GOLD, WINS_TO_FINISH, WIN_GOLD,
   freeCell, inHalf, opponentLogin, opponentUnits, priceOf, shopFor, shuffled, teamSizeAt, toCard, winnerOf,
@@ -23,10 +23,10 @@ import { sign } from "./game.ts";
 
 export const RUN_PATH = /^\/api\/run\/(new|act)$/;
 
-/** The fight engine. Task 1 swaps in `fight` from server/run/fight.ts here. */
-const fight: Fight = plainFight;
+/** The fight engine. Task 2 swaps in its rules here (`fightWith`). */
+const fight: Fight = runFight;
 
-/** A card's numbers, frozen when the run starts. Task 1 swaps in server/run/stats.ts here. */
+/** A card's numbers, frozen when the run starts. The pool already carries server/run/stats.ts numbers (poolResponse). */
 const cardOf = (fighter: Fighter): Card => toCard(fighter);
 
 // Ids for the boost pick until server/run/boosts.ts (Task 2) supplies the real list.

@@ -18,7 +18,7 @@ const EXIT_FAILURE = 1;
 const SOURCE_URL = "https://github.com/armanckeser/github-stars-organizer";
 
 // The GPL's recommended notice for interactive programs, shown at every start.
-const NOTICE = `Stars Organizer v${__APP_VERSION__}  Copyright (C) 2026 Armanc Keser
+const NOTICE = `Stard v${__APP_VERSION__}  Copyright (C) 2026 Armanc Keser
 Free software under the GNU AGPL v3 or later, with ABSOLUTELY NO WARRANTY.
 Source, license and bundled licenses: ${SOURCE_URL}
 Not affiliated with or endorsed by GitHub.`;
@@ -26,7 +26,7 @@ Not affiliated with or endorsed by GitHub.`;
 const HELP = `Usage: npx github-stars-organizer [--port <number>] [--no-open]
        npx github-stars-organizer search <words> [--refresh] [--json] [--limit <n>]
 
-Opens Stars Organizer on http://127.0.0.1:${DEFAULT_PORT} using your GitHub
+Opens Stard on http://127.0.0.1:${DEFAULT_PORT} using your GitHub
 login from the gh CLI (or GITHUB_TOKEN, if set). Tags, ratings and notes are
 saved in this browser; Lists and unstars are written to GitHub.
 
@@ -156,7 +156,7 @@ async function main() {
 
   const portState = await checkPort(port);
   if (portState === "ours") {
-    console.log(`Stars Organizer is already running at ${url}`);
+    console.log(`Stard is already running at ${url}`);
     if (shouldOpen) openBrowser(url);
     return;
   }
@@ -170,7 +170,7 @@ async function main() {
   console.log(`Backed up ${launchBackup.stars} stars and ${launchBackup.lists} Lists to ${store.directory}`);
 
   const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port }, () => {
-    console.log(`Stars Organizer at ${url} (Ctrl-C to quit)`);
+    console.log(`Stard at ${url} (Ctrl-C to quit)`);
     if (shouldOpen) openBrowser(url);
   });
   server.on("error", (error: NodeJS.ErrnoException) => {

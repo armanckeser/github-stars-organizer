@@ -1,4 +1,4 @@
-# Using Stars Organizer with an AI agent
+# Using Stard with an AI agent
 
 While `npx github-stars-organizer` is running, it serves a local HTTP API on
 `http://127.0.0.1:5185/api/local`. Any agent that can run `curl` can read your
@@ -21,10 +21,52 @@ to your `CLAUDE.md` or `AGENTS.md`:
 Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred. If my pick is quiet or hasn't released in a year, say so and name the current alternative.
 ```
 
+## Profile cards
+
+A Stard profile is a block of Markdown for a GitHub README: the person's top four repos, a few reviews, and their Lists. Each part is an image whose address holds everything the image shows, so making one needs no API call and no running server. Build the addresses, wrap each in a link, and hand over the Markdown.
+
+All cards live under `https://stars-demo.armanckeser.com/api/card/`. Every card needs `user`, the person's GitHub username. URL-encode every value.
+
+| Card | Address | Parameters |
+|---|---|---|
+| Top four | `top4.svg` | `repos`: up to four `owner/name`, comma-separated, in the order to show. `ratings` (optional): one number per repo, 0.5 to 5 in halves, `0` for no rating. |
+| Review | `review.svg` | `repo`: one `owner/name`. `rating` (optional): 0.5 to 5. `text` (optional): the review, at most 400 characters; the card shows about four lines. |
+| List | `list.svg` | `title`: the List's name. `count`: how many repos the List has. `repos`: up to six `owner/name` to show as posters. |
+
+The Markdown, one card per paragraph:
+
+```markdown
+[![octocat's top four repos on GitHub: astral-sh/uv, immich-app/immich, BurntSushi/ripgrep, sveltejs/svelte](https://stars-demo.armanckeser.com/api/card/top4.svg?user=octocat&repos=astral-sh%2Fuv%2Cimmich-app%2Fimmich%2CBurntSushi%2Fripgrep%2Csveltejs%2Fsvelte&ratings=5%2C5%2C4.5%2C4)](https://stars-demo.armanckeser.com/?user=octocat)
+
+## Reviews
+
+[![BurntSushi/ripgrep, rated 4.5 of 5: Searches a monorepo before I finish typing the flags.](https://stars-demo.armanckeser.com/api/card/review.svg?user=octocat&repo=BurntSushi%2Fripgrep&rating=4.5&text=Searches+a+monorepo+before+I+finish+typing+the+flags.)](https://github.com/BurntSushi/ripgrep)
+
+[![Run your server, a list of 28 repos by octocat](https://stars-demo.armanckeser.com/api/card/list.svg?user=octocat&title=Run+your+server&count=28&repos=immich-app%2Fimmich%2Cjellyfin%2Fjellyfin)](https://stars-demo.armanckeser.com/?user=octocat)
+
+<details>
+<summary>All 28 repos</summary>
+
+- [immich-app/immich](https://github.com/immich-app/immich) - Where every photo I take ends up
+
+</details>
+
+Made with [Stard](https://stars-demo.armanckeser.com/)
+```
+
+Rules for an agent writing a profile:
+
+- The top four and the reviews are the person's taste. Ask; never pick for them, and never write a review for them. Tidy their wording only if they ask.
+- Put the image's content in the alt text, as above. Screen readers and broken images fall back to the alt text.
+- The top four and List cards link to `https://stars-demo.armanckeser.com/?user=<username>`; a review links to the repo.
+- Leave archived repos out of Lists. Check with `npx github-stars-organizer search` or the endpoints below.
+- A GitHub profile README is the `README.md` of the repo named after the username (`octocat/octocat`). Show the finished Markdown and wait for a yes before creating that repo or changing its README, and keep whatever the README already holds.
+- GitHub keeps its own copy of each image for a while, so a changed card can take some hours to show. A new address shows at once.
+
 ## Copy-paste prompt
 
 ```text
-Stars Organizer is running at http://127.0.0.1:5185. Read
+Stard is running at http://127.0.0.1:5185. Read
 https://github.com/armanckeser/github-stars-organizer/blob/main/AGENT-API.md, then
 fetch my stars and Lists with POST /api/local/import. Suggest which List each repo
 in no List belongs in, and any new Lists worth creating. Show me the plan as a

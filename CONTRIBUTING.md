@@ -69,7 +69,7 @@ published by hand, once:
 ```
 github-stars-organizer/
 ├── src/
-│   ├── routes/            # index (main table), explore (dashboard), list.$listId
+│   ├── routes/            # index (main table), explore (dashboard), list.$listId, compose (awesome-list README)
 │   ├── components/        # table, views (dashboard/kanban/list), detail sheet, ui
 │   ├── db/                # PGlite + Electric provider
 │   └── lib/

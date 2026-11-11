@@ -21,7 +21,7 @@ const app = createApp({
 });
 
 serve({ fetch: app.fetch, port: PORT, hostname: process.env.HOST }, () => {
-  console.log(`Stars Organizer on http://localhost:${PORT}${WEB_ROOT ? "" : " (API only)"}`);
+  console.log(`Stard on http://localhost:${PORT}${WEB_ROOT ? "" : " (API only)"}`);
   console.log(auth.enabled ? "Sign-in is on." : "Sign-in is off: anyone who can reach this port can use it.");
   if (!process.env.GITHUB_TOKEN) console.log("GITHUB_TOKEN is not set: importing stars and writing Lists will fail.");
 });

@@ -70,7 +70,7 @@ function bundledRoots(moduleIds: Iterable<string>): string[] {
 
 function writeNotices(packages: BundledPackage[]): string {
   return [
-    "Stars Organizer bundles the following open source packages. Their licenses follow.",
+    "Stard bundles the following open source packages. Their licenses follow.",
     ...packages.map((bundled) => [
       "-".repeat(72),
       `${bundled.name}@${bundled.version}`,

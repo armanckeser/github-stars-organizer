@@ -89,7 +89,7 @@ describe("backup store", () => {
 describe("parseBackup", () => {
   test("parseBackup_raises_InvalidBackupError_when_the_file_is_not_a_backup", () => {
     expect(() => parseBackup({ format: "something-else" })).toThrow(InvalidBackupError);
-    expect(() => parseBackup(null)).toThrow("This file isn't a Stars Organizer backup.");
+    expect(() => parseBackup(null)).toThrow("This file isn't a Stard backup.");
   });
 
   test("parseBackup_names_the_newer_version_when_a_backup_comes_from_a_later_release", () => {

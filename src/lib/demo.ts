@@ -22,6 +22,10 @@ const snapshot: DemoSnapshot | undefined = DEMO ? Object.values(snapshotModules)
 
 export const demoSnapshotUser = snapshot?.user ?? null;
 
+// Whose stars the demo is showing now: the snapshot's owner until someone loads another
+// username. The Profile screen signs its cards with this name.
+export const demoUser: { current: string | null } = { current: demoSnapshotUser };
+
 export function demoSeed(): Record<string, readonly Record<string, unknown>[]> {
   return { repos: snapshot?.repos ?? [], lists: snapshot?.lists ?? [], list_items: snapshot?.list_items ?? [] };
 }

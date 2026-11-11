@@ -215,7 +215,7 @@ describe("unstarring", () => {
   });
 });
 
-describe("starring Stars Organizer", () => {
+describe("starring Stard", () => {
   test("starSelf_stars_only_the_stars_organizer_repo", async () => {
     const { fake, call } = await setUp();
     const { status } = await call("POST", "/api/star-self");

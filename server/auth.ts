@@ -75,7 +75,7 @@ const escapeHtml = (text: string) =>
 
 const loginPage = (error: string | null) => `<!doctype html>
 <html lang="en" class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0d1117"><title>Sign in · Stars Organizer</title>
+<meta name="theme-color" content="#0d1117"><title>Sign in · Stard</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -87,7 +87,7 @@ const loginPage = (error: string | null) => `<!doctype html>
   p { margin:0; color:#f85149; font-size:14px; }
 </style></head>
 <body><form method="post" action="/auth/login">
-  <h1>Stars Organizer</h1>
+  <h1>Stard</h1>
   <input type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" autofocus required>
   <button type="submit">Sign in</button>
   ${error ? `<p>${escapeHtml(error)}</p>` : ""}

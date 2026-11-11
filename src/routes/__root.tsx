@@ -2,7 +2,7 @@ import { createRootRoute, Outlet, Link, useRouterState } from "@tanstack/react-r
 import { useLiveQuery } from "@tanstack/react-db";
 import { useEffect, useState } from "react";
 import { listCollection, listItemCollection, repoCollection, type StarList } from "../lib/collections";
-import { Star, Compass, ListTree, Plus, Menu, Info, History } from "lucide-react";
+import { Star, Compass, ListTree, Plus, Menu, Info, History, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -50,6 +50,7 @@ function RootLayout() {
       <div className="rounded-lg p-3 space-y-0.5">
         <NavLink to="/" icon={<Star className="w-4 h-4" />} label="All Stars" />
         <NavLink to="/explore" icon={<Compass className="w-4 h-4" />} label="Explore" />
+        <NavLink to="/compose" icon={<FileText className="w-4 h-4" />} label="Profile" />
         {APP_MODE === "local" && <NavLink to="/backups" icon={<History className="w-4 h-4" />} label="Backups" />}
       </div>
       <div className="rounded-lg p-3 flex-1 overflow-y-auto">
@@ -94,7 +95,7 @@ function RootLayout() {
           <Button variant="ghost" size="icon-lg" className="size-11" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
             <Menu className="size-5" />
           </Button>
-          <span className="font-display text-base font-bold tracking-tight">Stars</span>
+          <span className="font-display text-base font-bold tracking-tight">Stard</span>
           {DEMO && (
             <Popover>
               <PopoverTrigger
@@ -146,7 +147,7 @@ function AboutLine() {
         </a>
       )}
       <p className="flex items-center gap-1.5">
-        Stars Organizer v{__APP_VERSION__}
+        Stard v{__APP_VERSION__}
         <a href="https://github.com/armanckeser/github-stars-organizer" target="_blank" rel="noopener"
           aria-label="Source code on GitHub" title="Source code on GitHub"
           className="-m-1 rounded p-1 text-muted-foreground transition-colors hover:text-foreground">

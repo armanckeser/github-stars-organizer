@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { demoSnapshotUser } from "@/lib/demo";
+import { demoSnapshotUser, demoUser } from "@/lib/demo";
 import { loadUserStars } from "@/lib/demo-load-user";
 
 // Demo only: stands in for "Import Stars", which needs the server and a token.
@@ -11,14 +11,23 @@ export function DemoUserForm() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  async function handleLoad() {
-    const name = username.trim().replace(/^@/, "");
+  // A card in someone's README links here with ?user=<their name>, so a visitor lands on that person's stars.
+  useEffect(() => {
+    const linked = new URLSearchParams(window.location.search).get("user");
+    if (linked && linked.toLowerCase() !== demoSnapshotUser?.toLowerCase()) void handleLoad(linked);
+    // Runs once, for the address the page was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleLoad(typed = username) {
+    const name = typed.trim().replace(/^@/, "");
     if (!name) return;
     setLoading(true);
     setStatus("Reading stars...");
     try {
       const loaded = await loadUserStars(name, setStatus);
       setShowing(name);
+      demoUser.current = name;
       setUsername("");
       setStatus(
         loaded.lists === "unavailable"

@@ -63,6 +63,10 @@ Rules for an agent writing a profile:
 - A GitHub profile README is the `README.md` of the repo named after the username (`octocat/octocat`). Show the finished Markdown and wait for a yes before creating that repo or changing its README, and keep whatever the README already holds.
 - GitHub keeps its own copy of each image for a while, so a changed card can take some hours to show. A new address shows at once.
 
+## Battles
+
+`https://stars-demo.armanckeser.com/api/battle?a=<username>&b=<username>` returns an instant battle between two people as JSON: each side's team (the top four in their profile README, else their pinned repos, else their own most-starred repos) with every card's stats, and the fight as a list of hits. The same matchup gives the same fight all day (UTC). `https://stars-demo.armanckeser.com/api/card/battle.svg?a=<username>&b=<username>` is the result as a card, and `https://stars-demo.armanckeser.com/battle?a=<username>&b=<username>` plays the fight in the browser. The rules are in `server/battle.ts`.
+
 ## Copy-paste prompt
 
 ```text

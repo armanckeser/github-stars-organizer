@@ -31,7 +31,7 @@ const STAR_OFF = "#30363d";
 const NO_LANGUAGE = "#3a4049";
 
 // Bold system sans averages a little under 0.6em per character; no font metrics exist here.
-const BOLD_CHAR = 0.6;
+const BOLD_CHAR = 0.64;
 const REGULAR_CHAR = 0.5;
 
 export function escapeXml(text: string): string {
@@ -228,6 +228,36 @@ export function listCard(login: string, title: string, count: number, repos: Car
     body += poster(PAD + i * (w + gap), top, w, repo);
   });
   return card(top + w * 1.5 + 46, `${title}, a list of ${count} repos by ${login}`, body);
+}
+
+export type BattleSide = { login: string; team: CardRepo[]; standing: number };
+
+/** How a battle ended: both teams face to face, the knocked-out cards faded. */
+export function battleCard(a: BattleSide, b: BattleSide, winner: "a" | "b" | null): string {
+  const gap = 10;
+  const middle = 60;
+  const w = ((INNER - middle) / 2 - gap * 3) / 4;
+  const top = 116;
+  const won = winner === "a" ? a : winner === "b" ? b : null;
+  const lost = winner === "a" ? b : a;
+  const headline = won
+    ? `${won.login} beat ${lost.login} with ${won.standing} ${won.standing === 1 ? "card" : "cards"} left`
+    : `${a.login} and ${b.login} had no cards to play`;
+  let body = label(`${a.login} vs ${b.login}`, 44);
+  body += `<text x="${PAD}" y="92" font-size="22" font-weight="800" letter-spacing="-0.3" fill="${TEXT}">${escapeXml(truncate(headline, 64))}</text>`;
+  [a, b].forEach((side, s) => {
+    const left = PAD + s * ((INNER + middle) / 2);
+    // Cards fall in team order, so the ones still standing are the last ones.
+    const fallen = side.team.length - side.standing;
+    for (let i = 0; i < 4; i++) {
+      const x = left + i * (w + gap);
+      const repo = side.team[i];
+      if (!repo) body += emptySlot(x, top, w);
+      else body += i < fallen ? `<g opacity="0.28">${poster(x, top, w, repo)}</g>` : poster(x, top, w, repo);
+    }
+  });
+  body += `<text x="${CARD_WIDTH / 2}" y="${top + w * 0.75 + 5}" text-anchor="middle" font-size="14" font-weight="800" letter-spacing="1.5" fill="${MUTED}">VS</text>`;
+  return card(top + w * 1.5 + 46, headline, body);
 }
 
 /** Shown in place of a card whose address can't be drawn, so a README never holds a broken image. */

@@ -11,8 +11,8 @@ import { listCard, messageCard, reviewCard, topFourCard, type CardRepo } from ".
 
 export const CARD_PATH = /^\/api\/card\/(top4|review|list)\.svg$/;
 
-const LOGIN = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
-const REPO = /^[\w.-]{1,39}\/[\w.-]{1,100}$/;
+export const LOGIN = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
+export const REPO = /^[\w.-]{1,39}\/[\w.-]{1,100}$/;
 const CACHE_SECONDS = 6 * 3600;
 const MAX_REPOS = 6;
 const MAX_REVIEW_CHARS = 400;
@@ -32,7 +32,7 @@ function base64(bytes: Uint8Array): string {
 }
 
 // An SVG shown through <img> can't load outside images, so each avatar goes in as data.
-async function avatarData(url: string): Promise<string | null> {
+export async function avatarData(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
@@ -73,7 +73,7 @@ async function fetchRepos(token: string, names: string[]): Promise<CardRepo[]> {
   );
 }
 
-function svg(body: string, status: number, cacheSeconds: number): Response {
+export function svg(body: string, status: number, cacheSeconds: number): Response {
   return new Response(body, {
     status,
     headers: {

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as ComposeRouteImport } from './routes/compose'
+import { Route as BattleRouteImport } from './routes/battle'
 import { Route as BackupsRouteImport } from './routes/backups'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ListListIdRouteImport } from './routes/list.$listId'
@@ -23,6 +24,11 @@ const ExploreRoute = ExploreRouteImport.update({
 const ComposeRoute = ComposeRouteImport.update({
   id: '/compose',
   path: '/compose',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BattleRoute = BattleRouteImport.update({
+  id: '/battle',
+  path: '/battle',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BackupsRoute = BackupsRouteImport.update({
@@ -44,6 +50,7 @@ const ListListIdRoute = ListListIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/backups': typeof BackupsRoute
+  '/battle': typeof BattleRoute
   '/compose': typeof ComposeRoute
   '/explore': typeof ExploreRoute
   '/list/$listId': typeof ListListIdRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/backups': typeof BackupsRoute
+  '/battle': typeof BattleRoute
   '/compose': typeof ComposeRoute
   '/explore': typeof ExploreRoute
   '/list/$listId': typeof ListListIdRoute
@@ -59,21 +67,36 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/backups': typeof BackupsRoute
+  '/battle': typeof BattleRoute
   '/compose': typeof ComposeRoute
   '/explore': typeof ExploreRoute
   '/list/$listId': typeof ListListIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/backups' | '/compose' | '/explore' | '/list/$listId'
+  fullPaths:
+    | '/'
+    | '/backups'
+    | '/battle'
+    | '/compose'
+    | '/explore'
+    | '/list/$listId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/backups' | '/compose' | '/explore' | '/list/$listId'
-  id: '__root__' | '/' | '/backups' | '/compose' | '/explore' | '/list/$listId'
+  to: '/' | '/backups' | '/battle' | '/compose' | '/explore' | '/list/$listId'
+  id:
+    | '__root__'
+    | '/'
+    | '/backups'
+    | '/battle'
+    | '/compose'
+    | '/explore'
+    | '/list/$listId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BackupsRoute: typeof BackupsRoute
+  BattleRoute: typeof BattleRoute
   ComposeRoute: typeof ComposeRoute
   ExploreRoute: typeof ExploreRoute
   ListListIdRoute: typeof ListListIdRoute
@@ -93,6 +116,13 @@ declare module '@tanstack/react-router' {
       path: '/compose'
       fullPath: '/compose'
       preLoaderRoute: typeof ComposeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/battle': {
+      id: '/battle'
+      path: '/battle'
+      fullPath: '/battle'
+      preLoaderRoute: typeof BattleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/backups': {
@@ -122,6 +152,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BackupsRoute: BackupsRoute,
+  BattleRoute: BattleRoute,
   ComposeRoute: ComposeRoute,
   ExploreRoute: ExploreRoute,
   ListListIdRoute: ListListIdRoute,

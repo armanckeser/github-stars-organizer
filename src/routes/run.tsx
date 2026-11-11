@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay, repoName } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
+import { OpponentsLink } from "@/components/battle/opponents-link";
 import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit } from "@/components/battle/three/board";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchOpponent, fetchPlayer, freeCell, inHalf, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { CLASSES } from "../../server/character";
 import { fight as playFight } from "../../server/run/fight";
 import { cellOf, type Side } from "../../server/run/types";
@@ -87,7 +88,7 @@ function RunPage() {
     setLoading(true);
     setError("");
     try {
-      const opponent = await fetchPlayer(opponentLogin(me.login, number));
+      const opponent = await fetchOpponent(me.login, number);
       setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
       setRerolls(0);
       setShop(shopFor(me, team.map((unit) => unit.fighter), number, 0));
@@ -237,6 +238,7 @@ function RunPage() {
             <Input value={login} onChange={(e) => setLogin(e.target.value.replace(/^@/, ""))} placeholder="Your GitHub username" aria-label="Your GitHub username" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
             <Button type="submit" className="w-full" disabled={!validLogin(login) || loading}><Play /> {loading ? "Reading your stars..." : "Start a run"}</Button>
             {error && <p className="text-sm text-[#ff8f93]" role="alert">{error}</p>}
+            <OpponentsLink />
           </form>
         </div>
       )}

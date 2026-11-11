@@ -19,7 +19,8 @@ export const REROLL_COST = 1;
 /** Accounts whose teams a run is played against until players' own saved teams exist. */
 export const OPPONENTS = ["sindresorhus", "t3dotgg", "antfu", "gaearon", "yyx990803", "kentcdodds", "tj", "mitchellh", "simonw", "rauchg", "addyosmani", "torvalds"];
 
-export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: Fighter[] };
+/** `supporter` is there, and true, when the player starred Stard. */
+export type Player = { login: string; avatarUrl: string | null; supporter?: true; character: Character & { level: number }; team: Fighter[] };
 /** A card on a player's half of the board. Row 0 is the front. */
 export type Unit = { fighter: Fighter; col: number; row: number };
 

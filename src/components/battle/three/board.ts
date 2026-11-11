@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { seededRandom, type Fighter } from "../../../../server/battle";
-import type { Look } from "../../../../server/character";
+import type { Wearer } from "../../../../server/character";
 import { COLS, ROWS, TICK_MS, type FightEvent, type Side } from "../../../../server/run/types";
 import { buildCreature, type Creature } from "./creature";
 import { dispose, easeOut, overshoot, sphere, toon } from "./kit";
@@ -131,9 +131,9 @@ export class BoardWorld {
   // --- what the screen asks for ---
 
   /** The two characters standing at the ends of the board. */
-  setLooks(near: Look | null, far: Look | null) {
-    ([near, far] as const).forEach((look, side) => {
-      const key = look ? JSON.stringify(look) : "";
+  setLooks(near: Wearer | null, far: Wearer | null) {
+    ([near, far] as const).forEach((wearer, side) => {
+      const key = wearer ? JSON.stringify(wearer) : "";
       if (key === this.looks[side]) return;
       this.looks[side] = key;
       const old = this.trainers[side];
@@ -142,8 +142,8 @@ export class BoardWorld {
         dispose(old.root);
       }
       this.trainers[side] = null;
-      if (!look) return;
-      const trainer = buildTrainer(look);
+      if (!wearer) return;
+      const trainer = buildTrainer(wearer.look, wearer.supporter);
       trainer.root.scale.setScalar(0.8);
       this.scene.add(trainer.root);
       this.trainers[side] = trainer;

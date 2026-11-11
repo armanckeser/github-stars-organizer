@@ -186,8 +186,14 @@ export function decodeLook(code: string | null | undefined, fallback: Look): Loo
 }
 
 const INK = "#1b1d21";
+/** The band worn by someone who starred Stard. */
+export const GOLD = "#d4a017";
+const GOLD_SHINE = "#f5d76e";
 
 export type Character = { name: string; klass: ClassId; look: Look; motto: string };
+
+/** A figure as it stands on the board: the look, and the gold band when the person starred Stard. */
+export type Wearer = { look: Look; supporter: boolean };
 
 export const MAX_NAME = 24;
 export const MAX_MOTTO = 70;
@@ -319,7 +325,7 @@ export function shade(color: string, by: number): string {
  * The figure, as SVG shapes for a 120 by 170 box: flat colour, no outlines, the same
  * plain style as the cards. The caller wraps it in an <svg> or a <g>.
  */
-export function figureSvg(look: Look): string {
+export function figureSvg(look: Look, supporter = false): string {
   const skin = look.skin;
   const skinDark = shade(skin, 0.86);
   const hair = look.hairColor;
@@ -342,6 +348,8 @@ export function figureSvg(look: Look): string {
   out.push(`<rect x="23" y="70" width="15" height="46" rx="7.5" fill="${top}"/><rect x="82" y="70" width="15" height="46" rx="7.5" fill="${top}"/>`);
   if (look.top === "tee") out.push(`<rect x="23" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/><rect x="82" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/>`);
   out.push(`<circle cx="30.5" cy="118" r="6.5" fill="${skin}"/><circle cx="89.5" cy="118" r="6.5" fill="${skin}"/>`);
+  // Someone who starred Stard wears a gold band on the upper arm.
+  if (supporter) out.push(`<rect x="82" y="80" width="15" height="7" rx="2" fill="${GOLD}"/><rect x="82" y="81.2" width="15" height="1.6" fill="${GOLD_SHINE}"/>`);
   // Torso.
   out.push(`<rect x="36" y="66" width="48" height="54" rx="13" fill="${top}"/>`);
   if (look.top === "hoodie") {
@@ -413,8 +421,8 @@ function hairTop(style: Hair, hair: Hex): string {
 }
 
 /** The figure as a whole image, for an <img> or a background. */
-export function figureImage(look: Look): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 170">${figureSvg(look)}</svg>`;
+export function figureImage(look: Look, supporter = false): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 170">${figureSvg(look, supporter)}</svg>`;
 }
 
 /** A character's level, from what GitHub knows about the person: followers and stars on their own repos. */

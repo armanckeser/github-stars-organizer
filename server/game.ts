@@ -22,7 +22,8 @@ import { defaultCharacter, readLook, type Character, type ClassId, type LegacyLo
 
 export type Action = { kind: "attack" } | { kind: "special" } | { kind: "guard" } | { kind: "switch"; to: number };
 
-export type GamePlayer = { login: string; name: string; klass: ClassId; look: Look; level: number; avatarUrl: string | null };
+/** `supporter` is there, and true, when the player had starred Stard when the match opened. */
+export type GamePlayer = { login: string; name: string; klass: ClassId; look: Look; level: number; avatarUrl: string | null; supporter?: true };
 
 /** Where a team's ace came from: the top four in a Stard profile, a pinned repo, the stars, or the player's own repos. */
 export type TeamSource = "profile" | "pinned" | "stars" | "repos";

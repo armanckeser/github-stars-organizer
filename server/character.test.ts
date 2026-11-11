@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  CLASS_IDS, COLOR_PARTS, STYLE_PARTS, characterFrom, characterFromFile, characterIn, characterLevel, characterParams, chosenCharacter, decodeLook,
+  CLASS_IDS, COLOR_PARTS, GOLD, STYLE_PARTS, characterFrom, characterFromFile, characterIn, characterLevel, characterParams, chosenCharacter, decodeLook,
   defaultCharacter, defaultLook, encodeLook, figureImage, readCharacterFile, readLook, type Look, type StylePart,
 } from "./character.ts";
 
@@ -75,6 +75,12 @@ describe("the flat figure", () => {
     expect(figureImage({ ...plain, [key]: "#123456" })).toContain("#123456");
     expect(figureImage(plain)).not.toContain("#123456");
   });
+});
+
+test("figureImage_draws_the_gold_band_only_when_the_player_starred_stard", () => {
+  expect(figureImage(plain, true)).toContain(GOLD);
+  expect(figureImage(plain)).not.toContain(GOLD);
+  expect(figureImage({ ...plain, topColor: GOLD })).not.toBe(figureImage({ ...plain, topColor: GOLD }, true));
 });
 
 describe("a character file", () => {

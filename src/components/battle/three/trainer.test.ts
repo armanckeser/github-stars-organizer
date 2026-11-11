@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { COLOR_PARTS, STYLE_PARTS, type Look, type StylePart } from "../../../../server/character";
+import { COLOR_PARTS, GOLD, STYLE_PARTS, type Look, type StylePart } from "../../../../server/character";
 import { buildTrainer } from "./trainer";
 
 const plain: Look = {
@@ -9,8 +9,8 @@ const plain: Look = {
 };
 
 /** Every visible part of the model: its shape, where it sits, and its colour. */
-function shapeOf(look: Look): string[] {
-  const { root } = buildTrainer(look);
+function shapeOf(look: Look, supporter = false): string[] {
+  const { root } = buildTrainer(look, supporter);
   root.updateMatrixWorld(true);
   const parts: string[] = [];
   root.traverse((node) => {
@@ -36,6 +36,13 @@ describe("the 3D figure", () => {
   test.each(Object.keys(COLOR_PARTS) as (keyof typeof COLOR_PARTS)[])("buildTrainer_paints_with_the_%s_colour_when_the_colour_changes", (key) => {
     expect(shapeOf({ ...plain, [key]: "#123456" }).join("|")).toContain("#123456");
     expect(shapeOf(plain).join("|")).not.toContain("#123456");
+  });
+
+  // Regression guarded: the arena drops the band a supporter wears on their card.
+  test("buildTrainer_adds_a_gold_band_only_when_the_player_starred_stard", () => {
+    const gold = GOLD.slice(1);
+    expect(shapeOf(plain, true).filter((shape) => shape.includes(`#${gold}`))).toHaveLength(1);
+    expect(shapeOf(plain).join("|")).not.toContain(gold);
   });
 
   test("buildTrainer_hides_the_top_of_the_hair_when_a_hat_is_on", () => {

@@ -12,7 +12,7 @@ import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, freeCell, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, teamSizeAt, today, winnerOf, type Player, type Unit } from "@/lib/run";
 import type { Fighter } from "../../server/battle";
-import { CLASSES } from "../../server/character";
+import { CLASSES, GOLD } from "../../server/character";
 import { plainFight } from "../../server/run/plain-fight";
 import { cellOf, type Side } from "../../server/run/types";
 
@@ -198,8 +198,8 @@ function RunPage() {
       <Suspense fallback={null}>
         <Board3D
           units={boardUnits}
-          near={player?.character.look ?? null}
-          far={round?.opponent.character.look ?? null}
+          near={player ? { look: player.character.look, supporter: player.supporter === true } : null}
+          far={round ? { look: round.opponent.character.look, supporter: round.opponent.supporter === true } : null}
           selected={selected}
           fight={played?.fight ?? null}
           speed={fast ? 2 : 1}
@@ -313,10 +313,15 @@ function RunPage() {
       {profile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6" role="dialog" aria-modal="true" aria-label={profile.login} onClick={() => setProfile(null)}>
           <div className={`${PANEL} battle-deal w-full max-w-xs space-y-3 p-4 text-center`} onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto w-fit rounded-md" style={{ background: CLASSES[profile.character.klass].color }}><Figure look={profile.character.look} className="h-40 w-auto" /></div>
+            <div className="mx-auto w-fit rounded-md" style={{ background: CLASSES[profile.character.klass].color }}><Figure look={profile.character.look} supporter={profile.supporter === true} className="h-40 w-auto" /></div>
             <div>
               <p className="font-display text-xl font-bold tracking-tight">{profile.character.name}</p>
               <p className="text-sm">{CLASSES[profile.character.klass].label} · Lv {profile.character.level}</p>
+              {profile.supporter && (
+                <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: GOLD }}>
+                  <span className="h-1.5 w-4 rounded-sm" style={{ background: GOLD }} aria-hidden /> Starred Stard
+                </p>
+              )}
               {profile.character.klass !== "rookie" && <p className="text-xs text-white/70">{CLASSES[profile.character.klass].perk}</p>}
               {profile.character.motto && <p className="mt-1 text-xs text-white/70">“{profile.character.motto}”</p>}
             </div>

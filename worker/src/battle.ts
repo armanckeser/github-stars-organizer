@@ -4,6 +4,7 @@ import { characterFrom, characterLevel, chosenCharacter, defaultCharacter, liste
 import { SELF_REPO } from "../../server/self-repo.ts";
 import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
+import { supporters } from "./supporters.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
 // a fight decided by server/battle.ts.
@@ -50,7 +51,8 @@ type FactsNode = {
 // `custom` says the character was written down somewhere, not made from the username.
 type Player = Character & TrainerFacts & { custom: boolean };
 // `facts` is what GitHub said that `team` was worked out from; `evened` cuts `team` only.
-export type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[]; facts: SideFacts };
+// `supporter` is there, and true, when the player starred this repo.
+export type Team = { login: string; avatarUrl: string | null; supporter?: true; source: TeamSource; character: Player; team: Fighter[]; facts: SideFacts };
 
 // What GitHub knows about a person that their character shows.
 const PLAYER = `createdAt followers { totalCount }
@@ -133,6 +135,7 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
 // come up short; `evened` then trims the other side to match.
 export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE): Promise<Team> {
   const name = JSON.stringify(login);
+  const starred = supporters(token, now);
   const data = await gql<{
     here?: { character: { text?: string } | null } | null;
     user: (PlayerNode & {
@@ -201,7 +204,8 @@ export async function teamFor(token: string, login: string, now: number, size = 
   }));
   const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : fighter));
   const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: ace[0]?.nameWithOwner ?? null, source, repos };
-  return { login: user.login, avatarUrl: user.avatarUrl, source, character, team, facts };
+  const supporter = (await starred).has(user.login.toLowerCase()) ? { supporter: true as const } : {};
+  return { login: user.login, avatarUrl: user.avatarUrl, ...supporter, source, character, team, facts };
 }
 
 /** Both teams cut to the size of the smaller one, so nobody plays five cards against two. */
@@ -237,9 +241,11 @@ export async function trainerResponse(params: URLSearchParams, token: string): P
   const login = params.get("user") ?? "";
   if (!LOGIN.test(login)) return svg(messageCard("This card needs a GitHub username."), 400, CACHE_SECONDS);
   try {
+    const starred = supporters(token, Date.now());
     const data = await gql<{ user: (PlayerNode & { login: string }) | null }>(token, `query { user(login: ${JSON.stringify(login)}) { login ${PLAYER} } }`);
     if (!data.user) return svg(messageCard(`No GitHub user called ${login}.`), 404, CACHE_SECONDS);
-    return svg(trainerCard(data.user.login, characterFrom(params, data.user.login), trainerFacts(data.user)), 200, CACHE_SECONDS);
+    const supporter = (await starred).has(data.user.login.toLowerCase());
+    return svg(trainerCard(data.user.login, characterFrom(params, data.user.login), trainerFacts(data.user), supporter), 200, CACHE_SECONDS);
   } catch (error) {
     console.error(error);
     return svg(messageCard("GitHub didn't answer. This card will be back shortly."), 502, 0);

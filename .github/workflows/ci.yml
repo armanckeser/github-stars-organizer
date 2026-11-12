@@ -16,6 +16,8 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      # The Worker's tests run in the root suite and import its own packages (the share pictures' resvg).
+      - run: npm ci --prefix worker
       - run: npm run lint
       - run: npm test
       - run: npm run build

@@ -38,8 +38,8 @@ Language colors, type colors and set colors are not used in the game UI. A set i
 └──────────────────────────────────┘
 ```
 
-- **Art:** a lit portrait. The creature turns a three-quarter view, its head just under the top edge and its body running on under the name strip, filling about 90% of the art's height, its center about 62% across. Card renders get their own exposure, a warm key from the top left, a cool rim from behind right that parts the silhouette from the wall, and a slate wall (`#2a343b`) lit by a soft pool behind the head that falls off toward the corners. The wall is lit in 3D, not painted with a CSS gradient. No shadows on the wall: a cast shadow reads as a second, dark creature. No frame inside the border. A fade from 70% slate at the left edge to clear at 45% keeps the set text readable. No tier or creature color in the backdrop. Aim for the card's average brightness to match TFT's.
-- **Sets:** white text, 10.5px at weight 500, with a 1px dark shadow, beside a 15px dark hex holding a white glyph. At most 2, each set once. A set line ends by 52% of the card's width, short of the creature, and a longer name ends in an ellipsis. The "would reach" number is the only colored text on a card, in check green.
+- **Art:** a lit portrait. The creature turns a three-quarter view, its head just under the top edge and its body running on under the name strip, filling about 90% of the art's height, its center about 66% across. The creature gets the board's own light at the board's strength, with no tone mapping, so its colors on the card are its colors on the board (within about 5% lightness): a warm key from the top left, a white fill from the front, and a cool rim from behind right that parts the silhouette from the wall. The brightness comes from the wall: slate (`#2a343b`), lit by a lamp hidden behind the creature that throws a soft pool behind the head and falls off toward the corners. The wall is lit in 3D, not painted with a CSS gradient. No shadows on the wall: a cast shadow reads as a second, dark creature. No frame inside the border. A fade from 70% slate at the left edge to clear at 45% keeps the set text readable. No tier or creature color in the backdrop. The creature's true colors come before matching TFT's average brightness.
+- **Sets:** white text, 10.5px at weight 500, with a 1px dark shadow, beside a 15px dark hex holding a white glyph. At most 2, each set once. Full names, printed over the creature's body as TFT prints traits over its champion's; a name ends in an ellipsis only 8px from the card's right edge. The left fade and the text shadow keep them readable. The crop keeps the face clear of the set lines. The "would reach" number is the only colored text on a card, in check green.
 - **Narrow cards:** a card under 120px wide (a phone) shows the hexes and the "would reach" number, without set names.
 - **Can't afford:** keep the colors, dim to 55% and dim the cost to red. Never grey out to black.
 - **On hover or tap:** the card face opens (ability, numbers, set bonuses). That text lives there and only there.
@@ -49,7 +49,7 @@ Language colors, type colors and set colors are not used in the game UI. A set i
 Left to right:
 1. **Reroll** and **+ Slot**: two tall slate buttons, each with an icon tile on the right and its cost under the label.
 2. **The 5 cards.**
-3. **Fight**: the only filled button on the screen (Stard green), as tall as the cards and level with them. On an upright phone, where it sits beside Reroll and Slot under the cards, it takes their height instead.
+3. **Fight**: the only filled button on the screen (Stard green), 60% of the cards' height and level with their bottom edge. At full card height it outweighed the cards. On an upright phone, where it sits beside Reroll and Slot under the cards, it takes their height instead.
 
 The bar folds down under the gold plaque. It opens at the start of each round and folds while a boost is being picked. The camera fits the board to whatever space the bar leaves.
 
@@ -100,6 +100,8 @@ Each change below is a rule that made the screen look worse as first written.
 | Sets per card | 3 | 2 | Three set rows covered most of the creature. |
 | Set text | unspecified, 18px hex | 10.5px / 500, 15px hex | At 18px the hex outweighed its name, and the set text competed with the creature. |
 | Card art floor | a board tile | a lit slate wall, no floor | The board's green checker behind every creature made five cards read as one green stripe. A full-body creature on near-black then read as small and dark beside TFT's lit portraits. |
+| Card exposure | brighter than the board | the board's light | Raising the creature's exposure to reach TFT's brightness washed peach to pale pink and cyan to white. The wall carries the brightness instead. |
+| Set line width | capped at 52% of the card | full, to 8px from the edge | At 52% most names were cut to six letters. Over the body, not the face, they read fine, as TFT's traits do. |
 | Narrow cards | same as wide | hexes only under 120px | A phone card has no room for set names beside the creature; the hex and the number still say what a buy advances. |
 | Boost text | one line | full text, up to 3 lines; rows under 560px | One line cut most boost texts off mid-word. A phone has no room for three medallions side by side. |
 | Medallion size | unspecified | from the short side | A landscape phone is 390px tall: medallions sized from the width pushed the text off the screen. |

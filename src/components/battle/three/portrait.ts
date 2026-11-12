@@ -62,18 +62,16 @@ const WALL = 0x2a343b;
 const WALL_BEHIND = 1.2;
 /** Where the key's pool lands on the wall: behind the head, a little toward the light. */
 const POOL = new THREE.Vector3(-0.35, 0.55, 0);
-/** Where the pool's lamp hangs, from the creature's middle: above and left of the camera. */
-const POOL_LAMP = new THREE.Vector3(-1.4, 2.6, 2.8);
-/** The card renders are brighter than the board: a portrait is lit for its subject, the board for the whole scene. */
-const EXPOSURE = 1.25;
+/** Where the pool's lamp hangs, from the creature's middle: behind it, so it lights the wall and never the creature's face. */
+const POOL_LAMP = new THREE.Vector3(0.1, 0.4, -0.45);
 /** Where the creature's middle sits across the card, and how near its head comes to the top edge, in clip space. */
-const ACROSS = 0.24;
+const ACROSS = 0.32;
 const HEAD = 0.86;
 /** Where the body would end, well under the bottom edge: the name strip crops it, as a portrait crops at the chest. */
 const FEET = -1.5;
 /** The creature turned a three-quarter view toward the light. */
 const THREE_QUARTER = 0.6;
-type Stage = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; wall: THREE.Mesh; key: THREE.DirectionalLight; pool: THREE.SpotLight; rim: THREE.DirectionalLight };
+type Stage = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; wall: THREE.Mesh; key: THREE.DirectionalLight; sun: THREE.DirectionalLight; pool: THREE.SpotLight; rim: THREE.DirectionalLight };
 let stage: Stage | null = null;
 let striking: ReturnType<typeof setTimeout> | undefined;
 
@@ -90,28 +88,33 @@ function openStage(): Stage {
   if (stage) return stage;
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(WIDE, HIGH, false);
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = EXPOSURE;
   // No shadows: the feet are cropped away, and a cast shadow on the wall reads as a dark second creature.
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(WALL).multiplyScalar(0.35);
-  // A dim fill, so the side away from the key keeps its color instead of going black.
-  scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x20282e, 0.9));
-  // The key: warm, high and to the left of the camera.
-  const key = new THREE.DirectionalLight(0xffe2bd, 2.4);
+  // The board's own light (board.ts), at the strength it reaches a creature there, with no tone mapping,
+  // so a creature's colors on its card are its colors on the board. Only the directions turn, to a portrait's.
+  scene.add(new THREE.HemisphereLight(0xd6e6ff, 0x1c2430, 1.0));
+  // The key: the board's warm spot (90 at about 12 units, decay 1.6), high and to the left of the camera.
+  const key = new THREE.DirectionalLight(0xffe9c7, 1.55);
   key.position.set(-2.6, 4.2, 4.2);
   scene.add(key, key.target);
-  // The key's spill on the wall: a soft pool behind the head that falls off toward the corners, so the
-  // wall is lit by light and not painted with a gradient (docs/GAME-UI.md §2).
-  const pool = new THREE.SpotLight(0xffe2bd, 26, 9, 0.5, 1, 1.2);
+  // The board's white sun, from the front and above. It is 1.5 on the board, where it meets a creature's
+  // top at a slant; here it meets the front head-on, and 1.1 gives the body the lightness it has there.
+  const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+  sun.position.set(-1, 5, 6);
+  scene.add(sun, sun.target);
+  // A background light: a lamp hidden behind the creature throws a soft warm pool on the wall behind the
+  // head that falls off toward the corners. The wall is lit, not painted with a gradient (docs/GAME-UI.md §2),
+  // and the creature is no brighter for it.
+  const pool = new THREE.SpotLight(0xffe9c7, 9, 6, 1.05, 1, 1.2);
   scene.add(pool, pool.target);
   // The rim: cool, from behind and to the right, catching the silhouette's edge so it parts from the wall.
-  const rim = new THREE.DirectionalLight(0x9fc4ff, 3.4);
+  const rim = new THREE.DirectionalLight(0x9fc4ff, 1.6);
   rim.position.set(3.2, 2.6, -3.4);
   scene.add(rim, rim.target);
   const wall = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), new THREE.MeshStandardMaterial({ color: WALL, roughness: 0.95 }));
   scene.add(wall);
-  stage = { renderer, scene, camera: new THREE.PerspectiveCamera(28, WIDE / HIGH, 0.1, 40), wall, key, pool, rim };
+  stage = { renderer, scene, camera: new THREE.PerspectiveCamera(28, WIDE / HIGH, 0.1, 40), wall, key, sun, pool, rim };
   return stage;
 }
 
@@ -134,7 +137,7 @@ function bounds(camera: THREE.PerspectiveCamera, box: THREE.Box3) {
 
 /**
  * Close in, as TFT's splash art is: the head just under the top edge, the body running on
- * under the bottom one, the middle at about 62% across so the left of the card holds the sets.
+ * under the bottom one, the middle at about 66% across so the left of the card holds the sets.
  * The camera sits a little above its eyes; the shift is a view offset, so nothing turns.
  * Gives back the creature's middle, for the wall and the lights.
  */
@@ -170,7 +173,7 @@ export function shopArt(fighter: Fighter): string {
   const key = ["shop", fighter.fullName.toLowerCase(), fighter.type, fighter.color, fighter.level, fighter.retired, fighter.description].join("|");
   const kept = drawn.get(key);
   if (kept) return kept;
-  const { renderer, scene, camera, wall, key: keyLight, pool, rim } = openStage();
+  const { renderer, scene, camera, wall, key: keyLight, sun, pool, rim } = openStage();
   const creature = buildCreature(fighter);
   creature.root.rotation.y = THREE_QUARTER;
   if (creature.floats) creature.body.position.y = 0.3;
@@ -180,6 +183,7 @@ export function shopArt(fighter: Fighter): string {
   wall.position.copy(middle).addScaledVector(camera.getWorldDirection(new THREE.Vector3()), WALL_BEHIND);
   wall.lookAt(camera.position);
   keyLight.target.position.copy(middle);
+  sun.target.position.copy(middle);
   rim.target.position.copy(middle);
   pool.position.copy(middle).add(POOL_LAMP);
   pool.target.position.copy(wall.position).add(POOL);

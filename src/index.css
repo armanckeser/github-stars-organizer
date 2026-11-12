@@ -312,7 +312,7 @@ input[type="search"]::-webkit-search-cancel-button {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 62% 50%;
+  object-position: 66% 50%;
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .shop-card:hover .shop-art img {
@@ -329,9 +329,9 @@ input[type="search"]::-webkit-search-cancel-button {
 .shop-sets {
   position: absolute;
   left: 5px;
+  /* Full set names, over the creature's body as TFT prints traits over its champion's; the left fade and the text shadow keep them readable. */
+  right: 8px;
   bottom: 5px;
-  /* The set lines end at 52% of the card, short of the creature at 62% (docs/GAME-UI.md §4). */
-  max-width: calc(52cqw - 5px);
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -424,6 +424,10 @@ input[type="search"]::-webkit-search-cancel-button {
 @media (max-width: 639px) {
   .shop-art {
     aspect-ratio: 1;
+  }
+  /* A square shows 62.5% of the 16:10 art: this keeps the creature, drawn at 66% across, near 60% of the square, so its face clears the right edge. */
+  .shop-art img {
+    object-position: 76% 50%;
   }
 }
 .shop-coin,
@@ -618,9 +622,9 @@ input[type="search"]::-webkit-search-cancel-button {
   bottom: 8px;
   height: 2.6rem;
 }
-/* Open, Fight is as tall as the cards: the bar's height less its top line (1px) and padding (10px, 12px). */
+/* Open, Fight stands level with the cards' bottom edge at 60% of their height: the card row is the bar's height less its top line (1px) and padding (10px, 12px). */
 .shop-fight[data-open] {
-  height: calc(var(--drawer) - 23px);
+  height: calc((var(--drawer) - 23px) * 0.6);
 }
 .shop-fight:focus-visible {
   box-shadow: 0 0 0 2px var(--ring);
@@ -714,7 +718,7 @@ input[type="search"]::-webkit-search-cancel-button {
   }
   /* Here the bar's padding is 6px and 8px. */
   .shop-fight[data-open] {
-    height: calc(var(--drawer) - 15px);
+    height: calc((var(--drawer) - 15px) * 0.6);
   }
   .checks {
     width: 9.5rem;

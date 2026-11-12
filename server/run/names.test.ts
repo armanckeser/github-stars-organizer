@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { popOf, setName, sourceOf } from "./names.ts";
+import { effectsOf, popOf, setName, sourceOf } from "./names.ts";
 
 // Regression guarded: the board names whatever fired over a creature from the event's
 // id; a raw id ("boost:head-start", "set:typescript") on screen means the lookup broke.
@@ -49,5 +49,26 @@ describe("popOf", () => {
     ["boost:pop-pop", { kind: "boost", name: "pop-pop", line: null }],
   ])("has no line for %s, which has no hook of its own", (id, pop) => {
     expect(popOf(id)).toEqual(pop);
+  });
+});
+
+// Regression guarded: the board picks each fired thing's animation from its effects; an
+// id that finds no effects plays only the cast ring, so a heal or a shield shows nothing.
+describe("effectsOf", () => {
+  it.each([
+    ["code-freeze", [{ kind: "shield", aim: "self", share: 0.22 }]],
+    ["bus-factor", [{ kind: "stat", aim: "self", stat: "attack", by: 0.7 }, { kind: "stat", aim: "self", stat: "guard", by: -0.1 }]],
+    ["boost:regroup", [{ kind: "heal", aim: "self", share: 0.1 }]],
+  ])("gives the effects of %s", (id, effects) => {
+    expect(effectsOf(id)).toEqual(effects);
+  });
+
+  it("gives a set its two-card bonus", () => {
+    expect(effectsOf("set:typescript").length).toBeGreaterThan(0);
+  });
+
+  it("gives nothing for an unknown id", () => {
+    expect(effectsOf("paintball")).toEqual([]);
+    expect(effectsOf("boost:pop-pop")).toEqual([]);
   });
 });

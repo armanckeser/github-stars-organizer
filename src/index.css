@@ -1122,44 +1122,33 @@ button.hud-chip:hover {
   }
 }
 
-/* What fired over a creature (docs/GAME-UI.md §9): a small slate card, its foot above the HP bar, for about a second. */
+/* What fired over a creature (docs/GAME-UI.md §9): its name as a small gold word, its foot above the HP bar, for under a second. The effect itself plays on the board (src/components/battle/three/effects/). */
 .ability-pop {
   position: absolute;
   z-index: 5;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px 8px 5px;
-  border-radius: 3px;
-  border: 1px solid rgb(201 164 92 / 0.7);
-  background: #131b20;
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.55);
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c9a45c;
+  text-shadow: 0 1px 0 #000, 0 0 6px rgb(0 0 0 / 0.9);
   white-space: nowrap;
   pointer-events: none;
   translate: -50% -100%;
   animation: ability-pop var(--life) ease-out both;
-}
-.ability-pop-name {
-  font: 700 12px/1.1 var(--font-display);
-  color: #fff;
-}
-.ability-pop-line {
-  font: 500 10.5px/1.1 var(--font-display);
-  color: rgb(230 237 243 / 0.7);
 }
 @keyframes ability-pop {
   0% {
     opacity: 0;
     transform: translateY(4px);
   }
-  12%,
-  78% {
+  15%,
+  70% {
     opacity: 1;
     transform: translateY(0);
   }
   100% {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-6px);
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -3,11 +3,13 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { seededRandom, type Fighter } from "../../../../server/battle";
 import type { Look } from "../../../../server/character";
 import type { Condition } from "../../../../server/run/hooks";
-import { CONDITION_NAMES, popOf } from "../../../../server/run/names";
+import { CONDITION_NAMES, sourceOf } from "../../../../server/run/names";
 import { BENCH_SIZE } from "../../../../server/run/rules";
 import { COLS, ROWS, TICK_MS, type FightEvent, type Side } from "../../../../server/run/types";
 import { ARCHIVE_DEPTH, ARCHIVE_WIDTH, buildArchive, type Archive } from "./archive";
 import { buildCreature, type Creature } from "./creature";
+import { playFired, SHIELD_KEY, type EffectActor, type EffectStage } from "./effects";
+import { CONDITION_COLOR, EFFECT_COLOR } from "./effects/stage";
 import { dispose, easeOut, overshoot, part, sphere, toon } from "./kit";
 import { buildTrainer, type Trainer } from "./trainer";
 
@@ -31,8 +33,15 @@ type Actor = {
   at: THREE.Vector3;
   facing: number;
   hp: number;
+  /** The shield the fight says it has left; drawn as a pale segment after the HP on the bar. */
+  shield: number;
   bar: THREE.Group;
   fill: THREE.Mesh;
+  shieldFill: THREE.Mesh;
+  /** What effects keep on the creature (effects/stage.ts `attach`), by key. */
+  attachments: Map<string, THREE.Object3D>;
+  /** The creature as an effect sees it. */
+  view: EffectActor;
   /** The condition the creature has, shown over its HP bar. */
   badge: THREE.Mesh;
   /** When each ability, set or boost was last named over the creature, and when the next name may show. */
@@ -58,9 +67,11 @@ const FLOOR: [string, number][] = [["#10151b", 0.62], ["#0e2a1d", 0.2], ["#0a3d2
 const FLOOR_SATURATION = 0.4;
 const FLOOR_CAP = new THREE.Color(MINE[1]).getHSL({ h: 0, s: 0, l: 0 }).l * 0.35;
 
-/** How long an ability's card stays over the creature, in milliseconds. */
-const POP_LIFE = 1000;
-const CONDITION_COLOR: Record<Condition, string> = { "merge-conflict": "#ff8f3d", "rate-limited": "#3ea6ff", deprecated: "#a47cff", flaky: "#ffd84d" };
+/** How long an ability's name stays over the creature, in milliseconds. */
+const POP_LIFE = 900;
+const BAR_WIDTH = 0.84;
+/** Seconds from a ranged card's ability hit to its number: when a melee lunge lands, which effects/damage.ts times its shard to. */
+const ABILITY_HIT_LANDS = 0.11;
 const HEAL = "#5be37a";
 /** Names over one creature show at least this far apart, and the same name at most this often, in fight seconds. */
 const NAME_GAP = 0.32;
@@ -137,6 +148,8 @@ export class BoardWorld {
   private speed = 1;
   private shake = 0;
   private fight: { key: string; ids: [string[], string[]]; events: FightEvent[]; next: number; time: number; done: boolean } | null = null;
+  /** The last ability fired: the hits it causes come right after it, in the same tick, from the same card. */
+  private cast: { side: Side; unit: number; t: number } | null = null;
   private drag: { id: string; startX: number; startY: number; moved: boolean; spot: Spot | null } | null = null;
   private observer: ResizeObserver;
   private raycaster = new THREE.Raycaster();
@@ -144,6 +157,8 @@ export class BoardWorld {
   private labels = new Set<HTMLElement>();
   private badges = new Map<Condition, THREE.CanvasTexture>();
   private disposed = false;
+  /** What an effect may touch on this board (effects/stage.ts). */
+  private stage: EffectStage;
 
   /** Throws when the browser can't give a WebGL context. */
   constructor(
@@ -192,6 +207,7 @@ export class BoardWorld {
     sun.shadow.bias = -0.0006;
     this.scene.add(sun);
 
+    this.stage = this.effectStage();
     this.buildFloor();
     this.buildBench();
     this.archive = buildArchive();
@@ -294,6 +310,8 @@ export class BoardWorld {
         actor.out = false;
         actor.won = false;
         actor.hp = unit.fighter.hp;
+        actor.shield = 0;
+        this.clearAttachments(actor);
         actor.bar.visible = unit.bench === undefined;
         actor.badge.visible = false;
         actor.named.clear();
@@ -513,18 +531,38 @@ export class BoardWorld {
     creature.root.traverse((child) => (child.userData.actor = unit.id));
     const bar = new THREE.Group();
     const back = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.12), new THREE.MeshBasicMaterial({ color: 0x05070a, depthTest: false, transparent: true, opacity: 0.85 }));
-    const fill = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.07), new THREE.MeshBasicMaterial({ color: unit.side === 0 ? 0x35c450 : 0xe5484d, depthTest: false, transparent: true }));
+    const fill = new THREE.Mesh(new THREE.PlaneGeometry(BAR_WIDTH, 0.07), new THREE.MeshBasicMaterial({ color: unit.side === 0 ? 0x35c450 : 0xe5484d, depthTest: false, transparent: true }));
     fill.position.z = 0.002;
+    const shieldFill = new THREE.Mesh(new THREE.PlaneGeometry(BAR_WIDTH, 0.07), new THREE.MeshBasicMaterial({ color: EFFECT_COLOR.shield, depthTest: false, transparent: true }));
+    shieldFill.position.z = 0.003;
+    shieldFill.visible = false;
     back.renderOrder = 10;
     fill.renderOrder = 11;
+    shieldFill.renderOrder = 11;
     const badge = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.21), new THREE.MeshBasicMaterial({ depthTest: false, transparent: true }));
     badge.position.set(0, 0.19, 0.004);
     badge.renderOrder = 12;
     badge.visible = false;
-    bar.add(back, fill, badge);
+    bar.add(back, fill, shieldFill, badge);
     this.scene.add(creature.root, bar);
     const home = homeOf(unit);
-    const actor: Actor = { unit, creature, home, at: home.clone(), facing: 0, hp: unit.fighter.hp, bar, fill, badge, named: new Map(), nextName: 0, grow: 0, lunge: new THREE.Vector3(), flash: 0, squash: 0, out: false, won: false };
+    const actor = { unit, creature, home, at: home.clone(), facing: 0, hp: unit.fighter.hp, shield: 0, bar, fill, shieldFill, attachments: new Map(), badge, named: new Map(), nextName: 0, grow: 0, lunge: new THREE.Vector3(), flash: 0, squash: 0, out: false, won: false } as Omit<Actor, "view"> as Actor;
+    actor.view = {
+      side: unit.side,
+      get at() {
+        return actor.creature.root.position;
+      },
+      get height() {
+        return actor.creature.height * SIZE * (actor.creature.root.userData.scale as THREE.Vector3).y;
+      },
+      get out() {
+        return actor.out;
+      },
+      jolt: (squash, flash) => {
+        actor.squash = Math.max(actor.squash, squash);
+        actor.flash = Math.max(actor.flash, flash);
+      },
+    };
     this.actors.set(unit.id, actor);
     this.tween(0, 0.4, (k) => (actor.grow = overshoot(k)));
     return actor;
@@ -534,6 +572,7 @@ export class BoardWorld {
     const actor = this.actors.get(id);
     if (!actor) return;
     this.actors.delete(id);
+    this.clearAttachments(actor);
     this.scene.remove(actor.creature.root, actor.bar);
     dispose(actor.creature.root);
     dispose(actor.bar);
@@ -542,6 +581,7 @@ export class BoardWorld {
   /** A sold creature drops into the Archive and the lid shuts on it. */
   private sink(actor: Actor) {
     this.actors.delete(actor.unit.id);
+    this.clearAttachments(actor);
     this.scene.remove(actor.bar);
     dispose(actor.bar);
     const root = actor.creature.root;
@@ -560,10 +600,61 @@ export class BoardWorld {
     }, done);
   }
 
+  /** The HP bar: HP from the left, then any shield after it. A shield that would run past the end shrinks the HP to make room, as TFT's bar does. */
   private fill(actor: Actor) {
-    const share = Math.max(0, Math.min(1, actor.hp / actor.unit.fighter.hp));
-    actor.fill.scale.x = Math.max(0.001, share);
-    actor.fill.position.x = -0.42 * (1 - share);
+    const total = Math.max(actor.unit.fighter.hp, actor.hp + actor.shield);
+    const hpShare = Math.max(0, Math.min(1, actor.hp / total));
+    const shieldShare = Math.max(0, Math.min(1 - hpShare, actor.shield / total));
+    const left = -BAR_WIDTH / 2;
+    actor.fill.scale.x = Math.max(0.001, hpShare);
+    actor.fill.position.x = left + (BAR_WIDTH * hpShare) / 2;
+    actor.shieldFill.visible = shieldShare > 0;
+    actor.shieldFill.scale.x = Math.max(0.001, shieldShare);
+    actor.shieldFill.position.x = left + BAR_WIDTH * hpShare + (BAR_WIDTH * shieldShare) / 2;
+  }
+
+  private clearAttachments(actor: Actor) {
+    for (const object of actor.attachments.values()) dispose(object);
+    actor.attachments.clear();
+  }
+
+  private effectStage(): EffectStage {
+    const options = this.options;
+    return {
+    scene: this.scene,
+    camera: this.camera,
+    get reduced() {
+      return options.reduced;
+    },
+    tween: (delay, duration, update, done) => this.tween(delay, duration, update, done),
+    after: (delay, done) => this.after(delay, done),
+    pointOn: (view, height) => view.at.clone().setY(view.at.y + view.height * height),
+    spawn: (object, life) => {
+      this.scene.add(object);
+      this.after(life, () => dispose(object));
+    },
+    attach: (view, key, object) => {
+      const actor = this.actorOf(view);
+      if (!actor || actor.out) return dispose(object);
+      const old = actor.attachments.get(key);
+      if (old) dispose(old);
+      actor.attachments.set(key, object);
+      this.scene.add(object);
+    },
+    detach: (view, key) => {
+      const actor = this.actorOf(view);
+      const object = actor?.attachments.get(key);
+      if (!actor || !object) return;
+      actor.attachments.delete(key);
+      dispose(object);
+    },
+    attached: (view, key) => this.actorOf(view)?.attachments.get(key),
+    };
+  }
+
+  private actorOf(view: EffectActor): Actor | undefined {
+    for (const actor of this.actors.values()) if (actor.view === view) return actor;
+    return undefined;
   }
 
   // --- the fight ---
@@ -583,10 +674,23 @@ export class BoardWorld {
     } else if (event.kind === "faint") {
       actor.out = true;
       actor.bar.visible = false;
+      this.clearAttachments(actor);
       if (quick) actor.grow = 0;
       else this.tween(0.12, 0.4, (k) => (actor.grow = 1 - easeOut(k)));
     } else if (event.kind === "ability") {
-      if (!quick) this.name(actor, event.ability);
+      this.cast = { side: event.side, unit: event.unit, t: event.t };
+      if (quick) return;
+      this.name(actor, event.ability);
+      const ids = fight.ids;
+      const reached = (onFoes: boolean) => {
+        const side = onFoes === (event.side === 0) ? 1 : 0;
+        return event.targets.flatMap((index) => this.actors.get(ids[side][index])?.view ?? []);
+      };
+      playFired(this.stage, event.ability, actor.view, reached);
+    } else if (event.kind === "shield") {
+      actor.shield = event.shield;
+      this.fill(actor);
+      if (event.shield === 0) this.stage.detach(actor.view, SHIELD_KEY);
     } else if (event.kind === "hp") {
       actor.hp = Math.max(0, Math.min(actor.unit.fighter.hp, actor.hp + event.change));
       this.fill(actor);
@@ -615,7 +719,12 @@ export class BoardWorld {
         if (event.critical) this.shake = 0.12;
         this.label(this.over(target, 0.25), String(event.damage), event.critical ? { color: "#ffd84d", size: 22 } : {});
       };
-      if (actor.unit.ranged) {
+      const cast = this.cast;
+      const fromAbility = cast !== null && cast.side === event.side && cast.unit === event.unit && cast.t === event.t;
+      // An ability's damage flies as its own shard (effects/damage.ts), so the card's ball would be a second shot.
+      if (fromAbility && actor.unit.ranged) {
+        this.after(ABILITY_HIT_LANDS, land);
+      } else if (actor.unit.ranged) {
         const shot = new THREE.Mesh(sphere(0.11, 10), new THREE.MeshBasicMaterial({ color: actor.unit.fighter.color && /^#[0-9a-f]{6}$/i.test(actor.unit.fighter.color) ? actor.unit.fighter.color : 0xffffff }));
         const from = actor.at.clone().setY(actor.creature.height * SIZE * 0.6);
         const to = target.at.clone().setY(target.creature.height * SIZE * 0.5);
@@ -659,29 +768,20 @@ export class BoardWorld {
     }, life);
   }
 
-  /** The small slate card over a creature saying what fired: the name, then "Trigger → effect". It sits above the HP bar, never on it. */
+  /** The name of what fired, a small gold word over the creature for under a second (docs/GAME-UI.md §9). It sits above the HP bar, never on it. */
   private pop(at: THREE.Vector3, id: string) {
-    const what = popOf(id);
+    const name = sourceOf(id).name;
     const point = at.project(this.camera);
-    const card = document.createElement("div");
-    card.className = "ability-pop";
-    card.dataset.named = what.name;
-    card.style.cssText = `left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;--life:${POP_LIFE}ms`;
-    const name = document.createElement("span");
-    name.className = "ability-pop-name";
-    name.textContent = what.name;
-    card.append(name);
-    if (what.line) {
-      const line = document.createElement("span");
-      line.className = "ability-pop-line";
-      line.textContent = what.line;
-      card.append(line);
-    }
-    this.host.append(card);
-    this.labels.add(card);
+    const word = document.createElement("span");
+    word.className = "ability-pop";
+    word.dataset.named = name;
+    word.textContent = name;
+    word.style.cssText = `left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;--life:${POP_LIFE}ms`;
+    this.host.append(word);
+    this.labels.add(word);
     setTimeout(() => {
-      card.remove();
-      this.labels.delete(card);
+      word.remove();
+      this.labels.delete(word);
     }, POP_LIFE);
   }
 
@@ -748,7 +848,10 @@ export class BoardWorld {
       if (quick) for (const actor of this.actors.values()) actor.at.copy(actor.home);
     }
 
-    this.tweens = this.tweens.filter((tween) => {
+    // A tween's update or done may start another tween; those go on the fresh list, so none is dropped.
+    const running = this.tweens;
+    this.tweens = [];
+    const kept = running.filter((tween) => {
       if (this.now < tween.start) return true;
       const k = tween.end === tween.start ? 1 : Math.min(1, (this.now - tween.start) / (tween.end - tween.start));
       tween.update(k);
@@ -756,6 +859,7 @@ export class BoardWorld {
       tween.done?.();
       return false;
     });
+    this.tweens = [...kept, ...this.tweens];
 
     this.pose(seconds);
     this.renderer.render(this.scene, this.camera);
@@ -788,6 +892,10 @@ export class BoardWorld {
       for (const spinner of creature.spinners) spinner.rotation.y = t * 0.9;
       for (const skin of creature.skins) skin.emissive.setScalar(actor.flash * 0.8);
       actor.bar.position.copy(creature.root.position).setY(creature.height * SIZE * base.y + 0.55 + (id === dragging ? 0.45 : 0));
+      for (const object of actor.attachments.values()) {
+        object.position.copy(creature.root.position);
+        object.visible = creature.root.visible;
+      }
       actor.bar.quaternion.copy(this.camera.quaternion);
     }
 

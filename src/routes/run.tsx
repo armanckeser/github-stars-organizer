@@ -16,7 +16,7 @@ import { RunEnd } from "@/components/run/run-end";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
 import { validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
 import { CLASSES } from "../../server/character";
 import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
@@ -99,8 +99,8 @@ function RunPage() {
   // Board slots bought on top of the round's limit, for the rest of the run.
   const [bought, setBought] = useState(0);
   const [round, setRound] = useState<Round | null>(null);
-  const [wins, setWins] = useState(0);
-  const [losses, setLosses] = useState(0);
+  const [tally, setTally] = useState(NEW_TALLY);
+  const { wins, losses } = tally;
   const [gold, setGold] = useState(START_GOLD);
   const [rerolls, setRerolls] = useState(0);
   const [shop, setShop] = useState<(RunFighter | null)[]>([]);
@@ -177,8 +177,7 @@ function RunPage() {
       setUnits(team);
       setBench(emptyBench());
       setBought(0);
-      setWins(0);
-      setLosses(0);
+      setTally(NEW_TALLY);
       setGold(START_GOLD);
       setBoosts([]);
       setOffer(null);
@@ -258,14 +257,13 @@ function RunPage() {
   }
 
   function next() {
-    if (!player || !round || !played) return;
-    // A draw counts for neither side.
-    const won = wins + (played.winner === 0 ? 1 : 0);
-    const lost = losses + (played.winner === 1 ? 1 : 0);
-    setWins(won);
-    setLosses(lost);
-    if (won >= WINS_TO_FINISH || lost >= LOSSES_TO_END) return setPlayed(null);
-    setGold(gold + ROUND_GOLD + (played.winner === 0 ? WIN_GOLD : 0));
+    // While the next round opens, a second press would open it twice.
+    if (!player || !round || !played || loading) return;
+    // Counted once per round, so pressing Continue again after the next round failed to open only retries the opening.
+    const counted = countRound(tally, round.number, played.winner);
+    setTally(counted.tally);
+    if (counted.tally.wins >= WINS_TO_FINISH || counted.tally.losses >= LOSSES_TO_END) return setPlayed(null);
+    setGold(gold + counted.earned);
     // The same seed as the Worker's offer (worker/src/run.ts), so both offer the same three.
     if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${today()}|${round.number}`, boosts) });
     void openRound(player, cardsOf(roster), round.number + 1);

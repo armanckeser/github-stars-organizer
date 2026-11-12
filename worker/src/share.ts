@@ -167,7 +167,7 @@ export async function runSharePage(request: Request, url: URL): Promise<Response
   const named = LOGIN.test(me);
 
   const query = named ? `?me=${encodeURIComponent(me)}` : "";
-  const title = named ? `Play a run with ${me}'s stars · Stard` : "Play a run with your GitHub stars · Stard";
+  const title = named ? `Play Stard with ${me}'s stars` : "Play Stard with your GitHub stars";
   const says = named
     ? `Build a team from ${me}'s GitHub stars and fight other teams. 5 wins finishes a run, 3 losses ends one. No sign-in.`
     : "Build a team from your GitHub stars and fight other teams. 5 wins finishes a run, 3 losses ends one. No sign-in.";
@@ -180,7 +180,7 @@ export async function runSharePage(request: Request, url: URL): Promise<Response
     ["property", "og:image", picture],
     ["property", "og:image:width", "1200"],
     ["property", "og:image:height", "630"],
-    ["property", "og:image:alt", named ? `${me}'s trainer beside four of their repos as cards, under the words Play a run` : "A blank card of each cost, 1 to 5 gold, under the words Play a run"],
+    ["property", "og:image:alt", named ? `${me}'s trainer beside four of their repos as cards, under the words Play Stard` : "A blank card of each cost, 1 to 5 gold, under the words Play Stard"],
     ["name", "twitter:card", "summary_large_image"],
     ["name", "twitter:title", title],
     ["name", "twitter:description", says],

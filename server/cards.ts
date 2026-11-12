@@ -514,13 +514,13 @@ export function runPreviewCard(player: ShelfPlayer | null, font: string): string
     const gap = 16;
     const left = (SHARE_WIDTH - (width * 5 + gap * 4)) / 2;
     const blanks = [1, 2, 3, 4, 5].map((cost, i) => shelfCard(left + i * (width + gap), SHELF_TOP, width, SHELF_BOTTOM - SHELF_TOP, { name: "", cost, sets: [], language: null, creature: null }, `art${i}`));
-    return sharePicture("Play a run with your GitHub stars", font, headline("Play a run", true) + blanks.join(""));
+    return sharePicture("Play Stard with your GitHub stars", font, headline("Play Stard", true) + blanks.join(""));
   }
   const shown = { ...player, cards: player.cards.slice(0, 4) };
   return sharePicture(
-    `Play a run with ${player.login}'s stars`,
+    `Play Stard with ${player.login}'s stars`,
     font,
-    nameplate(shown) + headline("Play a run", false) + shelf(shown),
+    nameplate(shown) + headline("Play Stard", false) + shelf(shown),
   );
 }
 

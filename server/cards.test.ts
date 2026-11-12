@@ -106,7 +106,7 @@ describe("the run's share picture", () => {
     // Regression guarded: a /run?me= link previewed someone else's run, or a fifth card ran off the picture.
     const svg = runPreviewCard(player([card("dreamatorium"), card("paintball"), card("blanketfort"), card("koosh"), card("chang")]), "Space Grotesk");
     expect(svg).toContain('width="1200" height="630"');
-    expect(svg).toContain(`aria-label="Play a run with troybarnes&#39;s stars"`);
+    expect(svg).toContain(`aria-label="Play Stard with troybarnes&#39;s stars"`);
     expect(svg).toContain(">troybarnes</text>");
     expect(svg).toContain(">Scout · Troy</text>");
     for (const name of ["dreamatorium", "paintball", "blanketfort", "koosh"]) expect(svg).toContain(`>${name}</text>`);
@@ -116,7 +116,7 @@ describe("the run's share picture", () => {
   test("keeps the run's rules off the picture, when a player is given", () => {
     // Regression guarded: the picture repeated the sentences the link preview's description already shows under it.
     const svg = runPreviewCard(player([card("dreamatorium")]), "Space Grotesk");
-    expect(svg).toContain(">Play a run</text>");
+    expect(svg).toContain(">Play Stard</text>");
     expect(svg).not.toContain("5 wins finishes a run");
     expect(svg).not.toContain("No sign-in");
   });
@@ -150,8 +150,8 @@ describe("the run's share picture", () => {
 
   test("shows the run for anyone, a blank card of each cost and no username, when no player is given", () => {
     const svg = runPreviewCard(null, "Space Grotesk");
-    expect(svg).toContain('aria-label="Play a run with your GitHub stars"');
-    expect(svg).toContain(">Play a run</text>");
+    expect(svg).toContain('aria-label="Play Stard with your GitHub stars"');
+    expect(svg).toContain(">Play Stard</text>");
     for (const tier of ["#8b949e", "#3fb950", "#4a90d9", "#a371f7", "#e3b341"]) expect(svg).toContain(`stroke="${tier}"`);
     expect(svg).not.toContain("troybarnes");
   });

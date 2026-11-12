@@ -3,6 +3,7 @@ import { repoName } from "@/components/battle/arena";
 import { setName } from "../../../server/run/names";
 import { costOf, type RunFighter } from "../../../server/run/rules";
 import { teamSets } from "../../../server/run/sets";
+import { tierColor } from "../../../server/run/tiers";
 import type { Card } from "../../../server/run/types";
 import { SetGlyph } from "./set-glyph";
 
@@ -14,11 +15,8 @@ import { SetGlyph } from "./set-glyph";
 /** How many of a card's sets its face in the shop shows, as TFT shows two traits on its short cards. */
 const CARD_SETS = 2;
 
-/** The tier colour of each cost, 1 to 5 gold. */
-const TIERS: Record<number, string> = { 1: "#8b949e", 2: "#3fb950", 3: "#4a90d9", 4: "#a371f7", 5: "#e3b341" };
-
 /** The card's sets, and for each the count of the player's cards that would share it once this one is bought, when that advances it. */
-function reach(card: Card, held: Card[]) {
+function reach(card: Card, held: Card[]): FaceSet[] {
   const owned = held.some((other) => other.fullName === card.fullName);
   const sets = teamSets({ units: (owned ? held : [...held, card]).map((other) => ({ card: other, col: 0, row: 0 })) });
   // A language that is also a topic (Lean and lean) is one set; the card shows two, its face shows all.
@@ -67,22 +65,37 @@ export function Shop({ shop, held, gold, draftsFull, onOpen }: Props) {
 }
 
 function ShopCard({ fighter, held, affordable, onOpen }: { fighter: RunFighter; held: Card[]; affordable: boolean; onOpen: () => void }) {
-  const art = useShopArt(fighter);
   const cost = costOf(fighter);
-  const language = fighter.language?.toLowerCase() ?? null;
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={`Look at ${fighter.fullName}, ${cost} gold`}
-      data-affordable={affordable ? "" : undefined}
+      data-unaffordable={affordable ? undefined : ""}
       className="shop-card battle-deal group"
-      style={{ "--tier": TIERS[cost] ?? TIERS[1] } as React.CSSProperties}
+      style={{ "--tier": tierColor(cost) } as React.CSSProperties}
     >
+      <CardFace fighter={fighter} sets={reach(fighter.card, held)} />
+    </button>
+  );
+}
+
+type FaceSet = { set: string; advances: number | null };
+
+/**
+ * A card's face in the shop's anatomy, inside whatever holds it: a shop button, or a
+ * team's card at the end of a run. With no `sets`, the face shows the card's own two.
+ */
+export function CardFace({ fighter, sets }: { fighter: RunFighter; sets?: FaceSet[] }) {
+  const art = useShopArt(fighter);
+  const language = fighter.language?.toLowerCase() ?? null;
+  const shown = sets ?? [...new Set(fighter.card.sets)].slice(0, CARD_SETS).map((set) => ({ set, advances: null }));
+  return (
+    <>
       <span className="shop-art">
         {art ? <img src={art} alt="" draggable={false} /> : null}
         <span className="shop-sets">
-          {reach(fighter.card, held).map(({ set, advances }, index) => (
+          {shown.map(({ set, advances }, index) => (
             <span key={`${index}-${set}`} className="shop-set">
               <SetGlyph set={set} language={language} />
               <span className="shop-set-name">{setName(set)}</span>
@@ -93,8 +106,8 @@ function ShopCard({ fighter, held, affordable, onOpen }: { fighter: RunFighter; 
       </span>
       <span className="shop-strip">
         <span className="min-w-0 truncate">{repoName(fighter)}</span>
-        <span className="shop-cost"><span className="shop-coin" />{cost}</span>
+        <span className="shop-cost"><span className="shop-coin" />{costOf(fighter)}</span>
       </span>
-    </button>
+    </>
   );
 }

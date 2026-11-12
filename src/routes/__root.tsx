@@ -85,8 +85,8 @@ function RootLayout() {
     </>
   );
 
-  // Play takes the whole screen, as a game does (docs/GAME-UI.md §1); it has its own way out.
-  if (pathname === "/run") {
+  // Play and a saved team take the whole screen, as a game does (docs/GAME-UI.md §1); each has its own way out.
+  if (pathname === "/run" || pathname === "/team") {
     return (
       <div className="h-dvh overflow-hidden bg-[#080b0f] text-foreground">
         <Outlet />

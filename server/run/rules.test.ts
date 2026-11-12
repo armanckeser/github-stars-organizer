@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fight } from "./fight.ts";
-import { boardLimit, snapshot, type RunFighter, type Unit } from "./rules.ts";
+import { NEW_TALLY, boardLimit, countRound, snapshot, type RunFighter, type Unit } from "./rules.ts";
 import { card, cityCollege } from "./testbed.ts";
 
 const unit = (name: string, col: number): Unit => ({ fighter: { fullName: `greendale/${name}`, card: card(`greendale/${name}`, { hp: 600 }) } as RunFighter, col, row: 0 });
@@ -32,5 +32,26 @@ describe("boardLimit", () => {
     [6, 5, 7],
   ])("round %i with %i bought slots holds %i cards", (round, bought, limit) => {
     expect(boardLimit(round, bought)).toBe(limit);
+  });
+});
+
+describe("countRound", () => {
+  // Regression guarded: Continue pressed again after the next round failed to open counted the round twice.
+  it("counts a won round once, when Continue is pressed twice for it", () => {
+    const first = countRound(NEW_TALLY, 1, 0);
+    const again = countRound(first.tally, 1, 0);
+    expect(first).toEqual({ tally: { wins: 1, losses: 0, counted: 1 }, earned: 6 });
+    expect(again).toEqual({ tally: { wins: 1, losses: 0, counted: 1 }, earned: 0 });
+  });
+
+  it.each([
+    ["a loss", 1, { wins: 0, losses: 1, counted: 1 }, 5],
+    ["a draw", null, { wins: 0, losses: 0, counted: 1 }, 5],
+  ] as const)("counts %s for its side and earns the round's gold", (_, winner, tally, earned) => {
+    expect(countRound(NEW_TALLY, 1, winner)).toEqual({ tally, earned });
+  });
+
+  it("earns no gold for the round that ends the run, when it is the third loss", () => {
+    expect(countRound({ wins: 2, losses: 2, counted: 4 }, 5, 1)).toEqual({ tally: { wins: 2, losses: 3, counted: 5 }, earned: 0 });
   });
 });

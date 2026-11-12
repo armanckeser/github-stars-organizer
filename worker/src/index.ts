@@ -5,10 +5,13 @@ import { cacheKeyFor } from "./edge-cache.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
 import { OPPONENTS_PATH, OptedOut, checkPoolRead, opponentsBody, readOptOuts, type OptOuts } from "./no-play.ts";
 import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
-import { RUN_PATH, runResponse } from "./run.ts";
-import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
+import { RUN_PATH, runResponse, type RunDeps } from "./run.ts";
+import { RUN_PICTURE_PATH, RUN_SHARE_PATH, SHARE_PATH, VERSUS_PATH, runPictureResponse, runSharePage, sharePage, versusResponse } from "./share.ts";
+import { TEAM_PAGE_PATH, TEAM_PATH, teamPage, teamResponse } from "./team.ts";
+import { TEAM_PICTURE_PATH, teamPictureResponse } from "./team-picture.ts";
 
-// BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts) and a run's token (worker/src/run.ts):
+// BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts), a run's token (worker/src/run.ts)
+// and a finished run's team (worker/src/team.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string };
 
@@ -97,11 +100,18 @@ export default {
     const url = new URL(request.url);
     // The app's own page: anything but a plain read goes straight to the site.
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
+    if (RUN_SHARE_PATH.test(url.pathname)) return request.method === "GET" ? runSharePage(request, url) : fetch(request);
+    if (TEAM_PAGE_PATH.test(url.pathname)) return request.method === "GET" ? teamPage(request, url, env.BATTLE_KEY) : fetch(request);
+    // The /run* and /team* routes also catch pages such as /runs; those belong to the site.
+    if (!url.pathname.startsWith("/api/")) return fetch(request);
     const now = Date.now();
     const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN };
     const optOuts = cachedOptOuts(url.origin, env, context);
     const run = RUN_PATH.exec(url.pathname);
-    if (run) return runResponse(run[1], request, { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now });
+    const runs: RunDeps = { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now };
+    if (run) return runResponse(run[1], request, runs);
+    // A finished run's team: saved by replaying the run, and read back from its token.
+    if (TEAM_PATH.test(url.pathname)) return teamResponse(request, url, runs);
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
 
     if (OPPONENTS_PATH.test(url.pathname)) {
@@ -117,10 +127,21 @@ export default {
     const match = GAME_PATH.exec(url.pathname);
     if (match) return gameResponse(match[1], url.searchParams, env.GITHUB_TOKEN, env.BATTLE_KEY);
 
+    if (TEAM_PICTURE_PATH.test(url.pathname)) {
+      // A token is case-sensitive, so its picture is keyed exactly as asked.
+      const key = cacheKeyFor(url, false);
+      const cached = await caches.default.match(key);
+      if (cached) return cached;
+      const response = await teamPictureResponse(url.searchParams, env.BATTLE_KEY);
+      if (response.ok) context.waitUntil(caches.default.put(key, response.clone()));
+      return response;
+    }
+
     const card = CARD_PATH.exec(url.pathname);
     const fight = BATTLE_PATH.exec(url.pathname);
     const trainer = TRAINER_PATH.test(url.pathname);
     const versus = VERSUS_PATH.test(url.pathname);
+    const runPicture = RUN_PICTURE_PATH.test(url.pathname);
     if (RUN_POOL_PATH.test(url.pathname)) {
       try {
         await checkPoolRead(url.searchParams, optOuts);
@@ -132,12 +153,14 @@ export default {
       // Whose run the read is for decides only the check above; everyone shares one cached pool.
       return poolReply(url.searchParams.get("login") ?? "", pools);
     }
-    if (card || fight || trainer || versus) {
+    if (card || fight || trainer || versus || runPicture) {
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
-      const key = cacheKeyFor(url, Boolean(fight || versus));
+      const key = cacheKeyFor(url, Boolean(fight || versus || runPicture));
       const cached = await caches.default.match(key);
       if (cached) return cached;
-      const response = versus
+      const response = runPicture
+        ? await runPictureResponse(url.searchParams, env.GITHUB_TOKEN)
+        : versus
         ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)
         : trainer
         ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN)

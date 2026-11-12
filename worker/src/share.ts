@@ -1,8 +1,9 @@
 import { Resvg, initWasm } from "@resvg/resvg-wasm";
 import wasm from "@resvg/resvg-wasm/index_bg.wasm";
-import { TYPE_COLOR, runCard, versusCard, type VersusSide } from "../../server/cards.ts";
+import { TYPE_COLOR, runPreviewCard, versusCard, type ShareCard, type ShelfPlayer, type VersusSide } from "../../server/cards.ts";
 import { CLASSES } from "../../server/character.ts";
-import { NoSuchUser, evened, teamFor, type Team } from "./battle.ts";
+import { priceOf, type RunFighter } from "../../server/run/rules.ts";
+import { NoSuchUser, evened, teamFor, withRunCards, type Team } from "./battle.ts";
 import { LOGIN, avatarData } from "./cards.ts";
 import font from "./SpaceGrotesk-Bold.ttf";
 
@@ -124,13 +125,32 @@ export async function sharePage(request: Request, url: URL): Promise<Response> {
 export const RUN_PICTURE_PATH = /^\/api\/card\/run\.png$/;
 export const RUN_SHARE_PATH = /^\/run\/?$/;
 
+/** A run's cards as a share picture draws them, each with its owner's avatar. */
+export function shareCards(fighters: RunFighter[]): Promise<ShareCard[]> {
+  return Promise.all(
+    fighters.map(async (fighter) => ({
+      name: fighter.fullName.split("/")[1] ?? fighter.fullName,
+      cost: priceOf(fighter.card.rarity),
+      sets: fighter.card.sets,
+      avatar: fighter.avatarUrl ? await avatarData(fighter.avatarUrl) : null,
+    })),
+  );
+}
+
+/** A player as a share picture draws them: their trainer, avatar and cards. */
+export async function shelfPlayer(login: string, avatarUrl: string | null, character: Team["character"], fighters: RunFighter[]): Promise<ShelfPlayer> {
+  // GitHub serves avatars at any size; the picture shows this one large.
+  const [avatar, cards] = await Promise.all([avatarUrl ? avatarData(avatarUrl.replace(/([?&]s=)\d+/, "$1240")) : null, shareCards(fighters)]);
+  return { login, name: character.name, klass: CLASSES[character.klass].label, look: character.look, avatar, cards };
+}
+
 export async function runPictureResponse(params: URLSearchParams, token: string): Promise<Response> {
   const login = params.get("me");
-  if (login === null) return image(await png(runCard(null, FONT_FAMILY)), 200, CACHE_SECONDS);
+  if (login === null) return image(await png(runPreviewCard(null, FONT_FAMILY)), 200, CACHE_SECONDS);
   if (!LOGIN.test(login)) return new Response("A run needs a GitHub username.", { status: 400 });
   try {
-    const player = await teamFor(token, login, Date.now());
-    return image(await png(runCard(await sideOf(player), FONT_FAMILY)), 200, CACHE_SECONDS);
+    const player = withRunCards(await teamFor(token, login, Date.now()));
+    return image(await png(runPreviewCard(await shelfPlayer(player.login, player.avatarUrl, player.character, player.team.slice(0, 4)), FONT_FAMILY)), 200, CACHE_SECONDS);
   } catch (error) {
     if (error instanceof NoSuchUser) return new Response(`No GitHub user called ${error.message}.`, { status: 404 });
     console.error(error);
@@ -160,7 +180,7 @@ export async function runSharePage(request: Request, url: URL): Promise<Response
     ["property", "og:image", picture],
     ["property", "og:image:width", "1200"],
     ["property", "og:image:height", "630"],
-    ["property", "og:image:alt", named ? `${me} and four of their repos as cards, beside the words Play a run` : "Six blank cards under the words Play a run"],
+    ["property", "og:image:alt", named ? `${me}'s trainer beside four of their repos as cards, under the words Play a run` : "A blank card of each cost, 1 to 5 gold, under the words Play a run"],
     ["name", "twitter:card", "summary_large_image"],
     ["name", "twitter:title", title],
     ["name", "twitter:description", says],

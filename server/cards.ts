@@ -7,6 +7,8 @@
 // outside images, so text uses the system font and avatars arrive as data URIs.
 
 import { CLASSES, figureSvg, type Character } from "./character.ts";
+import { setName } from "./run/names.ts";
+import { tierColor } from "./run/tiers.ts";
 
 export type CardRepo = {
   fullName: string;
@@ -355,54 +357,151 @@ export function versusCard(a: VersusSide, b: VersusSide, font: string): string {
   );
 }
 
-const RUN_RULES = ["5 wins finishes a run,", "3 losses ends one."];
+// The run's share pictures follow the Play screen's rules (docs/GAME-UI.md): one slate
+// material with a gold line on the outer edge, the trainer at the left end of a shelf
+// of cards, and each card in the shop's anatomy with its tier on the border, the name
+// strip's tint and the cost, and nowhere else. The creatures are drawn in 3D in the
+// browser and have no SVG, so a card's art holds its owner's avatar on the slate wall.
 
-/**
- * A run's link preview at the size link previews ask for: the player, their ace and
- * three cards drawn from their stars for the day. With no player the
- * picture is the run itself, for a /run link with nobody in it. Drawn to be turned
- * into a PNG (worker/src/share.ts), like the versus card.
- */
-export function runCard(player: VersusSide | null, font: string): string {
-  const open = `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" viewBox="0 0 ${SHARE_WIDTH} ${SHARE_HEIGHT}" role="img" aria-label="${escapeXml(player ? `Play a run with ${player.login}'s stars` : "Play a run with your GitHub stars")}" font-family="${font}" font-weight="700"><rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="#0b0e12"/>`;
-  const mark = `<polygon points="${star(1078, 596, 9)}" fill="${STAR}"/><text x="1094" y="604" font-size="24" letter-spacing="-0.3" fill="${TEXT}">stard</text></svg>`;
-  // "Play a run", what a run is, and the rules: beside the player, or across the middle on their own.
-  const headline = (x: number, centred: boolean, says: string) => {
-    const anchor = centred ? "middle" : "start";
-    const lines = wrap(says, centred ? 44 : 28, 3);
-    const rules = centred ? [RUN_RULES.join(" ")] : RUN_RULES;
-    const below = 262 + lines.length * 42;
-    return (
-      `<text x="${x}" y="190" text-anchor="${anchor}" font-size="84" letter-spacing="-3" fill="${TEXT}">Play a run</text>` +
-      lines.map((line, i) => `<text x="${x}" y="${262 + i * 42}" text-anchor="${anchor}" font-size="32" fill="${BODY}">${escapeXml(line)}</text>`).join("") +
-      rules.map((line, i) => `<text x="${x}" y="${below + 24 + i * 34}" text-anchor="${anchor}" font-size="26" fill="${STAR}">${line}</text>`).join("")
-    );
-  };
+const SLATE = "#0e1418";
+const WALL = "#131b20";
+const HEX = "#24323b";
+const TRIM = "#c9a45c";
+const COIN = "#f2c94c";
+const MARGIN = 64;
 
-  if (!player) {
-    // Six cards in the type colours stand in for a team nobody has drawn yet.
-    const cards = Object.values(TYPE_COLOR).map((color, i) => {
-      const left = 120 + i * 168;
-      return `<rect x="${left}" y="452" width="144" height="96" rx="14" fill="#12161c" stroke="${EDGE}" stroke-width="2"/><rect x="${left}" y="452" width="144" height="14" rx="7" fill="${color}"/>`;
-    });
-    return open + headline(600, true, "Build a team from your GitHub stars and fight other teams.") + cards.join("") + mark;
+/** A card on a share picture. `cost` is 1 to 5 gold; `avatar` is its owner's, as a data: URI. */
+export type ShareCard = { name: string; cost: number; sets: string[]; avatar: string | null };
+
+/** A player on a share picture: who they are, their trainer, and the cards on their shelf. */
+export type ShelfPlayer = {
+  login: string;
+  name: string;
+  klass: string;
+  look: Character["look"];
+  avatar: string | null;
+  cards: ShareCard[];
+};
+
+/** `color` blended toward `base`, `amount` of the way from base to color: the shop strip's 30% tier tint. */
+function blend(color: string, base: string, amount: number): string {
+  const channels = (hex: string) => [0, 2, 4].map((at) => parseInt(hex.slice(1 + at, 3 + at), 16));
+  const [a, b] = [channels(color), channels(base)];
+  return `#${a.map((value, i) => Math.round(b[i] + (value - b[i]) * amount).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function hexagon(x: number, y: number, size: number): string {
+  const points = [[0.25, 0.04], [0.75, 0.04], [1, 0.5], [0.75, 0.96], [0.25, 0.96], [0, 0.5]];
+  return points.map(([px, py]) => `${(x + px * size).toFixed(1)},${(y + py * size).toFixed(1)}`).join(" ");
+}
+
+/** One card in the shop's anatomy (docs/GAME-UI.md §4): art over a tier-tinted name strip, the tier on a 2px border. */
+function shelfCard(x: number, y: number, w: number, h: number, card: ShareCard, id: string): string {
+  const tier = tierColor(card.cost);
+  const strip = Math.round(Math.min(48, Math.max(34, w * 0.22)));
+  const art = h - strip;
+  const nameSize = Math.round(Math.min(19, Math.max(14, w * 0.1)));
+  let out = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${WALL}"/>`;
+  if (card.avatar) {
+    // The avatar sits where the shop draws the creature, about 66% across, clear of the set lines under it.
+    const radius = Math.round(Math.min(art * 0.27, w * 0.25));
+    const cx = x + w * 0.66;
+    const cy = y + art * 0.38;
+    out += `<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${radius}"/></clipPath>`;
+    out += `<image href="${escapeXml(card.avatar)}" x="${cx - radius}" y="${cy - radius}" width="${radius * 2}" height="${radius * 2}" clip-path="url(#${id})" preserveAspectRatio="xMidYMid slice"/>`;
   }
+  // Under 150px a card keeps the hexes and drops the set names, as a phone's shop card does under 120px.
+  const named = w >= 150;
+  [...new Set(card.sets)].slice(0, 2).reverse().forEach((set, i) => {
+    const top = y + art - 12 - (i + 1) * 26;
+    out += `<polygon points="${hexagon(x + 10, top, 22)}" fill="${HEX}"/>`;
+    if (named) out += `<text x="${x + 39}" y="${top + 17}" font-size="17" fill="${TEXT}">${escapeXml(truncate(setName(set), Math.floor((w - 47) / 9.6)))}</text>`;
+  });
+  out += `<rect x="${x}" y="${y + art}" width="${w}" height="${strip}" fill="${blend(tier, WALL, 0.3)}"/>`;
+  const middle = y + art + strip / 2;
+  const costWidth = 34;
+  out += `<text x="${x + 12}" y="${middle + nameSize * 0.36}" font-size="${nameSize}" letter-spacing="-0.3" fill="${TEXT}">${escapeXml(truncate(card.name, Math.max(4, Math.floor((w - 24 - costWidth) / (nameSize * 0.58)))))}</text>`;
+  out += `<circle cx="${x + w - 34}" cy="${middle}" r="8" fill="${COIN}"/>`;
+  out += `<text x="${x + w - 12}" y="${middle + 7}" text-anchor="end" font-size="20" fill="${TEXT}">${card.cost}</text>`;
+  out += `<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${h - 2}" rx="3" fill="none" stroke="${tier}" stroke-width="2"/>`;
+  return out;
+}
 
-  const size = Math.min(56, Math.floor(320 / (Math.max(player.login.length, 6) * 0.62)));
-  let out = `<polygon points="0,0 600,0 552,${SHARE_HEIGHT} 0,${SHARE_HEIGHT}" fill="${player.tint}" opacity="0.34"/>`;
-  out += `<line x1="600" y1="0" x2="552" y2="${SHARE_HEIGHT}" stroke="#ffffff" stroke-opacity="0.25" stroke-width="3"/>`;
-  out += `<g transform="translate(36,262)"><svg width="232" height="330" viewBox="0 0 120 170">${figureSvg(player.look)}</svg></g>`;
-  out += `<clipPath id="face"><circle cx="100" cy="112" r="46"/></clipPath><circle cx="100" cy="112" r="50" fill="${player.tint}"/>`;
-  if (player.avatar) out += `<image href="${player.avatar}" x="54" y="66" width="92" height="92" clip-path="url(#face)" preserveAspectRatio="xMidYMid slice"/>`;
-  out += `<text x="168" y="${112 + size * 0.1}" font-size="${size}" letter-spacing="-1" fill="${TEXT}">${escapeXml(player.login)}</text>`;
+const SHELF_TOP = 360;
+const SHELF_BOTTOM = 590;
+
+/** The player's trainer at the left end of their shelf, and the cards along it, as Play stands them (docs/GAME-UI.md §6). */
+function shelf(player: ShelfPlayer): string {
+  const height = SHELF_BOTTOM - SHELF_TOP;
+  const figureHeight = height + 20;
+  const figureWidth = Math.round((figureHeight * 120) / 170);
+  let out = `<svg x="${MARGIN - 28}" y="${SHELF_BOTTOM - figureHeight}" width="${figureWidth}" height="${figureHeight}" viewBox="0 0 120 170">${figureSvg(player.look)}</svg>`;
+  const left = MARGIN - 28 + figureWidth + 8;
+  const room = SHARE_WIDTH - MARGIN - left;
+  const gap = 14;
+  const width = Math.min(200, Math.floor((room - gap * (player.cards.length - 1)) / Math.max(1, player.cards.length)));
+  player.cards.forEach((card, i) => {
+    out += shelfCard(left + i * (width + gap), SHELF_TOP, width, height, card, `art${i}`);
+  });
+  return out;
+}
+
+/** The player's avatar and name in the top left. */
+function nameplate(player: ShelfPlayer): string {
+  const size = Math.min(44, Math.floor(700 / (Math.max(player.login.length, 6) * 0.62)));
+  let out = `<circle cx="${MARGIN + 30}" cy="94" r="30" fill="${WALL}"/>`;
+  if (player.avatar) out += `<clipPath id="face"><circle cx="${MARGIN + 30}" cy="94" r="30"/></clipPath><image href="${escapeXml(player.avatar)}" x="${MARGIN}" y="64" width="60" height="60" clip-path="url(#face)" preserveAspectRatio="xMidYMid slice"/>`;
+  out += `<text x="${MARGIN + 78}" y="${94 + size * 0.36}" font-size="${size}" letter-spacing="-0.8" fill="${TEXT}">${escapeXml(player.login)}</text>`;
   // A character nobody built has the username for a name and no class worth showing.
   const under = [player.klass === "Rookie" ? "" : player.klass, player.name.toLowerCase() === player.login.toLowerCase() ? "" : player.name].filter(Boolean).join(" · ");
-  out += `<text x="170" y="${152 + size * 0.1}" font-size="24" fill="${BODY}">${escapeXml(truncate(under, 24))}</text>`;
-  player.team.slice(0, 4).forEach((card, i) => {
-    const top = 262 + i * 80;
-    out += `<rect x="292" y="${top}" width="236" height="64" rx="12" fill="#12161c" stroke="${card.shiny ? STAR : EDGE}" stroke-width="2"/>`;
-    out += `<rect x="292" y="${top}" width="12" height="64" rx="6" fill="${card.color}"/>`;
-    out += `<text x="320" y="${top + 41}" font-size="25" letter-spacing="-0.3" fill="${TEXT}">${escapeXml(truncate(card.name, 14))}</text>`;
-  });
-  return open + out + headline(640, false, `Build a team from ${player.login}'s GitHub stars and fight other teams.`) + mark;
+  if (under) out += `<text x="${MARGIN + 78}" y="${94 + size * 0.36 + 32}" font-size="22" fill="${MUTED}">${escapeXml(truncate(under, 40))}</text>`;
+  return out;
+}
+
+/** The picture's frame: slate, the gold line on its outer edge, and the mark in the top right. */
+function sharePicture(label: string, font: string, body: string): string {
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" viewBox="0 0 ${SHARE_WIDTH} ${SHARE_HEIGHT}" role="img" aria-label="${escapeXml(label)}" font-family="${font}" font-weight="700">` +
+    `<rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="${SLATE}"/>` +
+    `<rect x="1" y="1" width="${SHARE_WIDTH - 2}" height="${SHARE_HEIGHT - 2}" fill="none" stroke="${TRIM}" stroke-opacity="0.7" stroke-width="2"/>` +
+    body +
+    `<polygon points="${star(SHARE_WIDTH - MARGIN - 84, 86, 10)}" fill="${STAR}"/>` +
+    `<text x="${SHARE_WIDTH - MARGIN}" y="95" text-anchor="end" font-size="26" letter-spacing="-0.3" fill="${TEXT}">stard</text>` +
+    `</svg>`
+  );
+}
+
+/** A title with a sentence and a quieter line under it, left-aligned or across the middle. */
+function headline(title: string, says: string, quiet: string, centred: boolean): string {
+  const x = centred ? SHARE_WIDTH / 2 : MARGIN;
+  const anchor = centred ? "middle" : "start";
+  return (
+    `<text x="${x}" y="${centred ? 200 : 236}" text-anchor="${anchor}" font-size="80" letter-spacing="-2.5" fill="${TEXT}">${escapeXml(title)}</text>` +
+    `<text x="${x}" y="${centred ? 252 : 284}" text-anchor="${anchor}" font-size="28" fill="${BODY}">${escapeXml(wrap(says, 66, 1)[0] ?? "")}</text>` +
+    `<text x="${x}" y="${centred ? 292 : 322}" text-anchor="${anchor}" font-size="24" fill="${MUTED}">${escapeXml(quiet)}</text>`
+  );
+}
+
+const RUN_RULES = "Fight other teams. 5 wins finishes a run, 3 losses ends one.";
+
+/**
+ * A run's link preview at the size link previews ask for: the player, their trainer
+ * and four cards from their stars for the day. With no player the picture is the run
+ * itself, a blank card of each cost, for a /run link with nobody in it. Drawn to be
+ * turned into a PNG (worker/src/share.ts), like the versus card.
+ */
+export function runPreviewCard(player: ShelfPlayer | null, font: string): string {
+  if (!player) {
+    const width = 180;
+    const gap = 16;
+    const left = (SHARE_WIDTH - (width * 5 + gap * 4)) / 2;
+    const blanks = [1, 2, 3, 4, 5].map((cost, i) => shelfCard(left + i * (width + gap), SHELF_TOP, width, SHELF_BOTTOM - SHELF_TOP, { name: "", cost, sets: [], avatar: null }, `art${i}`));
+    return sharePicture("Play a run with your GitHub stars", font, headline("Play a run", "Build a team from your GitHub stars. No sign-in.", RUN_RULES, true) + blanks.join(""));
+  }
+  const shown = { ...player, cards: player.cards.slice(0, 4) };
+  return sharePicture(
+    `Play a run with ${player.login}'s stars`,
+    font,
+    nameplate(shown) + headline("Play a run", `Build a team from ${player.login}'s GitHub stars. No sign-in.`, RUN_RULES, false) + shelf(shown),
+  );
 }

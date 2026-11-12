@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Fighter } from "../../../../server/battle";
 import { buildCreature } from "./creature";
-import { dispose } from "./kit";
+import { dispose, INK } from "./kit";
 
 // A creature's picture for its card: the same model the arena uses, drawn once and
 // kept as an image. The renderer is made when a picture is asked for and let go a
@@ -64,6 +64,8 @@ const WALL_BEHIND = 1.2;
 const POOL = new THREE.Vector3(-0.35, 0.55, 0);
 /** Where the pool's lamp hangs, from the creature's middle: behind it, so it lights the wall and never the creature's face. */
 const POOL_LAMP = new THREE.Vector3(0.1, 0.4, -0.45);
+/** The rim's color on the card's outline: the rim light's cool blue. */
+const RIM_EDGE = new THREE.Color(0x9fc4ff);
 /** Where the creature's middle sits across the card, and how near its head comes to the top edge, in clip space. */
 const ACROSS = 0.32;
 const HEAD = 0.86;
@@ -106,7 +108,7 @@ function openStage(): Stage {
   // A background light: a lamp hidden behind the creature throws a soft warm pool on the wall behind the
   // head that falls off toward the corners. The wall is lit, not painted with a gradient (docs/GAME-UI.md §2),
   // and the creature is no brighter for it.
-  const pool = new THREE.SpotLight(0xffe9c7, 9, 6, 1.05, 1, 1.2);
+  const pool = new THREE.SpotLight(0xffe9c7, 32, 7, 0.82, 1, 1.2);
   scene.add(pool, pool.target);
   // The rim: cool, from behind and to the right, catching the silhouette's edge so it parts from the wall.
   const rim = new THREE.DirectionalLight(0x9fc4ff, 1.6);
@@ -116,6 +118,44 @@ function openStage(): Stage {
   scene.add(wall);
   stage = { renderer, scene, camera: new THREE.PerspectiveCamera(28, WIDE / HIGH, 0.1, 40), wall, key, sun, pool, rim };
   return stage;
+}
+
+/**
+ * The rim light, drawn on the ink outline: a toon shader's bands round a light from behind down to
+ * nothing, and a box's edge has no surface turned toward it to catch it. So on the card the outline
+ * turns cool where it faces the rim (right, and a little up) and stays ink elsewhere. The board's
+ * shared outline material is swapped back before the creature is disposed.
+ */
+const CARD_OUTLINE = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms: { ink: { value: new THREE.Color(INK) }, rimEdge: { value: RIM_EDGE } },
+  vertexShader: `
+    varying vec3 facing;
+    void main() {
+      facing = normalize(normalMatrix * normal);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform vec3 ink;
+    uniform vec3 rimEdge;
+    varying vec3 facing;
+    void main() {
+      float lit = smoothstep(0.05, 0.55, facing.x + 0.35 * facing.y);
+      gl_FragColor = vec4(mix(ink, rimEdge, lit), 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+
+/** Puts the card's outline on every outline under `root`, and gives back a function that puts the board's back. */
+function lendOutline(root: THREE.Object3D): () => void {
+  const lent: [THREE.Mesh, THREE.Material | THREE.Material[]][] = [];
+  root.traverse((node) => {
+    if (!node.userData.rim) return;
+    const mesh = node as THREE.Mesh;
+    lent.push([mesh, mesh.material]);
+    mesh.material = CARD_OUTLINE;
+  });
+  return () => lent.forEach(([mesh, material]) => (mesh.material = material));
 }
 
 /** The creature's box, as clip-space bounds under the camera. */
@@ -177,6 +217,7 @@ export function shopArt(fighter: Fighter): string {
   const creature = buildCreature(fighter);
   creature.root.rotation.y = THREE_QUARTER;
   if (creature.floats) creature.body.position.y = 0.3;
+  const giveBack = lendOutline(creature.root);
   scene.add(creature.root);
   const middle = frame(camera, creature);
   // The wall faces the camera, behind the creature, so the key's pool lands behind its head.
@@ -191,6 +232,7 @@ export function shopArt(fighter: Fighter): string {
   const image = renderer.domElement.toDataURL("image/png");
   camera.clearViewOffset();
   scene.remove(creature.root);
+  giveBack();
   dispose(creature.root);
   drawn.set(key, image);
   return image;

@@ -109,7 +109,7 @@ export function TextBox({ children, actions, strong = false }: { children: React
 }
 
 /** A card opened large, leaning toward the pointer. Closes on Escape or a press outside. */
-export function InspectOverlay({ fighter, onClose, children }: { fighter: Fighter | null; onClose: () => void; /** What can be done with the card, under it. */ children?: React.ReactNode }) {
+export function InspectOverlay({ fighter, onClose, card, children }: { fighter: Fighter | null; onClose: () => void; /** The face to show in place of the repo card. */ card?: React.ReactNode; /** What can be done with the card, under it. */ children?: React.ReactNode }) {
   useEffect(() => {
     if (!fighter) return;
     const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -120,7 +120,7 @@ export function InspectOverlay({ fighter, onClose, children }: { fighter: Fighte
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6" role="dialog" aria-modal="true" aria-label={fighter.fullName} onClick={onClose}>
       <div className="battle-deal w-[min(86vw,22rem,56vh)]" onClick={(e) => e.stopPropagation()}>
-        <RepoCard fighter={fighter} tilt />
+        {card ?? <RepoCard fighter={fighter} tilt />}
         <div className="mt-3 flex items-center justify-between gap-2 text-sm">
           <a href={`https://github.com/${fighter.fullName}`} target="_blank" rel="noopener noreferrer" className="truncate underline-offset-4 hover:underline">{fighter.fullName}</a>
           <Button variant="outline" size="sm" onClick={onClose}><X /> Close</Button>

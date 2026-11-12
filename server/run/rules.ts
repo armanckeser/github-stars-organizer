@@ -33,7 +33,8 @@ export const rangeOf = (card: { type: string }): Card["range"] => (card.type ===
 export const priceOf = (rarity: Card["rarity"]) => rarity + 1;
 export const costOf = (fighter: Fighter) => priceOf(rarityOf(fighter));
 
-export const snapshot = (login: string, round: number, units: Unit[]): Snapshot => ({ login, round, units: units.map((unit) => ({ card: unit.fighter.card, col: unit.col, row: unit.row })), boosts: [] });
+/** A team as the fight reads it. `boosts` are the ids picked so far in the run (server/run/boosts.ts). */
+export const snapshot = (login: string, round: number, units: Unit[], boosts: string[] = []): Snapshot => ({ login, round, units: units.map((unit) => ({ card: unit.fighter.card, col: unit.col, row: unit.row })), boosts });
 
 export function shuffled<T>(items: T[], seed: string): T[] {
   const random = seededRandom(seed);
@@ -56,6 +57,14 @@ export function shopFor<T extends { fullName: string }>(player: Pool<T>, owned: 
 
 /** How many cards a team may hold in a round. */
 export const teamSizeAt = (round: number) => Math.min(TEAM_MAX, round + 1);
+
+/** Cards bought wait on the bench until placed. Only cards on the board count toward the team limit. */
+export const BENCH_SIZE = 5;
+/** Gold for one more board slot than the round allows, and the most a board can hold with bought slots. */
+export const SLOT_COST = 4;
+export const BOARD_MAX = 7;
+/** Cards the board may hold in a round, with `bought` extra slots. */
+export const boardLimit = (round: number, bought: number) => Math.min(BOARD_MAX, teamSizeAt(round) + bought);
 
 /** The first free cell for a new card: up close in front, cards with reach behind. */
 export function freeCell(units: { col: number; row: number }[], card: { type: string }): { col: number; row: number } | null {

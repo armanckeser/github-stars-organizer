@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/run"><img src="img/run.gif" alt="A round of a run in the demo: a card bought from the shop is dragged onto the board, two teams of creatures fight, then the run finishes with 5 wins and 2 losses" width="480" /></a>
+  <a href="https://stars-demo.armanckeser.com/run"><img src="img/run.gif" alt="A round of a run in the demo: a card bought from the shop is dragged onto the board, two teams of creatures fight, then the run finishes with 5 wins and 2 losses and shows the final team" width="480" /></a>
 </p>
 
 <p align="center">

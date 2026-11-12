@@ -1,4 +1,5 @@
 import type { Character } from "../../server/character";
+import { RESPONSE_SHAPE } from "../../server/response-shape";
 import { opponentLogin, today, type RunFighter } from "../../server/run/rules";
 import { CARD_ORIGIN } from "./published-list";
 
@@ -25,8 +26,11 @@ export function fetchPlayer(login: string, forRun?: string): Promise<Player> {
 }
 
 async function readPlayer(login: string, forRun?: string): Promise<Player> {
-  const whose = forRun ? `&for=${encodeURIComponent(forRun)}` : "";
-  const response = await fetch(`${CARD_ORIGIN}/api/run/pool?login=${encodeURIComponent(login)}${whose}`);
+  const url = new URL("/api/run/pool", CARD_ORIGIN);
+  url.searchParams.set("login", login);
+  if (forRun) url.searchParams.set("for", forRun);
+  url.searchParams.set("_shape", RESPONSE_SHAPE);
+  const response = await fetch(url);
   const body = (await response.json()) as Player & { error?: string };
   if (!response.ok) throw new Error(body.error ?? "The cards couldn't be read.");
   return body;

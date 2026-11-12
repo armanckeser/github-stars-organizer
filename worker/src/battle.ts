@@ -149,8 +149,8 @@ export async function teamFor(token: string, login: string, now: number, size = 
       avatarUrl: string;
       profile: { readme: { text?: string } | null } | null;
       stard: { readme: { text?: string } | null } | null;
-      pinnedItems: { nodes: (FactsNode | Record<string, never>)[] };
-      repositories: { nodes: FactsNode[] };
+      pinnedItems: { nodes: ({ nameWithOwner: string } | Record<string, never>)[] };
+      repositories: { nodes: { nameWithOwner: string }[] };
       starredRepositories: { nodes: { nameWithOwner: string; isPrivate: boolean }[] };
     }) | null;
   }>(
@@ -161,8 +161,8 @@ export async function teamFor(token: string, login: string, now: number, size = 
       ${PLAYER}
       profile: repository(name: ${name}) { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
       stard: repository(name: "stard") { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
-      pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${FACTS} } } }
-      repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${FACTS} } }
+      pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { nameWithOwner } } }
+      repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { nameWithOwner } }
       starredRepositories(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { nodes { nameWithOwner isPrivate } }
     } }`,
   );
@@ -175,35 +175,46 @@ export async function teamFor(token: string, login: string, now: number, size = 
   const built = characterIn(readme, user.login);
   const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
 
+  // The pinned and top repos are read by name only here, and their facts later in the
+  // small parallel queries: with their facts in this query, a busy account's read
+  // (antfu's: 10.6 s) ran into GitHub's 10-second limit and failed with a 502.
+  const pinned = user.pinnedItems.nodes.flatMap((node) => ("nameWithOwner" in node ? [node.nameWithOwner] : []));
+  const owned = user.repositories.nodes.map((node) => node.nameWithOwner);
+
   let source: TeamSource = "profile";
-  let chosen = await factsFor(token, topFourIn(readme));
+  const fromProfile = await factsFor(token, topFourIn(readme));
+  let chosen = fromProfile.map((node) => node.nameWithOwner);
   if (chosen.length === 0) {
     source = "pinned";
-    chosen = user.pinnedItems.nodes.filter((node): node is FactsNode => "nameWithOwner" in node);
+    chosen = pinned;
   }
   if (chosen.length === 0) {
     source = "repos";
-    chosen = user.repositories.nodes;
+    chosen = owned;
   }
   const ace = chosen.slice(0, 1);
   const stars = user.starredRepositories.nodes.filter((repo) => !repo.isPrivate).map((repo) => repo.nameWithOwner);
   if (ace.length === 0 && stars.length > 0) source = "stars";
-  const drawn = await factsFor(
-    token,
-    drawFromStars(stars, ace.map((node) => node.nameWithOwner), size - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
-  );
-  const nodes = [...ace, ...drawn];
-  for (const spare of [...chosen.slice(1), ...user.repositories.nodes]) {
-    if (nodes.length >= size) break;
-    if (!nodes.some((node) => node.nameWithOwner === spare.nameWithOwner)) nodes.push(spare);
-  }
+  const drawnNames = drawFromStars(stars, ace, size - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`);
+  // An account with few stars fills the rest of its pool from its own repos.
+  const spares = [...new Set([...chosen.slice(1), ...owned])]
+    .filter((name) => !ace.includes(name) && !drawnNames.includes(name))
+    .slice(0, Math.max(0, size - ace.length - drawnNames.length));
+
+  const known = new Map(fromProfile.map((node) => [node.nameWithOwner, node]));
+  const unread = [...ace, ...drawnNames, ...spares].filter((name) => !known.has(name));
+  for (const node of await factsFor(token, unread)) known.set(node.nameWithOwner, node);
+  const read = (names: string[]) => names.flatMap((name) => known.get(name) ?? []);
+  const aceNodes = read(ace);
+  const drawn = read(drawnNames);
+  const nodes = [...aceNodes, ...drawn, ...read(spares)].slice(0, size);
   const repos: FrozenRepo[] = nodes.map((node, i) => ({
     ...toFacts(node),
     topics: node.repositoryTopics.nodes.map((entry) => entry.topic.name),
-    wildcard: i >= ace.length && i < ace.length + drawn.length,
+    wildcard: i >= aceNodes.length && i < aceNodes.length + drawn.length,
   }));
   const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : fighter));
-  const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: ace[0]?.nameWithOwner ?? null, source, repos };
+  const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: aceNodes[0]?.nameWithOwner ?? null, source, repos };
   return { login: user.login, avatarUrl: user.avatarUrl, source, character, team, facts };
 }
 

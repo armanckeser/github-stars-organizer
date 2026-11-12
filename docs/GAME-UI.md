@@ -84,8 +84,15 @@ The bar folds down under the gold plaque. It opens at the start of each round an
 
 ## 9. Fight overlays
 
-- **An ability firing:** a small slate card with a 1px gold trim pops over the unit's HP bar for about 1 s: the ability's name in white, and a grey line reading "Trigger → effect" (for example "Hit → Rate limited"). No accent color.
-- **Damage:** numbers stamped on the unit, white, gold on a critical hit.
+What fired is drawn on the board, not written. One look per effect kind, so every ability, set bonus and boost that shares a kind shares its look, and a player learns five looks, not forty. Each kind is one file in `src/components/battle/three/effects/`; `/fx.html?play=<id>` in `npm run dev` plays any one alone.
+
+- **Something fired:** a gold ring opens on the floor around the caster and it gives a small squash. Its name shows over the HP bar as one small gold word in capitals for under a second. No card, no "Trigger → effect" line: the card face and hover text explain it.
+- **Damage:** white. Something travels from the caster to each target (shards, a slam, a burst), then the target squashes and the number stamps, white, gold on a critical hit.
+- **Shield:** pale blue-white. A see-through bubble wraps the creature and stays while the shield lasts; the HP bar gains a pale segment after the HP, which shrinks as hits take it.
+- **Heal:** green, the green of the "+n" numbers. Light rises from the floor under the creature with a few rising plus signs.
+- **Stat:** gold chevrons rise for a stat going up, red chevrons fall for one going down, with a ring at the feet.
+- **Condition:** an orb in the condition's own colour travels to the target, which then wears the badge as before.
+- Effects are short (under 0.6 s, a shield's bubble aside), additive light, and never cover an HP bar. With reduced motion nothing travels or spins: the result shows in place and fades.
 - Nothing overlaps an HP bar.
 
 ## 10. Type and words

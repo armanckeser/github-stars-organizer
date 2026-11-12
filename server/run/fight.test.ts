@@ -205,3 +205,20 @@ describe("fightWith conditions and heals", () => {
     expect(hits(fightWith(rules)(...duel(card("greendale/troy"), wall), "seed"))).toBeLessThan(steady * 0.9);
   });
 });
+
+describe("a shield in a fight", () => {
+  // Regression guarded: a shield takes hits without the HP moving, and the board draws it
+  // only from `shield` events; with none, a shielded card looks like it shrugs hits off for no reason.
+  it("reports the shield a card gains and what each hit leaves of it", () => {
+    const shield: Hook = { source: "code-freeze", on: "start", effects: [{ kind: "shield", aim: "self", share: 0.22 }] };
+    const events = fightWith(carrying([shield]))(...duel(card("greendale/troy", { hp: 600 }), card("city-college/chang", { hp: 4000 })), "seed");
+    const left = of(events, "shield").filter((event) => event.side === 0 && event.unit === 0).map((event) => event.shield);
+    expect(left[0]).toBe(132);
+    expect(left.slice(1).every((value, i) => value < left[i])).toBe(true);
+    expect(left.at(-1)).toBe(0);
+  });
+
+  it("reports no shield for a card that never had one", () => {
+    expect(of(fight(...duel(card("greendale/troy"), card("city-college/chang")), "seed"), "shield")).toEqual([]);
+  });
+});

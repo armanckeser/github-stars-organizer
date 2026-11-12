@@ -85,6 +85,9 @@ export function popOf(id: string): Source & { line: string | null } {
   return { ...source, line: `${trigger} → ${effect.charAt(0).toUpperCase()}${effect.slice(1)}` };
 }
 
+/** What the ability, set bonus or boost behind an event's id does, in order; a set's are its two-card bonus. An unknown id does nothing. */
+export const effectsOf = (id: string): Effect[] => hookOf(id)?.effects ?? [];
+
 /** When the thing behind an event's id fires and what it does first; a set's words are its two-card bonus. */
 function hookOf(id: string): { on: Trigger; when?: Gate; effects: Effect[] } | null {
   if (id.startsWith("set:")) return SETS.find((bonus) => bonus.set === id.slice("set:".length))?.two ?? null;

@@ -144,6 +144,7 @@ function reach(arena: Arena, unit: Unit, aim: Aim, foe: Unit | undefined): Unit[
 function wound(arena: Arena, attacker: Unit, target: Unit, damage: number, critical: boolean) {
   const absorbed = Math.min(target.shield, damage);
   target.shield -= absorbed;
+  if (absorbed > 0) arena.events.push({ t: arena.t, kind: "shield", side: target.side, unit: target.index, shield: target.shield });
   target.hp = Math.max(0, target.hp - (damage - absorbed));
   arena.events.push({ t: arena.t, kind: "hit", side: attacker.side, unit: attacker.index, target: target.index, damage: damage - absorbed, critical });
   if (target.hp === 0) faint(arena, target);
@@ -161,6 +162,7 @@ function affect(arena: Arena, unit: Unit, effect: Effect, target: Unit, source: 
       return;
     case "shield":
       target.shield += Math.round(target.card.hp * effect.share);
+      arena.events.push({ t: arena.t, kind: "shield", side: target.side, unit: target.index, shield: target.shield });
       return;
     case "stat":
       if (effect.stat === "critical") target.critical += effect.by;

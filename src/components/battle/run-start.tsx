@@ -1,11 +1,8 @@
-import { Play, Sparkles } from "lucide-react";
+import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { validLogin } from "@/lib/published-list";
 import { OpponentsLink } from "@/components/battle/opponents-link";
-
-/** Whose stars "Try with a sample account" plays: the maintainer's, public and always there. */
-const SAMPLE_LOGIN = "armanckeser";
 
 type Props = {
   login: string;
@@ -19,8 +16,7 @@ type Props = {
   className: string;
 };
 
-// The Play screen's start panel. A link with ?me= starts the run with no typing;
-// otherwise one tap plays a sample account's stars.
+// The Play screen's start panel. A link with ?me= starts the run with no typing.
 export function RunStart({ login, onLogin, onStart, loading, error, starting, intro, className }: Props) {
   if (starting && !error) {
     return (
@@ -34,11 +30,8 @@ export function RunStart({ login, onLogin, onStart, loading, error, starting, in
     <form onSubmit={(event) => { event.preventDefault(); onStart(login.trim()); }} className={`${className} space-y-3`}>
       <h1 className="font-display text-2xl font-bold tracking-tight">Play</h1>
       <p className="text-sm text-white/70">{intro}</p>
-      <div className="flex flex-wrap gap-2">
-        <Input value={login} onChange={(e) => onLogin(e.target.value.replace(/^@/, ""))} placeholder="Your GitHub username" aria-label="Your GitHub username" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="min-w-0 flex-1 basis-32" />
-        <Button type="button" variant="outline" disabled={loading} onClick={() => { onLogin(SAMPLE_LOGIN); onStart(SAMPLE_LOGIN); }}><Sparkles /> Try with a sample account</Button>
-      </div>
-      <Button type="submit" className="w-full" disabled={!validLogin(login) || loading}><Play /> {loading ? "Reading the stars..." : "Start a run"}</Button>
+      <Input value={login} onChange={(e) => onLogin(e.target.value.replace(/^@/, ""))} placeholder="Your GitHub username" aria-label="Your GitHub username" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+      <Button type="submit" className="w-full" disabled={!validLogin(login) || loading}><Play /> {loading ? "Reading your stars..." : "Start a run"}</Button>
       {error && <p className="text-sm text-[#ff8f93]" role="alert">{error}</p>}
       <OpponentsLink />
     </form>

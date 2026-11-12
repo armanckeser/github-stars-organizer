@@ -23,13 +23,13 @@ function remember() {
   }
 }
 
-/** The demo's front page, on a first visit: one button to Play, above everything else. */
+/** The demo's front page, on a first visit: a Play button beside the page title. */
 export function PlayFirst() {
   const [shown] = useState(() => DEMO && !playedBefore());
   if (!shown) return null;
   return (
-    <Link to="/run" onClick={remember} className={buttonVariants({ size: "lg", className: "h-14 w-full text-lg" })}>
-      <Gamepad2 className="size-5" /> Play
+    <Link to="/run" onClick={remember} className={buttonVariants()}>
+      <Gamepad2 /> Play
     </Link>
   );
 }

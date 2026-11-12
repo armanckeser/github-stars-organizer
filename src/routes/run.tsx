@@ -343,7 +343,7 @@ function RunPage() {
 
       {!player && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 p-4">
-          <RunStart login={login} onLogin={setLogin} onStart={(who) => void start(who)} loading={loading} error={error} starting={linked} intro={`Build a team from your stars. ${WINS_TO_FINISH} wins finishes a run, ${LOSSES_TO_END} losses ends one.`} className={`${PANEL} w-full max-w-md p-5`} />
+          <RunStart login={login} onLogin={setLogin} onStart={(who) => void start(who)} loading={loading} error={error} starting={linked} intro={`Build a team from your stars. ${WINS_TO_FINISH} wins finishes a run, ${LOSSES_TO_END} losses ends one.`} className={`${PANEL} w-full max-w-sm p-5`} />
         </div>
       )}
 

@@ -219,15 +219,17 @@ function AllStarsPage() {
 
   return (
     <div className="space-y-6">
-      <PlayFirst />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            All Stars
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {allRepos.length} starred repositories
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              All Stars
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {allRepos.length} starred repositories
+            </p>
+          </div>
+          <PlayFirst />
         </div>
         {DEMO ? (
           <div className="flex items-start gap-2">

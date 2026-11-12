@@ -161,7 +161,7 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
   const query = `t=${encodeURIComponent(token)}`;
   const record = recordOf(saved.wins, saved.losses);
   const title = `${saved.login}'s team · Stard run`;
-  const says = `${record}, with ${finalUnits(saved).map((unit) => unit.fighter.fullName.split("/")[1] ?? unit.fighter.fullName).join(", ")}. Play a run against this team.`;
+  const says = `${record}, with ${finalUnits(saved).map((unit) => unit.fighter.fullName.split("/")[1] ?? unit.fighter.fullName).join(", ")}. Beat this team on Stard.`;
   const picture = `${url.origin}/api/card/team.png?${query}`;
   const tags = [
     ["property", "og:type", "website"],

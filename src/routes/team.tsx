@@ -74,7 +74,7 @@ function TeamPage() {
           {loaded.state === "failed" && (
             <div className="run-panel text-center">
               <p className="run-panel-note" role="alert">{loaded.message}</p>
-              <Link to="/run" className="hud-button hud-fight run-panel-primary"><Swords className="size-4" /> Play a run</Link>
+              <Link to="/run" className="hud-button hud-fight run-panel-primary"><Swords className="size-4" /> Play Stard</Link>
             </div>
           )}
           {team && <SavedTeamPanel team={team} token={t!} />}

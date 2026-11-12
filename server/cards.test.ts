@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, topFourCard, wrap, type CardRepo } from "./cards.ts";
+import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, runPreviewCard, topFourCard, wrap, type CardRepo, type ShareCard, type ShelfPlayer } from "./cards.ts";
+import { defaultCharacter } from "./character.ts";
 
 function repo(fullName: string, extra: Partial<CardRepo> = {}): CardRepo {
   return { fullName, stars: 1234, language: "TypeScript", color: "#3178c6", avatar: null, ...extra };
@@ -76,5 +77,52 @@ describe("the cards", () => {
 
   test("a card that can't be drawn says why", () => {
     expect(messageCard("This card has no repos to show.")).toContain("This card has no repos to show.");
+  });
+});
+
+describe("the run's share picture", () => {
+  const player = (cards: ShareCard[]): ShelfPlayer => ({
+    login: "troybarnes",
+    name: "Troy",
+    klass: "Scout",
+    look: defaultCharacter("troybarnes").look,
+    avatar: null,
+    cards,
+  });
+  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], avatar: null });
+
+  test("names the player and their first four cards, at link-preview size, when a player is given", () => {
+    // Regression guarded: a /run?me= link previewed someone else's run, or a fifth card ran off the picture.
+    const svg = runPreviewCard(player([card("dreamatorium"), card("paintball"), card("blanketfort"), card("koosh"), card("chang")]), "Space Grotesk");
+    expect(svg).toContain('width="1200" height="630"');
+    expect(svg).toContain(`aria-label="Play a run with troybarnes&#39;s stars"`);
+    expect(svg).toContain(">troybarnes</text>");
+    expect(svg).toContain(">Scout · Troy</text>");
+    for (const name of ["dreamatorium", "paintball", "blanketfort", "koosh"]) expect(svg).toContain(`>${name}</text>`);
+    expect(svg).not.toContain(">chang</text>");
+    expect(svg).toContain(">Fight other teams. 5 wins finishes a run, 3 losses ends one.</text>");
+  });
+
+  test("colours a card's border with its cost's tier and nothing else, when cards of two costs are shown", () => {
+    // Regression guarded: the tier colour leaked onto the picture as decoration, or a card lost its tier.
+    const svg = runPreviewCard(player([card("dreamatorium", 5), card("paintball", 2)]), "Space Grotesk");
+    expect(svg.match(/#e3b341/g)).toHaveLength(1);
+    expect(svg.match(/#3fb950/g)).toHaveLength(1);
+    expect(svg).toContain('stroke="#e3b341" stroke-width="2"');
+    expect(svg).not.toContain("Gradient");
+  });
+
+  test("shows the run for anyone, a blank card of each cost and no username, when no player is given", () => {
+    const svg = runPreviewCard(null, "Space Grotesk");
+    expect(svg).toContain('aria-label="Play a run with your GitHub stars"');
+    expect(svg).toContain(">Build a team from your GitHub stars. No sign-in.</text>");
+    for (const tier of ["#8b949e", "#3fb950", "#4a90d9", "#a371f7", "#e3b341"]) expect(svg).toContain(`stroke="${tier}"`);
+    expect(svg).not.toContain("troybarnes");
+  });
+
+  test("a repo name can't add markup to the picture", () => {
+    const svg = runPreviewCard(player([card("<script>x")]), "Space Grotesk");
+    expect(svg).not.toContain("<script>");
+    expect(svg).toContain("&lt;script&gt;x");
   });
 });

@@ -268,7 +268,7 @@ export type RunPool = Omit<Team, "team"> & { team: RunFighter[] };
  * Each card gets its run card (server/run/stats.ts), and the fighter takes the card's
  * numbers in place of the battle's, so the board's HP bars match the fight.
  */
-function withRunCards(player: Team): RunPool {
+export function withRunCards(player: Team): RunPool {
   const readAt = Date.parse(player.facts.readAt);
   const team = player.team.map((fighter, i): RunFighter => {
     const card = cardFor(player.facts.repos[i], readAt);

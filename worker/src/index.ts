@@ -6,7 +6,7 @@ import { GAME_PATH, gameResponse } from "./game.ts";
 import { OPPONENTS_PATH, OptedOut, checkPoolRead, opponentsBody, readOptOuts, type OptOuts } from "./no-play.ts";
 import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
 import { RUN_PATH, runResponse } from "./run.ts";
-import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
+import { RUN_PICTURE_PATH, RUN_SHARE_PATH, SHARE_PATH, VERSUS_PATH, runPictureResponse, runSharePage, sharePage, versusResponse } from "./share.ts";
 
 // BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts) and a run's token (worker/src/run.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
@@ -97,6 +97,9 @@ export default {
     const url = new URL(request.url);
     // The app's own page: anything but a plain read goes straight to the site.
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
+    if (RUN_SHARE_PATH.test(url.pathname)) return request.method === "GET" ? runSharePage(request, url) : fetch(request);
+    // The /run* route also catches pages such as /runs; those belong to the site.
+    if (!url.pathname.startsWith("/api/")) return fetch(request);
     const now = Date.now();
     const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN };
     const optOuts = cachedOptOuts(url.origin, env, context);
@@ -121,6 +124,7 @@ export default {
     const fight = BATTLE_PATH.exec(url.pathname);
     const trainer = TRAINER_PATH.test(url.pathname);
     const versus = VERSUS_PATH.test(url.pathname);
+    const runPicture = RUN_PICTURE_PATH.test(url.pathname);
     if (RUN_POOL_PATH.test(url.pathname)) {
       try {
         await checkPoolRead(url.searchParams, optOuts);
@@ -132,12 +136,14 @@ export default {
       // Whose run the read is for decides only the check above; everyone shares one cached pool.
       return poolReply(url.searchParams.get("login") ?? "", pools);
     }
-    if (card || fight || trainer || versus) {
+    if (card || fight || trainer || versus || runPicture) {
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
-      const key = cacheKeyFor(url, Boolean(fight || versus));
+      const key = cacheKeyFor(url, Boolean(fight || versus || runPicture));
       const cached = await caches.default.match(key);
       if (cached) return cached;
-      const response = versus
+      const response = runPicture
+        ? await runPictureResponse(url.searchParams, env.GITHUB_TOKEN)
+        : versus
         ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)
         : trainer
         ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN)

@@ -8,7 +8,7 @@ import type { Card, Snapshot } from "./types.ts";
 
 export const COMMON_TOPICS = ["cli", "ai", "web", "database", "security", "game"] as const;
 
-type Bonus = { text: string; on: Trigger; effects: Effect[] };
+export type Bonus = { text: string; on: Trigger; effects: Effect[] };
 export type SetBonus = { set: string; name: string; two: Bonus; three: Bonus };
 
 const PERCENT = 100;
@@ -63,16 +63,17 @@ export const FAMILY_SETS: Record<CardType, SetBonus> = {
 
 const BY_SET = new Map(SETS.map((bonus) => [bonus.set, bonus]));
 
-/** A card's sets: its language, then up to two topics, the common ones first. Lower-case. */
+/** A card's sets: its language, then up to two other topics, the common ones first. Lower-case, each once. */
 export function setsFor(language: string | null, topics: string[]): string[] {
-  const lower = topics.map((topic) => topic.toLowerCase());
+  const own = language ? [language.toLowerCase()] : [];
+  const lower = [...new Set(topics.map((topic) => topic.toLowerCase()))].filter((topic) => !own.includes(topic));
   const common = lower.filter((topic) => (COMMON_TOPICS as readonly string[]).includes(topic));
   const rest = lower.filter((topic) => !common.includes(topic));
-  return [...(language ? [language.toLowerCase()] : []), ...[...common, ...rest].slice(0, 2)];
+  return [...own, ...[...common, ...rest].slice(0, 2)];
 }
 
 /** The bonus a set gives the cards that share it: its own, else their type's when they all share one. */
-function bonusOf(set: string, members: Card[]): SetBonus | undefined {
+export function bonusOf(set: string, members: Pick<Card, "type">[]): SetBonus | undefined {
   const own = BY_SET.get(set);
   if (own) return own;
   const types = new Set(members.map((card) => card.type as CardType));
@@ -80,16 +81,28 @@ function bonusOf(set: string, members: Card[]): SetBonus | undefined {
   return types.size === 1 && type in FAMILY_SETS ? FAMILY_SETS[type] : undefined;
 }
 
+/** A set as it stands on a team: which units share it, and the bonus they get (none below two). */
+export type TeamSet = { set: string; members: number[]; bonus: SetBonus | undefined; tier: Bonus | undefined };
+
+/** Every set on the team, the most shared first. */
+export function teamSets(team: Pick<Snapshot, "units">): TeamSet[] {
+  const members = new Map<string, number[]>();
+  team.units.forEach((unit, index) => new Set(unit.card.sets).forEach((set) => members.set(set, [...(members.get(set) ?? []), index])));
+  return [...members]
+    .map(([set, indexes]): TeamSet => {
+      const bonus = bonusOf(set, indexes.map((index) => team.units[index].card));
+      const tier = indexes.length >= 3 ? bonus?.three : indexes.length >= 2 ? bonus?.two : undefined;
+      return { set, members: indexes, bonus, tier };
+    })
+    .sort((a, b) => b.members.length - a.members.length);
+}
+
 /** The set hooks each unit carries: `setHooks(team)[i]` belongs to `team.units[i]`. */
 export function setHooks(team: Snapshot): Hook[][] {
   const hooks: Hook[][] = team.units.map(() => []);
-  const members = new Map<string, number[]>();
-  team.units.forEach((unit, index) => new Set(unit.card.sets).forEach((set) => members.set(set, [...(members.get(set) ?? []), index])));
-  for (const [set, indexes] of members) {
-    const bonus = indexes.length >= 2 ? bonusOf(set, indexes.map((index) => team.units[index].card)) : undefined;
-    if (!bonus) continue;
-    const tier = indexes.length >= 3 ? bonus.three : bonus.two;
-    for (const index of indexes) hooks[index].push({ source: `set:${set}`, on: tier.on, effects: tier.effects });
+  for (const { set, members, tier } of teamSets(team)) {
+    if (!tier) continue;
+    for (const index of members) hooks[index].push({ source: `set:${set}`, on: tier.on, effects: tier.effects });
   }
   return hooks;
 }

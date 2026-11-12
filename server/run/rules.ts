@@ -16,8 +16,18 @@ export const ROUND_GOLD = 5;
 export const WIN_GOLD = 1;
 export const REROLL_COST = 1;
 
-/** Accounts whose teams a run is played against until players' own saved teams exist. */
+/**
+ * Accounts whose teams a run is played against until players' own saved teams exist.
+ * OPPONENTS.md lists the same accounts for people to read; a test keeps the two equal.
+ */
 export const OPPONENTS = ["sindresorhus", "t3dotgg", "antfu", "gaearon", "yyx990803", "kentcdodds", "tj", "mitchellh", "simonw", "rauchg", "addyosmani", "torvalds"];
+
+/** Every account in OPPONENTS has opted out (worker/src/no-play.ts), or is the player. */
+export class NoOpponentLeft extends Error {
+  constructor() {
+    super("No opponents are free to play right now. Try again later.");
+  }
+}
 
 /** A repo as a run deals it: the fighter the board draws, and the card the fight reads (server/run/stats.ts). */
 export type RunFighter = Fighter & { card: Card };
@@ -33,7 +43,8 @@ export const rangeOf = (card: { type: string }): Card["range"] => (card.type ===
 export const priceOf = (rarity: Card["rarity"]) => rarity + 1;
 export const costOf = (fighter: Fighter) => priceOf(rarityOf(fighter));
 
-export const snapshot = (login: string, round: number, units: Unit[]): Snapshot => ({ login, round, units: units.map((unit) => ({ card: unit.fighter.card, col: unit.col, row: unit.row })), boosts: [] });
+/** A team as the fight reads it. `boosts` are the ids picked so far in the run (server/run/boosts.ts). */
+export const snapshot = (login: string, round: number, units: Unit[], boosts: string[] = []): Snapshot => ({ login, round, units: units.map((unit) => ({ card: unit.fighter.card, col: unit.col, row: unit.row })), boosts });
 
 export function shuffled<T>(items: T[], seed: string): T[] {
   const random = seededRandom(seed);
@@ -57,6 +68,14 @@ export function shopFor<T extends { fullName: string }>(player: Pool<T>, owned: 
 /** How many cards a team may hold in a round. */
 export const teamSizeAt = (round: number) => Math.min(TEAM_MAX, round + 1);
 
+/** Cards bought wait on the bench until placed. Only cards on the board count toward the team limit. */
+export const BENCH_SIZE = 5;
+/** Gold for one more board slot than the round allows, and the most a board can hold with bought slots. */
+export const SLOT_COST = 4;
+export const BOARD_MAX = 7;
+/** Cards the board may hold in a round, with `bought` extra slots. */
+export const boardLimit = (round: number, bought: number) => Math.min(BOARD_MAX, teamSizeAt(round) + bought);
+
 /** The first free cell for a new card: up close in front, cards with reach behind. */
 export function freeCell(units: { col: number; row: number }[], card: { type: string }): { col: number; row: number } | null {
   const rows = rangeOf(card) > 1 ? [1, 0] : [0, 1];
@@ -66,8 +85,10 @@ export function freeCell(units: { col: number; row: number }[], card: { type: st
   return null;
 }
 
-export function opponentLogin(login: string, round: number, day = today()): string {
-  const others = OPPONENTS.filter((name) => name !== login.toLowerCase());
+/** Who a round is played against. `optedOut` holds the accounts that asked not to be played (lower case). */
+export function opponentLogin(login: string, round: number, day = today(), optedOut: readonly string[] = []): string {
+  const others = OPPONENTS.filter((name) => name !== login.toLowerCase() && !optedOut.includes(name));
+  if (others.length === 0) throw new NoOpponentLeft();
   return shuffled(others, `${login.toLowerCase()}|${day}|opponents`)[(round - 1) % others.length];
 }
 

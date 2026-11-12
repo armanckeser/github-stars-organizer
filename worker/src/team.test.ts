@@ -160,6 +160,20 @@ describe("POST /api/run/team", () => {
     expect(status).toBe(422);
     expect(body.error).toBe("The run isn't over yet.");
   });
+
+  it("replays 8 rounds rather than refusing them for their length, since a draw counts for neither side", async () => {
+    // Regression guarded: a run with a draw in it lasted 8 rounds and its team was refused for its length.
+    // A run can't be steered into a draw from here, so this one is won by round 5: the replay, not the length check, refuses it.
+    const { status, body } = await post({ login: PLAYER, rounds: Array.from({ length: 8 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }));
+    expect(body.error).toBe("The run was over before round 6.");
+    expect(status).toBe(422);
+  });
+
+  it("refuses more rounds than any run could take to replay", async () => {
+    const { status, body } = await post({ login: PLAYER, rounds: Array.from({ length: 21 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }));
+    expect(status).toBe(400);
+    expect(body.error).toBe("A run has 1 to 20 rounds.");
+  });
 });
 
 describe("GET /api/run/team", () => {

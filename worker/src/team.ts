@@ -27,7 +27,8 @@ import {
 export const TEAM_PATH = /^\/api\/run\/team$/;
 export const TEAM_PAGE_PATH = /^\/team\/?$/;
 
-const MAX_ROUNDS = WINS_TO_FINISH + LOSSES_TO_END - 1;
+// A draw counts for neither side, so a run can go past its 7th round; this only bounds the replay's work.
+const MAX_ROUNDS = 20;
 // A token never changes what it says, so its team can be cached as long as anything.
 const CACHE_SECONDS = 86400;
 

@@ -185,16 +185,33 @@ describe("POST /api/run/act", () => {
     expect(broke.body.error).toBe("Not enough gold.");
   });
 
-  it("gives a sold card's price back and keeps the last card on the team", async () => {
+  it("gives a sold card's price back, and sells the last card too", async () => {
+    // Regression guarded: the run refused to sell the last card, so a player couldn't
+    // sell everything to afford one better card.
     const { token, run } = await started();
     const bought = run.shop[0]!.card;
     const one = (await act(token, { buy: 0 })).body;
     const sold = (await act(one.token, { sell: bought })).body;
     expect(sold.run.gold).toBe(4);
     expect(sold.run.team).toEqual([{ card: 0, col: 1, row: 0 }]);
-    const last = await act(sold.token, { sell: 0 });
-    expect(last.status).toBe(422);
-    expect(last.body.error).toBe("A team needs at least one card.");
+    const empty = await act(sold.token, { sell: 0 });
+    expect(empty.status).toBe(200);
+    expect(empty.body.run.team).toEqual([]);
+    // A 50-star card is common, 1 gold.
+    expect(empty.body.run.gold).toBe(5);
+  });
+
+  it("refuses a fight with nobody on the board, and fights once a card is bought", async () => {
+    const { token } = await started();
+    const empty = (await act(token, { sell: 0 })).body;
+    const refused = await act(empty.token, { fight: true });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error).toBe("Put a card on the board to fight.");
+    const rebuilt = (await act(empty.token, { buy: 0 })).body;
+    expect(rebuilt.run.team).toHaveLength(1);
+    const fought = await act(rebuilt.token, { fight: true });
+    expect(fought.status).toBe(200);
+    expect(fought.body.fight).toBeDefined();
   });
 
   it("swaps two cards when one is placed on the other's cell, and refuses a cell off the half", async () => {

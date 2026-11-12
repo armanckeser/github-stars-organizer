@@ -1,15 +1,24 @@
-import { Coins, Crosshair, Gauge, Heart, Shield, Star, Sword, Zap } from "lucide-react";
+import { BrickWall, Coins, Crosshair, Gauge, Heart, Shield, Star, Sword, Swords, Zap, type LucideIcon } from "lucide-react";
 import { CommitGrid, TYPE, useCreature } from "@/components/battle/repo-card";
 import { isLight, languageColor } from "@/lib/card-colors";
 import { abilityById } from "../../../server/run/abilities";
 import { RARITY_NAMES, setName } from "../../../server/run/names";
 import { priceOf, type RunFighter } from "../../../server/run/rules";
+import { roleOf, type Role } from "../../../server/run/stats";
 import { teamSets } from "../../../server/run/sets";
 import type { Card } from "../../../server/run/types";
 
-// A card as a run plays it: how far it reaches, its four numbers, its ability, its
+// A card as a run plays it: its role, its four numbers, its ability, its
 // sets and its price. The old face (battle/repo-card.tsx) lists moves, which a run
 // has none of. Sized in container units like the old face.
+
+/** The chip on a card's art: its role by name, with the icon the help uses. */
+const ROLES: Record<Role, { label: string; Icon: LucideIcon }> = {
+  tank: { label: "Tank", Icon: BrickWall },
+  bruiser: { label: "Bruiser", Icon: Swords },
+  assassin: { label: "Assassin", Icon: Sword },
+  ranged: { label: "Ranged", Icon: Crosshair },
+};
 
 const NUMBERS = [
   { key: "hp", label: "HP", Icon: Heart },
@@ -42,7 +51,7 @@ export function RunCard({ fighter, team }: { fighter: RunFighter; team: RunFight
   const title = name ?? fighter.fullName;
   const nameSize = Math.max(3.4, Math.min(7.2, 46 / (title.length * 0.66)));
   const ability = abilityById(card.ability);
-  const reach = card.range > 1;
+  const role = ROLES[roleOf(card)];
   const sets = setsWith(card, team.map((member) => member.card));
 
   return (
@@ -70,8 +79,8 @@ export function RunCard({ fighter, team }: { fighter: RunFighter; team: RunFight
             <CommitGrid seed={fighter.fullName} ink={ink} />
             {creature && <img src={creature} alt="" className="absolute inset-0 h-full w-full object-contain" style={{ filter: "drop-shadow(0 1.5cqw 2cqw rgba(0,0,0,0.35))" }} draggable={false} />}
             <span className="absolute flex items-center bg-[#1b1d21] font-semibold text-[#f5f1e8]" style={{ left: "2cqw", bottom: "2cqw", gap: "1cqw", fontSize: "3.2cqw", padding: "0.6cqw 2cqw", borderRadius: "1cqw" }}>
-              {reach ? <Crosshair style={{ width: "3.6cqw", height: "3.6cqw" }} aria-hidden /> : <Sword style={{ width: "3.6cqw", height: "3.6cqw" }} aria-hidden />}
-              {reach ? "Hits from behind" : "Fights up close"}
+              <role.Icon style={{ width: "3.6cqw", height: "3.6cqw" }} aria-hidden />
+              {role.label}
             </span>
           </div>
 
@@ -96,10 +105,11 @@ export function RunCard({ fighter, team }: { fighter: RunFighter; team: RunFight
             {sets.map(({ set, count, bonus, tier }) => (
               <li key={set} className="flex items-baseline" style={{ gap: "1.6cqw", fontSize: "3cqw", lineHeight: 1.25 }}>
                 <span className={`shrink-0 rounded-full font-semibold ${tier ? "bg-[#1b1d21] text-[#f5f1e8]" : "bg-[#1b1d2114]"}`} style={{ padding: "0.3cqw 1.6cqw" }}>
-                  {setName(set)} {Math.min(count, 3)}/{count >= 2 ? 3 : 2}
+                  {setName(set)}{bonus && <> {Math.min(count, 3)}/{count >= 2 ? 3 : 2}</>}
                 </span>
                 <span className={`min-w-0 line-clamp-2 ${tier ? "" : "text-[#1b1d21]/55"}`} title={bonus ? `${bonus.name}. Two cards: ${bonus.two.text} Three: ${bonus.three.text}` : undefined}>
-                  {!bonus ? "No bonus with this mix" : tier ? `${bonus.name}: ${tier.text}` : `${bonus.name} with 2`}
+                  {/* A set with no bonus of its own borrows its cards' type's, so with mixed types it has none to give. */}
+                  {!bonus ? "No bonus: mixed types" : tier ? tier.text : `At 2: ${bonus.two.text}`}
                 </span>
               </li>
             ))}

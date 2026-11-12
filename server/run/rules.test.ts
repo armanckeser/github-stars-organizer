@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fight } from "./fight.ts";
-import { NEW_TALLY, boardLimit, countRound, snapshot, type RunFighter, type Unit } from "./rules.ts";
+import { NEW_TALLY, boardLimit, costOf, countRound, snapshot, type RunFighter, type Unit } from "./rules.ts";
 import { card, cityCollege } from "./testbed.ts";
 
 const unit = (name: string, col: number): Unit => ({ fighter: { fullName: `greendale/${name}`, card: card(`greendale/${name}`, { hp: 600 }) } as RunFighter, col, row: 0 });
@@ -53,5 +53,19 @@ describe("countRound", () => {
 
   it("earns no gold for the round that ends the run, when it is the third loss", () => {
     expect(countRound({ wins: 2, losses: 2, counted: 4 }, 5, 1)).toEqual({ tally: { wins: 2, losses: 3, counted: 5 }, earned: 0 });
+  });
+});
+
+describe("costOf", () => {
+  // Regression guarded: the Play screen priced a card by its stars while the Worker priced it
+  // by its card, so a 69-star creator card showed 1 gold and the Worker charged 5.
+  it("charges a card's rarity, whatever its stars", () => {
+    const creator = { fullName: "armanckeser/github-stars-organizer", stars: 69, card: card("armanckeser/github-stars-organizer", { rarity: 4 }) } as RunFighter;
+    expect(costOf(creator)).toBe(5);
+  });
+
+  it("charges 1 gold for a common", () => {
+    const common = { fullName: "greendale/troy", stars: 5_000_000, card: card("greendale/troy", { rarity: 0 }) } as RunFighter;
+    expect(costOf(common)).toBe(1);
   });
 });

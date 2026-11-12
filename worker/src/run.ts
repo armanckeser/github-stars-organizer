@@ -261,7 +261,6 @@ function buy(state: RunState, slot: number): RunState {
 
 function sell(state: RunState, card: number): RunState {
   const member = memberOf(state, card);
-  if (state.team.length <= 1) throw new RunRefused("A team needs at least one card.", REFUSED);
   return { ...state, gold: state.gold + priceOf(state.pool[card].rarity), team: state.team.filter((other) => other !== member) };
 }
 
@@ -389,6 +388,7 @@ async function act(body: Record<string, unknown>, deps: RunDeps, key: string) {
   if (state.offer.length > 0) throw new RunRefused("Pick a boost first.", REFUSED);
 
   if (choice.kind === "fight") {
+    if (state.team.length === 0) throw new RunRefused("Put a card on the board to fight.", REFUSED);
     const played = await playRound(state, deps, optedOut);
     return { token: await sealRun(played.state, key), run: view(played.state, optedOut), fight: played.report };
   }

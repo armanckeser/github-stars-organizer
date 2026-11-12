@@ -2,6 +2,10 @@
 
 Rules for every Play screen: the shop, Drafts, Archive, the checks, the boost pick, the fight overlays and the result. They come from Teamfight Tactics' shop bar, which is the reference the owner picked, retold in Stard's own world. A rule that makes a screen look worse is wrong. Change the rule, not just the screen.
 
+## 0. Read the creature at a glance
+
+A player picks cards for a synergy or a need by looking at the creature, and opens the card face for the details. So every rule a player plans around (role, sets, type, cost) gets one visible part of the creature, the same part on every creature. The mapping is in `docs/GAME-DESIGN.md`, "Added 2026-11-12".
+
 ## 1. The game owns the screen
 
 - Play is full screen. The app sidebar and header are hidden, and a small exit button sits in the top-left corner.

@@ -13,7 +13,10 @@ import type { Card } from "../../../server/run/types";
 
 const TIERS = [2, 3] as const;
 
-type Row = { set: string; have: number; next: number; live: boolean; entry: TeamSet };
+const repoName = (fullName: string) => fullName.split("/")[1] ?? fullName;
+
+/** `repos` are the names of the board's cards in the set, so a player sees what fills it. */
+type Row = { set: string; have: number; next: number; live: boolean; entry: TeamSet; repos: string[] };
 
 function rowsOf(cards: Card[]): Row[] {
   return teamSets({ units: cards.map((card) => ({ card, col: 0, row: 0 })) })
@@ -21,7 +24,8 @@ function rowsOf(cards: Card[]): Row[] {
     .filter((entry) => entry.bonus && (entry.tier || entry.members.length < 2))
     .map((entry) => {
       const have = entry.members.length;
-      return { set: entry.set, have, next: TIERS.find((tier) => tier > have) ?? TIERS[TIERS.length - 1], live: Boolean(entry.tier), entry };
+      const repos = entry.members.map((index) => repoName(cards[index].fullName));
+      return { set: entry.set, have, next: TIERS.find((tier) => tier > have) ?? TIERS[TIERS.length - 1], live: Boolean(entry.tier), entry, repos };
     })
     .sort((a, b) => Number(b.live) - Number(a.live) || b.have - a.have);
 }
@@ -58,6 +62,7 @@ export function Checks({ title, cards, boosts, align = "left", liveOnly = false 
                   <span>{(tier === 2 ? row.entry.bonus!.two : row.entry.bonus!.three).text}</span>
                 </span>
               ))}
+              <span className="check-repos mt-1.5 block text-[11px] leading-snug">{row.repos.join(", ")}</span>
             </span>
           </li>
         ))}

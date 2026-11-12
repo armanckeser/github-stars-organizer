@@ -131,12 +131,34 @@ test("a creature dropped in the Archive is sold for its price", async ({ page })
   await expect(page.getByRole("button", { name: new RegExp(`^Look at ${name.replace("/", "\\/")}, `) })).toBeVisible();
 });
 
-test("the last card is not sold", async ({ page }) => {
+test("the last card sells, and Fight waits for a card on the board", async ({ page }) => {
+  // Regression guarded: the Archive refused the last card ("Keep one"), so a player
+  // couldn't sell everything to afford one better card.
   await startRun(page);
   const before = await gold(page);
   await drag(page, (await unitSpot(page, aceName()))!, await archiveSpot(page));
+  await expect(page.getByLabel("0 of 2 cards on the board").locator("visible=true")).toBeVisible();
+  expect(await gold(page)).toBeGreaterThan(before);
+  const fight = page.getByRole("button", { name: "Fight" }).locator("visible=true");
+  await expect(fight).toBeDisabled();
+  // With no checks of your own, the other team's checks still sit at the right edge.
+  const theirs = (await page.locator(".checks-right").locator("visible=true").boundingBox())!;
+  expect(theirs.x + theirs.width).toBeGreaterThan(page.viewportSize()!.width * 0.8);
+
+  const name = (await buyCheapest(page))!;
+  await settled(page);
+  await drag(page, (await unitSpot(page, name))!, await cellSpot(page, 1, 0));
   await expect(page.getByLabel("1 of 2 cards on the board").locator("visible=true")).toBeVisible();
-  expect(await gold(page)).toBe(before);
+  await expect(fight).toBeEnabled();
+});
+
+test("a check's hover names the cards on the board that fill it", async ({ page }) => {
+  // Regression guarded: the hover gave a set's bonus but not which cards were in it,
+  // so a player couldn't tell what to keep or swap to finish the set.
+  await startRun(page);
+  const check = page.getByTestId("set-bonus").locator("visible=true").first();
+  await check.hover();
+  await expect(check.getByRole("tooltip")).toContainText(aceName().split("/")[1]);
 });
 
 test("a reroll costs one gold and shows other cards", async ({ page }) => {

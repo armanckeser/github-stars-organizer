@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, RotateCw, Layers, Maximize, Minimize, SkipForward, Star, Swords, Sword, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, RotateCw, Layers, Maximize, Minimize, SkipForward, Star, Swords, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InspectOverlay } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
@@ -139,7 +139,6 @@ function RunPage() {
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? boardLimit(round.number, bought) : 0;
   const roster: Roster = { board: units, bench };
-  const held = cardsOf(roster).length;
   const fighting = played !== null && !played.over;
 
   async function openRound(me: Player, owned: RunFighter[], number: number, saved = against) {
@@ -204,7 +203,7 @@ function RunPage() {
   }
 
   function sell(fighter: RunFighter) {
-    if (held <= 1 || !settle(without(roster, fighter.fullName))) return;
+    if (!settle(without(roster, fighter.fullName))) return;
     setGold(gold + costOf(fighter));
     // The card goes back on an empty shelf, so a purchase can be taken back.
     const empty = shop.indexOf(null);
@@ -316,7 +315,7 @@ function RunPage() {
           onMove={move}
           sellPrice={(id) => {
             const fighter = cardsOf(roster).find((card) => idOf(0, card) === id);
-            return fighter && held > 1 ? costOf(fighter) : null;
+            return fighter ? costOf(fighter) : null;
           }}
           onDrag={() => {}}
         />
@@ -415,8 +414,8 @@ function RunPage() {
           </div>
           <ul className="space-y-1.5 text-white/80">
             <li className="flex gap-2"><Coins className="mt-0.5 size-4 shrink-0 text-[#ffd84d]" /> Tap a shop card to see the card, then buy. Cards come from your stars. {ROUND_GOLD} gold each round, {WIN_GOLD} more for a win.</li>
-            <li className="flex gap-2"><Sword className="mt-0.5 size-4 shrink-0" /> Sword cards fight up close. Put them in the front row.</li>
-            <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Target cards hit from three cells away. Keep them behind.</li>
+            <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Tanks take hits, Assassins deal them, Bruisers do both. All three hit the enemy next to them: put them in the front row.</li>
+            <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Ranged cards hit from three cells away. Keep them behind.</li>
             <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Bought cards wait on the Drafts shelf. Drag between the shelf and the board, or into the Archive to sell for the full price. Only the board counts toward the team.</li>
             <li className="flex gap-2"><Layers className="mt-0.5 size-4 shrink-0 text-[#35c450]" /> Two or three cards that share a language or topic give each other a bonus.</li>
             <li className="flex gap-2"><Star className="mt-0.5 size-4 shrink-0" /> Press Fight and watch. {WINS_TO_FINISH} wins finishes the run, {LOSSES_TO_END} losses ends the run.</li>
@@ -452,7 +451,7 @@ function RunPage() {
                 <Coins /> {!bench.includes(null) ? "Bench is full" : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}
               </Button>
             )}
-            {(viewing.unit || viewing.bench !== undefined) && building && held > 1 && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.fighter); close(); }}><Coins /> Sell for {costOf(viewing.fighter)}</Button>}
+            {(viewing.unit || viewing.bench !== undefined) && building && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.fighter); close(); }}><Coins /> Sell for {costOf(viewing.fighter)}</Button>}
           </>
         )}
       </InspectOverlay>

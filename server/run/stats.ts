@@ -88,6 +88,16 @@ export function rarityOf(stars: number): Card["rarity"] {
   return RARITY_STARS.filter((from) => stars >= from).length as Card["rarity"];
 }
 
+const LEGENDARY: Card["rarity"] = 4;
+
+export const isShiny = (fullName: string) => fullName.split("/")[0].toLowerCase() === SHINY_OWNER;
+
+/** A card's rarity: by its stars, except that every repo of the game's creator is a legendary, a reason to star them. */
+export function rarityFor(repo: Pick<CardFacts, "fullName" | "stars">): Card["rarity"] {
+  if (isShiny(repo.fullName)) return LEGENDARY;
+  return rarityOf(repo.stars);
+}
+
 /** A value's place between 0 and 1 on a log scale that tops out at `full`. */
 const logShare = (value: number, full: number) => Math.min(1, Math.log10(Math.max(0, value) + 1) / Math.log10(full + 1));
 
@@ -111,7 +121,7 @@ function split(signals: number[]): number[] {
  */
 export function statPoints(repo: CardFacts, now: number): StatPoints {
   const { age, daysQuiet, closeRate, yearly } = signalsOf(repo, now);
-  const budget = BUDGET[rarityOf(repo.stars)];
+  const budget = BUDGET[rarityFor(repo)];
   const [hp, attack, guard, speed] = split([
     logShare(repo.contributors, 500),
     logShare(yearly, 2000),
@@ -121,7 +131,23 @@ export function statPoints(repo: CardFacts, now: number): StatPoints {
   return { hp, attack, guard, speed };
 }
 
-export const isShiny = (fullName: string) => fullName.split("/")[0].toLowerCase() === SHINY_OWNER;
+/** What a card does on the board, by its reach and, up close, by how its stats lean. */
+export type Role = "tank" | "bruiser" | "assassin" | "ranged";
+
+// Toughness (HP points and guard) over damage (attack and speed). Every card's stats are
+// one budget split with floors and caps, so the ratio stays near 1: on real pools melee
+// cards run 0.82 to 1.0, and these cuts give each role about a quarter, half and quarter.
+const TANK_FROM = 0.92;
+const ASSASSIN_BELOW = 0.85;
+
+export function roleOf(card: Card): Role {
+  if (card.range > 1) return "ranged";
+  const toughness = (card.hp - HP_FLOOR) / HP_PER_POINT + card.guard;
+  const lean = toughness / (card.attack + card.speed);
+  if (lean >= TANK_FROM) return "tank";
+  if (lean < ASSASSIN_BELOW) return "assassin";
+  return "bruiser";
+}
 
 /** The card a repo becomes, the same for every player. */
 export function cardFor(repo: CardFacts, now: number): Card {
@@ -133,7 +159,7 @@ export function cardFor(repo: CardFacts, now: number): Card {
     fullName: repo.fullName,
     type,
     sets: setsFor(repo.language, repo.topics ?? []),
-    rarity: rarityOf(repo.stars),
+    rarity: rarityFor(repo),
     hp: Math.round((HP_FLOOR + points.hp * HP_PER_POINT) * lift),
     attack: Math.round(points.attack * lift),
     guard: Math.round(points.guard * lift),

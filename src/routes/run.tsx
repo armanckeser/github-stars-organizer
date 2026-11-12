@@ -16,7 +16,7 @@ import { Checks } from "@/components/run/checks";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
 import { APP_URL, validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchPlayer, inHalf, opponentLogin, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { CLASSES } from "../../server/character";
 import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
 import { benchToBoard, boardToBench, cardsOf, emptyBench, swapBench, toBench, without, type Roster } from "../../server/run/roster";
@@ -139,7 +139,7 @@ function RunPage() {
     setLoading(true);
     setError("");
     try {
-      const opponent = await fetchPlayer(opponentLogin(me.login, number));
+      const opponent = await fetchOpponent(me.login, number);
       setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
       setRerolls(0);
       setShop(shopFor(me, owned, number, 0));
@@ -158,7 +158,7 @@ function RunPage() {
     setError("");
     try {
       // Round 1's opponent is known from the name alone, so both teams are read at once.
-      fetchPlayer(opponentLogin(who, 1)).catch(() => {});
+      fetchOpponent(who, 1).catch(() => {});
       const me = await fetchPlayer(who);
       const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
       setPlayer(me);

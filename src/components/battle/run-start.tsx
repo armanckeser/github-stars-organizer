@@ -2,6 +2,7 @@ import { Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { validLogin } from "@/lib/published-list";
+import { OpponentsLink } from "@/components/battle/opponents-link";
 
 /** Whose stars "Try with a sample account" plays: the maintainer's, public and always there. */
 const SAMPLE_LOGIN = "armanckeser";
@@ -39,6 +40,7 @@ export function RunStart({ login, onLogin, onStart, loading, error, starting, in
       </div>
       <Button type="submit" className="w-full" disabled={!validLogin(login) || loading}><Play /> {loading ? "Reading the stars..." : "Start a run"}</Button>
       {error && <p className="text-sm text-[#ff8f93]" role="alert">{error}</p>}
+      <OpponentsLink />
     </form>
   );
 }

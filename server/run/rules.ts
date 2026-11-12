@@ -16,8 +16,18 @@ export const ROUND_GOLD = 5;
 export const WIN_GOLD = 1;
 export const REROLL_COST = 1;
 
-/** Accounts whose teams a run is played against until players' own saved teams exist. */
+/**
+ * Accounts whose teams a run is played against until players' own saved teams exist.
+ * OPPONENTS.md lists the same accounts for people to read; a test keeps the two equal.
+ */
 export const OPPONENTS = ["sindresorhus", "t3dotgg", "antfu", "gaearon", "yyx990803", "kentcdodds", "tj", "mitchellh", "simonw", "rauchg", "addyosmani", "torvalds"];
+
+/** Every account in OPPONENTS has opted out (worker/src/no-play.ts), or is the player. */
+export class NoOpponentLeft extends Error {
+  constructor() {
+    super("No opponents are free to play right now. Try again later.");
+  }
+}
 
 /** A repo as a run deals it: the fighter the board draws, and the card the fight reads (server/run/stats.ts). */
 export type RunFighter = Fighter & { card: Card };
@@ -75,8 +85,10 @@ export function freeCell(units: { col: number; row: number }[], card: { type: st
   return null;
 }
 
-export function opponentLogin(login: string, round: number, day = today()): string {
-  const others = OPPONENTS.filter((name) => name !== login.toLowerCase());
+/** Who a round is played against. `optedOut` holds the accounts that asked not to be played (lower case). */
+export function opponentLogin(login: string, round: number, day = today(), optedOut: readonly string[] = []): string {
+  const others = OPPONENTS.filter((name) => name !== login.toLowerCase() && !optedOut.includes(name));
+  if (others.length === 0) throw new NoOpponentLeft();
   return shuffled(others, `${login.toLowerCase()}|${day}|opponents`)[(round - 1) % others.length];
 }
 

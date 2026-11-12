@@ -41,6 +41,7 @@ function depsFor(player: Partial<Fighter>, others: Partial<Fighter>, reads: stri
   return {
     key,
     now: NOW,
+    optedOut: async () => [],
     read: async (login) => {
       reads.push(login);
       if (login === "nobody-here") throw new RunRefused("No GitHub user called nobody-here.", 404);

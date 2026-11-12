@@ -2,6 +2,7 @@ import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from 
 import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, poolResponse, trainerResponse, type RunPool } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
+import { OPPONENTS_PATH, OptedOut, checkPoolRead, opponentsBody, readOptOuts, type OptOuts } from "./no-play.ts";
 import { RUN_PATH, RunRefused, runResponse } from "./run.ts";
 import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
 
@@ -51,15 +52,19 @@ function githubGraphQL(token: string): GraphQL {
   return (query, variables) => request(query, variables, 1);
 }
 
-function json(body: unknown, status: number, cacheSeconds = 0): Response {
+function json(body: unknown, status: number, cacheSeconds = 0, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": cacheSeconds > 0 ? `public, max-age=${cacheSeconds}` : "no-store",
+      ...headers,
     },
   });
 }
+
+// The Play screen reads the run's GET routes from the Worker's origin, like /api/run/pool.
+const OPEN = { "Access-Control-Allow-Origin": "*" };
 
 // The cache entry for a read: sorted, so one card asked for with its parameters in
 // another order shares an entry. The version goes up whenever a reply's shape
@@ -87,6 +92,19 @@ async function cachedPool(origin: string, login: string, env: Env, context: Exec
   return body;
 }
 
+// Who opted out of being played against, read once an hour per set of logins, so an
+// opt-out takes effect within the hour.
+function cachedOptOuts(origin: string, env: Env, context: ExecutionContext): OptOuts {
+  return async (logins) => {
+    const key = new Request(`${origin}/api/run/no-play?logins=${[...logins].map((login) => login.toLowerCase()).sort().join(",")}&_shape=${RESPONSE_SHAPE}`);
+    const cached = await caches.default.match(key);
+    if (cached) return ((await cached.json()) as { optedOut: string[] }).optedOut;
+    const optedOut = await readOptOuts(env.GITHUB_TOKEN, logins);
+    context.waitUntil(caches.default.put(key, json({ optedOut }, 200, CACHE_SECONDS)));
+    return optedOut;
+  };
+}
+
 async function listsResponse(login: string, env: Env): Promise<Response> {
   try {
     const lists = await fetchPublicLists(githubGraphQL(env.GITHUB_TOKEN), login);
@@ -103,9 +121,19 @@ export default {
     const url = new URL(request.url);
     // The app's own page: anything but a plain read goes straight to the site.
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
+    const optOuts = cachedOptOuts(url.origin, env, context);
     const run = RUN_PATH.exec(url.pathname);
-    if (run) return runResponse(run[1], request, { key: env.BATTLE_KEY, read: (login) => cachedPool(url.origin, login, env, context), now: Date.now() });
+    if (run) return runResponse(run[1], request, { key: env.BATTLE_KEY, read: (login) => cachedPool(url.origin, login, env, context), optedOut: optOuts, now: Date.now() });
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
+
+    if (OPPONENTS_PATH.test(url.pathname)) {
+      try {
+        return json(await opponentsBody(optOuts), 200, 0, OPEN);
+      } catch (error) {
+        console.error(error);
+        return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0, OPEN);
+      }
+    }
 
     // A match changes with every comment, so its replies set their own short cache and skip this one.
     const match = GAME_PATH.exec(url.pathname);
@@ -116,6 +144,17 @@ export default {
     const trainer = TRAINER_PATH.test(url.pathname);
     const versus = VERSUS_PATH.test(url.pathname);
     const pool = RUN_POOL_PATH.test(url.pathname);
+    if (pool) {
+      try {
+        await checkPoolRead(url.searchParams, optOuts);
+      } catch (error) {
+        if (error instanceof OptedOut) return json({ error: error.message }, error.status, 0, OPEN);
+        console.error(error);
+        return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0, OPEN);
+      }
+      // Whose run the read is for decides only the check above; everyone shares one cached pool.
+      url.searchParams.delete("for");
+    }
     if (card || fight || trainer || versus || pool) {
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
       const key = cacheKeyFor(url, Boolean(fight || versus || pool));

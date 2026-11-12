@@ -2,6 +2,7 @@ import { Resvg, initWasm } from "@resvg/resvg-wasm";
 import wasm from "@resvg/resvg-wasm/index_bg.wasm";
 import { TYPE_COLOR, runPreviewCard, versusCard, type ShareCard, type ShelfPlayer, type VersusSide } from "../../server/cards.ts";
 import { CLASSES, type Character } from "../../server/character.ts";
+import { creatureRecipe } from "../../server/creature-recipe.ts";
 import { priceOf, type RunFighter } from "../../server/run/rules.ts";
 import { NoSuchUser, evened, teamFor, withRunCards, type Team } from "./battle.ts";
 import { LOGIN, avatarData } from "./cards.ts";
@@ -125,23 +126,22 @@ export async function sharePage(request: Request, url: URL): Promise<Response> {
 export const RUN_PICTURE_PATH = /^\/api\/card\/run\.png$/;
 export const RUN_SHARE_PATH = /^\/run\/?$/;
 
-/** A run's cards as a share picture draws them, each with its owner's avatar. */
-export function shareCards(fighters: RunFighter[]): Promise<ShareCard[]> {
-  return Promise.all(
-    fighters.map(async (fighter) => ({
-      name: fighter.fullName.split("/")[1] ?? fighter.fullName,
-      cost: priceOf(fighter.card.rarity),
-      sets: fighter.card.sets,
-      avatar: fighter.avatarUrl ? await avatarData(fighter.avatarUrl) : null,
-    })),
-  );
+/** A run's cards as a share picture draws them, each with its creature. */
+export function shareCards(fighters: RunFighter[]): ShareCard[] {
+  return fighters.map((fighter) => ({
+    name: fighter.fullName.split("/")[1] ?? fighter.fullName,
+    cost: priceOf(fighter.card.rarity),
+    sets: fighter.card.sets,
+    language: fighter.language?.toLowerCase() ?? null,
+    creature: creatureRecipe(fighter),
+  }));
 }
 
 /** A player as a share picture draws them: their trainer, avatar and cards. */
 export async function shelfPlayer(login: string, avatarUrl: string | null, character: Character, fighters: RunFighter[]): Promise<ShelfPlayer> {
   // GitHub serves avatars at any size; the picture shows this one large.
-  const [avatar, cards] = await Promise.all([avatarUrl ? avatarData(avatarUrl.replace(/([?&]s=)\d+/, "$1240")) : null, shareCards(fighters)]);
-  return { login, name: character.name, klass: CLASSES[character.klass].label, look: character.look, avatar, cards };
+  const avatar = avatarUrl ? await avatarData(avatarUrl.replace(/([?&]s=)\d+/, "$1240")) : null;
+  return { login, name: character.name, klass: CLASSES[character.klass].label, look: character.look, avatar, cards: shareCards(fighters) };
 }
 
 export async function runPictureResponse(params: URLSearchParams, token: string): Promise<Response> {

@@ -269,7 +269,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 
 - Stard makes its own rules, so the look must follow them. Every rule a player plans around gets one visible part of the creature. The details stay in the card face.
 - Today the creature mostly shows words from the repo's name, which mean nothing in a fight. Role, sets and cost don't show at all, and type shows only through colour.
-- **Proposed, waiting on the owner's yes:**
+- **Decided 2026-11-12 (build after #71, #77 and creator cards):**
   - Body shape = role: Tank golem, Bruiser critter, Assassin bird, Ranged wisp, orb or tome.
   - Body colour = the language's own colour, with no random shift.
   - The emblem over the head = the topic set's icon, the same one as in the card's hex.

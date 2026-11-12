@@ -4,7 +4,7 @@ Rules for every Play screen: the shop, Drafts, Archive, the checks, the boost pi
 
 ## 0. Read the creature at a glance
 
-A player picks cards for a synergy or a need by looking at the creature, and opens the card face for the details. So every rule a player plans around (role, sets, type, cost) gets one visible part of the creature, the same part on every creature. The proposed mapping is in `docs/GAME-DESIGN.md`, "Added 2026-11-12".
+A player picks cards for a synergy or a need by looking at the creature, and opens the card face for the details. So every rule a player plans around (role, sets, type, cost) gets one visible part of the creature, the same part on every creature. The mapping is in `docs/GAME-DESIGN.md`, "Added 2026-11-12".
 
 ## 1. The game owns the screen
 

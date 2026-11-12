@@ -9,15 +9,14 @@
 // The Cache API keeps entries in one data center only, so the first read in each
 // region still waits on the read.
 
+import { RESPONSE_SHAPE } from "../../server/response-shape.ts";
+
 export const SECOND = 1000;
 export const HOUR = 3600 * SECOND;
 export const DAY = 24 * HOUR;
 
-const RESPONSE_SHAPE = "4";
-
 // The cache entry for a read: sorted, so one card asked for with its parameters in
-// another order shares an entry. The version goes up whenever a reply's shape
-// changes, so a deploy never serves an older shape to the newer app out of the cache.
+// another order shares an entry, and keyed on the reply's shape (server/response-shape.ts).
 export function cacheKeyFor(url: URL, lowerCase: boolean): Request {
   const keyUrl = new URL(lowerCase ? url.toString().toLowerCase() : url.toString());
   keyUrl.searchParams.sort();

@@ -141,6 +141,9 @@ test("the last card sells, and Fight waits for a card on the board", async ({ pa
   expect(await gold(page)).toBeGreaterThan(before);
   const fight = page.getByRole("button", { name: "Fight" }).locator("visible=true");
   await expect(fight).toBeDisabled();
+  // With no checks of your own, the other team's checks still sit at the right edge.
+  const theirs = (await page.locator(".checks-right").locator("visible=true").boundingBox())!;
+  expect(theirs.x + theirs.width).toBeGreaterThan(page.viewportSize()!.width * 0.8);
 
   const name = (await buyCheapest(page))!;
   await settled(page);

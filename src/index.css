@@ -835,6 +835,8 @@ button.hud-chip:hover {
   transition: opacity 120ms ease-out, transform 140ms ease-out;
 }
 .checks-right {
+  /* Stays at the right edge when the player's own checks are empty and draw nothing. */
+  margin-left: auto;
   background: radial-gradient(120% 100% at 100% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
 }
 .checks-right .check-detail {

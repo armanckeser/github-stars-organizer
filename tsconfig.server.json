@@ -16,6 +16,6 @@
     "noEmit": true
   },
   // index.ts and boot.ts only wire pg and dotenv, which live in server/package.json, not here.
-  "include": ["server/*.ts", "scripts/fake-github.ts"],
+  "include": ["server/*.ts", "server/run/*.ts", "scripts/fake-github.ts"],
   "exclude": ["server/index.ts", "server/boot.ts"]
 }

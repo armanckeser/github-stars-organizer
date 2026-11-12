@@ -161,6 +161,8 @@ test("a bought slot lets one more card on the board", async ({ page }) => {
 });
 
 test("a whole run plays to its end, with the two boost picks", async ({ page }) => {
+  // Seven rounds of software WebGL: about 40 s on a laptop and over 120 s on CI's runner.
+  test.setTimeout(360_000);
   await startRun(page);
   const free = [[2, 0], [0, 0], [3, 0], [1, 1], [2, 1], [0, 1], [3, 1]];
   let picks = 0;

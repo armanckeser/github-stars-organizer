@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Swords } from "lucide-react";
 import { StarStard } from "@/components/star-stard";
+import { NotAffiliated } from "@/components/not-affiliated";
 import { TeamTiles } from "@/components/run/team-tiles";
 import type { BoardUnit } from "@/components/battle/three/board";
 import { rangeOf } from "@/lib/run";
@@ -90,7 +91,7 @@ function SavedTeamPanel({ team, token }: { team: SavedTeam; token: string }) {
       <header className="flex items-center gap-3">
         {team.avatarUrl && <img src={team.avatarUrl} alt="" className="size-10 shrink-0 rounded-full" />}
         <div className="min-w-0">
-          <h1 id="team-title" className="run-panel-title break-words">{team.login}'s team</h1>
+          <h1 id="team-title" className="run-panel-title break-words">A team from @{team.login}'s stars</h1>
           <p className="run-panel-record">{recordOf(team.wins, team.losses)} · {team.day}</p>
         </div>
       </header>
@@ -98,6 +99,7 @@ function SavedTeamPanel({ team, token }: { team: SavedTeam; token: string }) {
       <Link to="/run" search={{ against: token }} title="A run with your stars, every round against this team as it stood that round" className="hud-button hud-fight run-panel-primary"><Swords className="size-4" /> Beat this team</Link>
       <div className="run-panel-quiet">
         <StarStard className="text-white/55 hover:text-white" />
+        <NotAffiliated />
       </div>
     </section>
   );

@@ -63,6 +63,36 @@ describe("GET /api/run/pool", () => {
   });
 });
 
+describe("the block list", () => {
+  // Someone who asked by message is on the NO_PLAY secret: logins split by commas.
+  const BLOCKED = " Study-Group-Chang ,not a login!,";
+
+  test("refuses a blocked account's stars for every run, its own included", async () => {
+    // Regression guarded: the file opt-out leaves the account's own runs open, so anyone
+    // could type the name and play as it; the block list exists to close that too.
+    const github = gitHubWhere([]);
+    const own = await callWorker("/api/run/pool?login=study-group-chang", undefined, { NO_PLAY: BLOCKED });
+    const other = await callWorker(`/api/run/pool?login=Study-Group-Chang&for=${HOST}`, undefined, { NO_PLAY: BLOCKED });
+    expect(own.status).toBe(403);
+    expect(own.body.error).toBe("study-group-chang has asked not to be played.");
+    expect(other.status).toBe(403);
+    expect(other.body.error).toBe("Study-Group-Chang has asked not to be played.");
+    expect(github.usersRead).toEqual([]);
+  });
+
+  test("lists a blocked opponent as opted out without a stard/no-play file", async () => {
+    gitHubWhere([LEFT_OUT]);
+    const { body } = await callWorker("/api/run/opponents", undefined, { NO_PLAY: "simonw" });
+    expect(new Set(body.optedOut as string[])).toEqual(new Set(["simonw", "torvalds"]));
+  });
+
+  test("blocks nobody when the list is empty", async () => {
+    gitHubWhere([]);
+    const { status } = await callWorker("/api/run/pool?login=study-group-chang", undefined, { NO_PLAY: "" });
+    expect(status).toBe(200);
+  });
+});
+
 describe("GET /api/run/opponents", () => {
   test("lists the opponents that opted out, and only those", async () => {
     gitHubWhere([LEFT_OUT, "study-group-pierce"]);

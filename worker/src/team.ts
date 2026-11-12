@@ -3,6 +3,7 @@ import { LOSSES_TO_END, OPPONENTS, ROUND_GOLD, SLOT_COST, START_GOLD, WINS_TO_FI
 import { SAVED_TEAM_VERSION, finalUnits, recordOf, type SavedRound, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Snapshot } from "../../server/run/types.ts";
 import { LOGIN } from "./cards.ts";
+import type { OptOuts } from "./no-play.ts";
 import { seal } from "./sealed.ts";
 import {
   BAD_REQUEST, CORS, REFUSED, RunRefused, TEAM_PACKING, TEAM_PURPOSE, fight, fightSeed, integer, json, openTeam, opponentAt, playableTeam, readBody, type RunDeps,
@@ -87,9 +88,11 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
   if (body.against !== undefined && typeof body.against !== "string") throw new RunRefused("A team to play against is its link's token.", BAD_REQUEST);
   const played = roundsIn(body.rounds);
   const against = typeof body.against === "string" ? await openTeam(body.against, key) : null;
-  const [player, optedOut, ownOptOut] = await Promise.all([deps.read(login), deps.optedOut(OPPONENTS), deps.optedOut([login]), against ? playableTeam(against, login, deps.optedOut) : null]);
   // Nobody else may play against an opted-out account, so its team gets no link to be played from.
-  if (ownOptOut.length > 0) throw new RunRefused(`${player.login} has asked not to be played against, so their team gets no link.`, REFUSED);
+  // Asked before the stars are read, so a blocked account's are never read.
+  const ownOptOut = await deps.optedOut([login]);
+  if (ownOptOut.length > 0) throw new RunRefused(`${login} has asked not to be played against, so their team gets no link.`, REFUSED);
+  const [player, optedOut] = await Promise.all([deps.read(login), deps.optedOut(OPPONENTS), against ? playableTeam(against, login, deps.optedOut) : null]);
   const day = new Date(deps.now).toISOString().slice(0, 10);
 
   const rounds: SavedRound[] = [];
@@ -143,8 +146,25 @@ export async function teamResponse(request: Request, url: URL, deps: RunDeps): P
 
 const attribute = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-/** The app's own page for /team, with the link-preview tags of the team in its address (as /battle's in worker/src/share.ts). */
-export async function teamPage(request: Request, url: URL, key: string | undefined): Promise<Response> {
+/**
+ * What a team link's preview says. Anyone can type any username, so it names whose
+ * stars the team was drafted from, never a person who played.
+ */
+export function teamPreview(saved: SavedTeam): { title: string; description: string; alt: string } {
+  const record = recordOf(saved.wins, saved.losses);
+  const cards = finalUnits(saved).map((unit) => unit.fighter.fullName.split("/")[1] ?? unit.fighter.fullName);
+  return {
+    title: `A team from @${saved.login}'s stars · Stard`,
+    description: `${record}, with ${cards.join(", ")}. Beat this team on Stard.`,
+    alt: `A team of repo cards from @${saved.login}'s stars, ${record}`,
+  };
+}
+
+/**
+ * The app's own page for /team, with the link-preview tags of the team in its address
+ * (as /battle's in worker/src/share.ts). A team whose owner opted out gets the plain page.
+ */
+export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts): Promise<Response> {
   const page = await fetch(request);
   if (!(page.headers.get("Content-Type") ?? "").includes("text/html")) return page;
   // The static host answers a deep link with its fallback page and a 404; the page is the app, so it is a 200.
@@ -154,14 +174,13 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
   try {
     if (!key) throw new RunRefused("No key.", 503);
     saved = await openTeam(token, key);
+    await playableTeam(saved, "", optOuts);
   } catch {
     return new Response(page.body, { status: 200, headers });
   }
 
   const query = `t=${encodeURIComponent(token)}`;
-  const record = recordOf(saved.wins, saved.losses);
-  const title = `${saved.login}'s team · Stard run`;
-  const says = `${record}, with ${finalUnits(saved).map((unit) => unit.fighter.fullName.split("/")[1] ?? unit.fighter.fullName).join(", ")}. Beat this team on Stard.`;
+  const { title, description: says, alt } = teamPreview(saved);
   const picture = `${url.origin}/api/card/team.png?${query}`;
   const tags = [
     ["property", "og:type", "website"],
@@ -171,7 +190,7 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
     ["property", "og:image", picture],
     ["property", "og:image:width", "1200"],
     ["property", "og:image:height", "630"],
-    ["property", "og:image:alt", `${saved.login}'s team of repo cards, ${record}`],
+    ["property", "og:image:alt", alt],
     ["name", "twitter:card", "summary_large_image"],
     ["name", "twitter:title", title],
     ["name", "twitter:description", says],

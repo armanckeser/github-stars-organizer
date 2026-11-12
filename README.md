@@ -154,4 +154,4 @@ Stard started as Stars Organizer, and everything from it is still here. I starre
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the dev setup.
 
-Copyright (C) 2026 Armanc Keser. [AGPL-3.0-or-later](LICENSE), with absolutely no warranty. Not affiliated with or endorsed by GitHub.
+Copyright (C) 2026 Armanc Keser. [AGPL-3.0-or-later](LICENSE), with absolutely no warranty. Not affiliated with or endorsed by GitHub. [Privacy](https://armanckeser.com/privacy#stard) · [Don't want to be played?](OPPONENTS.md#dont-want-to-be-played)

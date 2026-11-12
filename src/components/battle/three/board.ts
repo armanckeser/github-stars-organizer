@@ -482,7 +482,7 @@ export class BoardWorld {
       pen.clearRect(0, 0, 768, 96);
       pen.strokeStyle = pen.fillStyle = "#8b949e";
       pen.lineWidth = 5;
-      pen.font = "800 50px 'Mona Sans Variable', system-ui, sans-serif";
+      pen.font = "700 50px 'Clash Display', system-ui, sans-serif";
       pen.letterSpacing = "10px";
       const word = pen.measureText("DRAFTS").width;
       pen.translate((768 - word - 90) / 2, 16);
@@ -504,7 +504,7 @@ export class BoardWorld {
       texture.needsUpdate = true;
     };
     draw();
-    void document.fonts?.load("800 50px 'Mona Sans Variable'").then(() => !this.disposed && draw());
+    void document.fonts?.load("700 50px 'Clash Display'").then(() => !this.disposed && draw());
     return texture;
   }
 

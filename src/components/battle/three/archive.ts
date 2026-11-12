@@ -75,12 +75,12 @@ function label(): THREE.CanvasTexture {
     pen.moveTo(32, 50);
     pen.lineTo(48, 50);
     pen.stroke();
-    pen.font = "800 34px 'Mona Sans Variable', system-ui, sans-serif";
+    pen.font = "700 34px 'Clash Display', system-ui, sans-serif";
     pen.textBaseline = "middle";
     pen.fillText("ARCHIVE", 80, 50);
     texture.needsUpdate = true;
   };
   draw();
-  void document.fonts?.load("800 34px 'Mona Sans Variable'").then(draw);
+  void document.fonts?.load("700 34px 'Clash Display'").then(draw);
   return texture;
 }

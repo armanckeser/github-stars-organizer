@@ -311,7 +311,7 @@ function RunPage() {
               <Pips filled={losses} total={LOSSES_TO_END} tone="bg-[#e5484d]" label="losses" />
             </span>
           </button>
-          <p className={`hud-chip whitespace-nowrap px-3 py-1.5 font-display text-base font-[800] tracking-tight [font-stretch:110%] sm:text-xl`}>Round {round.number}</p>
+          <p className={`hud-chip whitespace-nowrap px-3 py-1.5 font-display text-base font-bold tracking-tight sm:text-xl`}>Round {round.number}</p>
           <div className="pointer-events-auto flex items-center gap-1.5">
             <button type="button" onClick={() => setProfile(round.opponent)} aria-label={`About ${round.opponent.login}`} className={`hud-chip flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
               <span className="hidden max-w-40 truncate text-sm font-medium sm:block">@{round.opponent.login}</span>
@@ -366,7 +366,7 @@ function RunPage() {
             </div>
           </div>
           {/* Fight: the only filled button, in the bar's corner, and in the screen's corner when the bar folds. */}
-          <button type="button" className="shop-fight hud-fight" data-open={shopShown ? "" : undefined} onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
+          <button type="button" className="shop-fight hud-fight" data-open={shopShown ? "" : undefined} style={{ "--drawer": `${drawer}px` } as React.CSSProperties} onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
         </>
       )}
 

@@ -38,8 +38,8 @@ Language colors, type colors and set colors are not used in the game UI. A set i
 └──────────────────────────────────┘
 ```
 
-- **Art:** the creature lit by the board's own light, standing on one dark board tile on plain slate, seen closer than in play. Its center sits about 62% across and it fills the art's height, head to feet. No frame inside the border. A fade from 70% slate at the left edge to clear at 45% keeps the set text readable. No colored background, no checkered floor.
-- **Sets:** white text, 10.5px at weight 500, with a 1px dark shadow, beside a 15px dark hex holding a white glyph. At most 2. Long names end in an ellipsis. The "would reach" number is the only colored text on a card, in check green.
+- **Art:** a lit portrait. The creature turns a three-quarter view, its head just under the top edge and its body running on under the name strip, filling about 90% of the art's height, its center about 62% across. Card renders get their own exposure, a warm key from the top left, a cool rim from behind right that parts the silhouette from the wall, and a slate wall (`#2a343b`) lit by a soft pool behind the head that falls off toward the corners. The wall is lit in 3D, not painted with a CSS gradient. No shadows on the wall: a cast shadow reads as a second, dark creature. No frame inside the border. A fade from 70% slate at the left edge to clear at 45% keeps the set text readable. No tier or creature color in the backdrop. Aim for the card's average brightness to match TFT's.
+- **Sets:** white text, 10.5px at weight 500, with a 1px dark shadow, beside a 15px dark hex holding a white glyph. At most 2, each set once. A set line ends by 52% of the card's width, short of the creature, and a longer name ends in an ellipsis. The "would reach" number is the only colored text on a card, in check green.
 - **Narrow cards:** a card under 120px wide (a phone) shows the hexes and the "would reach" number, without set names.
 - **Can't afford:** keep the colors, dim to 55% and dim the cost to red. Never grey out to black.
 - **On hover or tap:** the card face opens (ability, numbers, set bonuses). That text lives there and only there.
@@ -49,7 +49,7 @@ Language colors, type colors and set colors are not used in the game UI. A set i
 Left to right:
 1. **Reroll** and **+ Slot**: two tall slate buttons, each with an icon tile on the right and its cost under the label.
 2. **The 5 cards.**
-3. **Fight**: the only filled button on the screen (Stard green).
+3. **Fight**: the only filled button on the screen (Stard green), as tall as the cards and level with them. On an upright phone, where it sits beside Reroll and Slot under the cards, it takes their height instead.
 
 The bar folds down under the gold plaque. It opens at the start of each round and folds while a boost is being picked. The camera fits the board to whatever space the bar leaves.
 
@@ -86,7 +86,7 @@ The bar folds down under the gold plaque. It opens at the start of each round an
 
 ## 10. Type and words
 
-- Mona Sans (the app's display face) for names, numbers, titles and short labels. Space Grotesk for sentences. Nothing else.
+- Clash Display (the app's display face, loaded at 500 to 700) for names, numbers, titles and short labels. Space Grotesk for sentences. Nothing else. Play must not change the app's fonts: they are set in `src/index.css` for every screen.
 - On screen at rest: names, counts and costs only. Sentences live in the card face, hover text and the boost pick.
 - Motion is short and physical: a lift on pickup, a settle on drop, the lid opening. Respect `prefers-reduced-motion`.
 
@@ -99,10 +99,9 @@ Each change below is a rule that made the screen look worse as first written.
 | Name strip tint | 15% tier color | 30% | At 15% a green or blue strip read as plain slate, so the cost had no color beyond the gem. |
 | Sets per card | 3 | 2 | Three set rows covered most of the creature. |
 | Set text | unspecified, 18px hex | 10.5px / 500, 15px hex | At 18px the hex outweighed its name, and the set text competed with the creature. |
-| Card art floor | a board tile | one dark tile on plain slate | The board's green checker behind every creature made five cards read as one green stripe. |
+| Card art floor | a board tile | a lit slate wall, no floor | The board's green checker behind every creature made five cards read as one green stripe. A full-body creature on near-black then read as small and dark beside TFT's lit portraits. |
 | Narrow cards | same as wide | hexes only under 120px | A phone card has no room for set names beside the creature; the hex and the number still say what a buy advances. |
 | Boost text | one line | full text, up to 3 lines; rows under 560px | One line cut most boost texts off mid-word. A phone has no room for three medallions side by side. |
 | Medallion size | unspecified | from the short side | A landscape phone is 390px tall: medallions sized from the width pushed the text off the screen. |
 | Ability pop | "When hit" | "Hit", name plus a grey line | "When" adds width and no meaning on a card shown for 1 s. The ability's name tells you which unit fired. |
-| Type | Clash Display | Mona Sans | Mona Sans is already the app's display face. A second display font would load for one screen only. |
 | Archive, trainers on phone | the same spots as wide | 72% Archive, trainers stepped in | An upright phone's narrow view cut off the trainers and pushed the Archive over the shelf. |

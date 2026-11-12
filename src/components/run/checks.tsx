@@ -51,7 +51,7 @@ export function Checks({ title, cards, boosts, align = "left", liveOnly = false 
             <span className="check-name">{setName(row.set)}</span>
             <span className="check-count">{row.have}<span className="text-white/35">/{row.next}</span></span>
             <span className="check-detail" role="tooltip">
-              <span className="block font-display text-[13px] font-[750] [font-stretch:108%]">{row.entry.bonus!.name}</span>
+              <span className="block font-display text-[13px] font-bold">{row.entry.bonus!.name}</span>
               {TIERS.map((tier) => (
                 <span key={tier} className="mt-1 flex gap-2 text-[12px] leading-snug" data-on={row.have >= tier ? "" : undefined}>
                   <span className="check-tier">{tier}</span>
@@ -68,7 +68,7 @@ export function Checks({ title, cards, boosts, align = "left", liveOnly = false 
             <li key={boost.id} tabIndex={0} className="check-row check-boost group" data-testid="boost-held" aria-label={boost.name}>
               <span className="boost-pip" aria-hidden />
               <span className="check-detail" role="tooltip">
-                <span className="block font-display text-[13px] font-[750] [font-stretch:108%]">{boost.name}</span>
+                <span className="block font-display text-[13px] font-bold">{boost.name}</span>
                 <span className="mt-1 block text-[12px] leading-snug">{boost.text}</span>
               </span>
             </li>

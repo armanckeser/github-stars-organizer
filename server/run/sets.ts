@@ -63,12 +63,13 @@ export const FAMILY_SETS: Record<CardType, SetBonus> = {
 
 const BY_SET = new Map(SETS.map((bonus) => [bonus.set, bonus]));
 
-/** A card's sets: its language, then up to two topics, the common ones first. Lower-case. */
+/** A card's sets: its language, then up to two other topics, the common ones first. Lower-case, each once. */
 export function setsFor(language: string | null, topics: string[]): string[] {
-  const lower = topics.map((topic) => topic.toLowerCase());
+  const own = language ? [language.toLowerCase()] : [];
+  const lower = [...new Set(topics.map((topic) => topic.toLowerCase()))].filter((topic) => !own.includes(topic));
   const common = lower.filter((topic) => (COMMON_TOPICS as readonly string[]).includes(topic));
   const rest = lower.filter((topic) => !common.includes(topic));
-  return [...(language ? [language.toLowerCase()] : []), ...[...common, ...rest].slice(0, 2)];
+  return [...own, ...[...common, ...rest].slice(0, 2)];
 }
 
 /** The bonus a set gives the cards that share it: its own, else their type's when they all share one. */

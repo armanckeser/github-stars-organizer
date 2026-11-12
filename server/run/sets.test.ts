@@ -62,6 +62,16 @@ describe("setsFor", () => {
   it("has no language set when the repo has no language", () => {
     expect(setsFor(null, [])).toEqual([]);
   });
+
+  // Regression guarded: a Go repo tagged "go", or one tagged both "cli" and "CLI", showed
+  // the same set twice on its card and spent a topic slot on the repeat.
+  it.each([
+    ["Go", ["go", "cli"], ["go", "cli"]],
+    ["Rust", ["CLI", "cli", "database"], ["rust", "cli", "database"]],
+    [null, ["AI", "ai"], ["ai"]],
+  ])("lists each set once when %s has repeated topics %j", (language, topics, sets) => {
+    expect(setsFor(language, topics)).toEqual(sets);
+  });
 });
 
 describe("teamSets", () => {

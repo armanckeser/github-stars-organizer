@@ -2,13 +2,14 @@ import type { Fighter } from "../../server/battle.ts";
 import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts.ts";
 import { fight as runFight } from "../../server/run/fight.ts";
 import {
-  LOSSES_TO_END, REROLL_COST, ROUND_GOLD, SHOP_SIZE, START_GOLD, WINS_TO_FINISH, WIN_GOLD,
+  LOSSES_TO_END, NoOpponentLeft, OPPONENTS, REROLL_COST, ROUND_GOLD, SHOP_SIZE, START_GOLD, WINS_TO_FINISH, WIN_GOLD,
   freeCell, inHalf, opponentLogin, opponentUnits, priceOf, shopFor, teamSizeAt, winnerOf, type RunFighter,
 } from "../../server/run/rules.ts";
 import { SAVED_TEAM_VERSION, savedSnapshotAt, savedUnitsAt, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Card, Fight, FightEvent, Placed, Side, Snapshot } from "../../server/run/types.ts";
 import type { RunPool } from "./battle.ts";
 import { LOGIN } from "./cards.ts";
+import type { OptOuts } from "./no-play.ts";
 import { BrokenSeal, seal, unseal, type Packing } from "./sealed.ts";
 
 // A run, refereed here so its result can be trusted (rules in server/run/rules.ts).
@@ -44,6 +45,7 @@ export const BAD_REQUEST = 400;
 const FORBIDDEN = 403;
 const NOT_FOUND = 404;
 export const REFUSED = 422;
+const UNAVAILABLE = 503;
 
 /** A card on the team: `card` is its index in the pool. */
 type Member = { card: number; col: number; row: number };
@@ -114,8 +116,11 @@ type Choice =
 
 const CHOICES = ["buy", "sell", "reroll", "place", "fight"] as const;
 
-/** What the Worker gives a run: its key, a way to read an account's cards for the day, and the time. */
-export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; now: number };
+/**
+ * What the Worker gives a run: its key, a way to read an account's cards for the day,
+ * which accounts asked not to be played against (worker/src/no-play.ts), and the time.
+ */
+export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; optedOut: OptOuts; now: number };
 
 /** A choice the rules don't allow, or a request that can't be read. The message is shown to the player. */
 export class RunRefused extends Error {
@@ -159,6 +164,17 @@ export async function openTeam(token: string, key: string): Promise<SavedTeam> {
   return saved;
 }
 
+/**
+ * Refuses a saved team whose account has opted out of being played against
+ * (worker/src/no-play.ts), unless the player is that account. An opt-out after the
+ * link was shared closes the link too.
+ */
+export async function playableTeam(saved: SavedTeam, player: string, optOuts: OptOuts): Promise<void> {
+  if (saved.login.toLowerCase() === player.toLowerCase()) return;
+  const [opted] = await optOuts([saved.login]);
+  if (opted) throw new RunRefused(`${saved.login} has asked not to be played against.`, FORBIDDEN);
+}
+
 /** Who a round is played against, and the opponent's team as the fight reads it. */
 export type Opponent = { login: string; avatarUrl: string | null; character: SavedTeam["character"]; fighters: RunFighter[]; snapshot: Snapshot };
 
@@ -166,12 +182,12 @@ export type Opponent = { login: string; avatarUrl: string | null; character: Sav
  * The team a player meets at a round: a saved team when the run was started from a
  * share link, else a team drafted from a well-known account's stars (opponentUnits).
  */
-export async function opponentAt(login: string, round: number, day: string, against: SavedTeam | null, read: RunDeps["read"]): Promise<Opponent> {
+export async function opponentAt(login: string, round: number, day: string, against: SavedTeam | null, read: RunDeps["read"], optedOut: readonly string[]): Promise<Opponent> {
   if (against) {
     const snapshot = savedSnapshotAt(against, round);
     return { login: against.login, avatarUrl: against.avatarUrl, character: against.character, fighters: savedUnitsAt(against, round).map((unit) => unit.fighter), snapshot };
   }
-  const opponent = await read(opponentLogin(login, round, day));
+  const opponent = await read(opponentLogin(login, round, day, optedOut));
   const units = opponentUnits(opponent, round, day);
   const snapshot: Snapshot = { login: opponent.login, round, units: units.map((unit): Placed => ({ card: cardOf(unit.fighter), col: unit.col, row: unit.row })), boosts: [] };
   return { login: opponent.login, avatarUrl: opponent.avatarUrl, character: opponent.character, fighters: units.map((unit) => unit.fighter), snapshot };
@@ -189,7 +205,7 @@ function statusOf(state: RunState): RunStatus {
   return "playing";
 }
 
-function view(state: RunState): RunView {
+function view(state: RunState, optedOut: readonly string[]): RunView {
   const status = statusOf(state);
   return {
     login: state.login,
@@ -206,7 +222,7 @@ function view(state: RunState): RunView {
     team: state.team,
     boosts: state.boosts,
     offer: state.offer,
-    opponent: status !== "playing" ? null : (state.against?.login ?? opponentLogin(state.login, state.round, state.day)),
+    opponent: status !== "playing" ? null : (state.against?.login ?? opponentLogin(state.login, state.round, state.day, optedOut)),
     results: state.results,
   };
 }
@@ -267,8 +283,9 @@ function place(state: RunState, card: number, col: number, row: number): RunStat
   return { ...state, team };
 }
 
-async function playRound(state: RunState, deps: RunDeps): Promise<{ state: RunState; report: FightReport }> {
-  const opponent = await opponentAt(state.login, state.round, state.day, state.against ?? null, deps.read);
+// The opponent is picked from the accounts that haven't opted out, so an opted-out account is never read here.
+async function playRound(state: RunState, deps: RunDeps, optedOut: readonly string[]): Promise<{ state: RunState; report: FightReport }> {
+  const opponent = await opponentAt(state.login, state.round, state.day, state.against ?? null, deps.read, optedOut);
   const mine: Snapshot = { login: state.login, round: state.round, units: state.team.map((member): Placed => ({ card: state.pool[member.card], col: member.col, row: member.row })), boosts: state.boosts };
   const seed = fightSeed(state.login, opponent.login, state.round, state.day);
   const events = fight(mine, opponent.snapshot, seed);
@@ -330,7 +347,7 @@ async function newRun(body: Record<string, unknown>, deps: RunDeps, key: string)
   if (!LOGIN.test(login)) throw new RunRefused("A run needs a GitHub username.", BAD_REQUEST);
   if (body.against !== undefined && typeof body.against !== "string") throw new RunRefused("A team to play against is its link's token.", BAD_REQUEST);
   const against = typeof body.against === "string" ? await openTeam(body.against, key) : null;
-  const player = await deps.read(login);
+  const [player, optedOut] = await Promise.all([deps.read(login), deps.optedOut(OPPONENTS), against ? playableTeam(against, login, deps.optedOut) : null]);
   if (player.team.length === 0) throw new RunRefused(`${player.login} has no public repos to play with.`, NOT_FOUND);
   const pool = player.team.map(cardOf);
   const start: Omit<RunState, "shop"> = {
@@ -350,7 +367,7 @@ async function newRun(body: Record<string, unknown>, deps: RunDeps, key: string)
   const state: RunState = { ...start, shop: shopAt(start, 1, 0) };
   return {
     token: await sealRun(state, key),
-    run: view(state),
+    run: view(state, optedOut),
     player: { login: player.login, avatarUrl: player.avatarUrl, character: player.character },
     ace: player.team[0],
     /** Each pool card's repo, for drawing it: the same order as `run.pool`. */
@@ -366,20 +383,21 @@ async function act(body: Record<string, unknown>, deps: RunDeps, key: string) {
     if (typeof body.boost !== "string") throw new RunRefused("A boost is its id.", BAD_REQUEST);
     state = pickBoost(state, body.boost);
   }
-  if (choice.kind === "look") return { token: await sealRun(state, key), run: view(state) };
+  const optedOut = await deps.optedOut(OPPONENTS);
+  if (choice.kind === "look") return { token: await sealRun(state, key), run: view(state, optedOut) };
   if (statusOf(state) !== "playing") throw new RunRefused("This run is over. Start a new one.", REFUSED);
   if (state.offer.length > 0) throw new RunRefused("Pick a boost first.", REFUSED);
 
   if (choice.kind === "fight") {
-    const played = await playRound(state, deps);
-    return { token: await sealRun(played.state, key), run: view(played.state), fight: played.report };
+    const played = await playRound(state, deps, optedOut);
+    return { token: await sealRun(played.state, key), run: view(played.state, optedOut), fight: played.report };
   }
   const next =
     choice.kind === "buy" ? buy(state, choice.slot)
     : choice.kind === "sell" ? sell(state, choice.card)
     : choice.kind === "reroll" ? reroll(state)
     : place(state, choice.card, choice.col, choice.row);
-  return { token: await sealRun(next, key), run: view(next) };
+  return { token: await sealRun(next, key), run: view(next, optedOut) };
 }
 
 export async function runResponse(kind: string, request: Request, deps: RunDeps): Promise<Response> {
@@ -391,6 +409,7 @@ export async function runResponse(kind: string, request: Request, deps: RunDeps)
     return json(kind === "new" ? await newRun(body, deps, deps.key) : await act(body, deps, deps.key), 200);
   } catch (error) {
     if (error instanceof RunRefused) return json({ error: error.message }, error.status);
+    if (error instanceof NoOpponentLeft) return json({ error: error.message }, UNAVAILABLE);
     console.error(error);
     return json({ error: "GitHub didn't answer. Try again shortly." }, 502);
   }

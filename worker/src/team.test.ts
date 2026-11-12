@@ -38,8 +38,8 @@ const poolOf = (login: string, over: Partial<Fighter>): RunPool => ({
 const STRONG = { hp: 1000, attack: 400, defense: 100, speed: 100 };
 const WEAK = { hp: 50, attack: 5, defense: 5, speed: 5 };
 
-/** The player's cards are `strengths[login]`, everyone else's weak; every read is noted in `reads`. */
-function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = []): RunDeps {
+/** The player's cards are `strengths[login]`, everyone else's weak; every read is noted in `reads`; `optedOut` have a `stard/no-play` file. */
+function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = [], optedOut: string[] = []): RunDeps {
   return {
     key: KEY,
     now: NOW,
@@ -47,6 +47,7 @@ function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = 
       reads.push(login);
       return poolOf(login, strengths[login] ?? WEAK);
     },
+    optedOut: async (logins) => logins.map((login) => login.toLowerCase()).filter((login) => optedOut.includes(login)),
   };
 }
 
@@ -125,11 +126,26 @@ describe("POST /api/run/team", () => {
     expect(body.error).toBe("torvalds/linux isn't one of greendale's cards today.");
   });
 
-  it("refuses more cards than the round's team may hold", async () => {
-    const three = { units: [0, 1, 2].map((i) => ({ repo: `${PLAYER}/repo-${i}`, col: i, row: 0 })), boosts: [] };
-    const { status, body } = await post({ login: PLAYER, rounds: [three, ...Array.from({ length: 4 }, () => aceOnly())] }, depsFor({ [PLAYER]: STRONG }));
+  const cardsInFront = (count: number) => ({ units: Array.from({ length: count }, (_, i) => ({ repo: `${PLAYER}/repo-${i}`, col: i, row: 0 })), boosts: [] });
+
+  it("saves a round 1 board of 3 cards, when the 4 starting gold bought a third slot", async () => {
+    // Regression guarded: a run that bought a board slot (the shop's + Slot) could never be shared.
+    const { status, body } = await post({ login: PLAYER, rounds: [cardsInFront(3), ...Array.from({ length: 4 }, () => aceOnly())] }, depsFor({ [PLAYER]: STRONG }));
+    expect(status).toBe(200);
+    expect(body.team.rounds[0].units).toHaveLength(3);
+  });
+
+  it("refuses more cards than the round's board could hold with every slot the gold could buy", async () => {
+    const { status, body } = await post({ login: PLAYER, rounds: [cardsInFront(4), ...Array.from({ length: 4 }, () => aceOnly())] }, depsFor({ [PLAYER]: STRONG }));
     expect(status).toBe(422);
-    expect(body.error).toBe("A team holds 1 to 2 cards in round 1.");
+    expect(body.error).toBe("A team holds 1 to 3 cards in round 1.");
+  });
+
+  it("refuses a link for an account that opted out of being played against", async () => {
+    // Regression guarded: a stard/no-play account's cards reaching other players through a team link.
+    const { status, body } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }, [], [PLAYER]));
+    expect(status).toBe(422);
+    expect(body.error).toBe("greendale has asked not to be played against, so their team gets no link.");
   });
 
   it("refuses a boost before the round that offers one", async () => {
@@ -156,6 +172,13 @@ describe("GET /api/run/team", () => {
     const { status, body } = await read(`${edited}.${signature}`, depsFor({}));
     expect(status).toBe(403);
     expect(body.error).toBe("This team link was changed, so the team can't be trusted.");
+  });
+
+  it("refuses a link once the team's account has opted out of being played against", async () => {
+    const token = await savedStrongTeam();
+    const { status, body } = await read(token, depsFor({}, [], [PLAYER]));
+    expect(status).toBe(403);
+    expect(body.error).toBe("greendale has asked not to be played against.");
   });
 
   it("refuses a run's token passed off as a team link", async () => {
@@ -193,6 +216,14 @@ describe("Beat this team", () => {
     expect(status).toBe(200);
     expect(body.team).toMatchObject({ login: CHALLENGER, wins: 0, losses: 3 });
     expect(reads).toEqual([CHALLENGER]);
+  });
+
+  it("refuses a Worker run against a saved team whose account has opted out since", async () => {
+    const token = await savedStrongTeam();
+    const start = new Request("https://stars-demo.example/api/run/new", { method: "POST", body: JSON.stringify({ login: CHALLENGER, against: token }) });
+    const response = await runResponse("new", start, depsFor({}, [], [PLAYER]));
+    expect(response.status).toBe(403);
+    expect(((await response.json()) as { error: string }).error).toBe("greendale has asked not to be played against.");
   });
 
   it("refuses a run whose saved team link was made up", async () => {

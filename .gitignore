@@ -37,3 +37,7 @@ worker/.wrangler
 worker/.dev.vars
 cli/dist
 cli/*.tgz
+
+# Playwright
+test-results/
+playwright-report/

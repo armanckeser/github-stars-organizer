@@ -12,7 +12,7 @@ import font from "./SpaceGrotesk-Bold.ttf";
 // in the address. The picture they point at is drawn here too: link previews don't
 // take SVG, so the card is turned into a PNG.
 //
-//   /battle?a=<login>&b=<login>               the app's page, with this battle's tags
+//   /battle?a=<login>&b=<login>[&play=1]      the app's page, with this battle's tags
 //   /api/card/versus.png?a=<login>&b=<login>  the picture
 
 export const VERSUS_PATH = /^\/api\/card\/versus\.png$/;
@@ -92,7 +92,8 @@ export async function sharePage(request: Request, url: URL): Promise<Response> {
   const picture = `${url.origin}/api/card/versus.png?${query}`;
   const tags = [
     ["property", "og:type", "website"],
-    ["property", "og:url", `${url.origin}/battle?${query}`],
+    // A preview opens the fight itself (play=1), with no team screen first.
+    ["property", "og:url", `${url.origin}/battle?${query}&play=1`],
     ["property", "og:title", title],
     ["property", "og:description", says],
     ["property", "og:image", picture],

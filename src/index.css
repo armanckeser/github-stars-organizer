@@ -839,6 +839,9 @@ button.hud-chip:hover {
   margin-left: auto;
   background: radial-gradient(120% 100% at 100% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
 }
+.check-repos {
+  color: rgb(255 255 255 / 0.55);
+}
 .checks-right .check-detail {
   left: auto;
   right: calc(100% + 6px);

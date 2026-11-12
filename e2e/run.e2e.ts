@@ -152,6 +152,15 @@ test("the last card sells, and Fight waits for a card on the board", async ({ pa
   await expect(fight).toBeEnabled();
 });
 
+test("a check's hover names the cards on the board that fill it", async ({ page }) => {
+  // Regression guarded: the hover gave a set's bonus but not which cards were in it,
+  // so a player couldn't tell what to keep or swap to finish the set.
+  await startRun(page);
+  const check = page.getByTestId("set-bonus").locator("visible=true").first();
+  await check.hover();
+  await expect(check.getByRole("tooltip")).toContainText(aceName().split("/")[1]);
+});
+
 test("a reroll costs one gold and shows other cards", async ({ page }) => {
   await startRun(page);
   const shopNames = () => page.getByRole("button", { name: /^Look at / }).evaluateAll((all) => all.map((card) => card.getAttribute("aria-label")));

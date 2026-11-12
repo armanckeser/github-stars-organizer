@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { validLogin } from "@/lib/published-list";
 import { OpponentsLink } from "@/components/battle/opponents-link";
+import { NotAffiliated } from "@/components/not-affiliated";
 
 type Props = {
   login: string;
@@ -34,6 +35,7 @@ export function RunStart({ login, onLogin, onStart, loading, error, starting, in
       <Button type="submit" className="w-full" disabled={!validLogin(login) || loading}><Play /> {loading ? "Reading your stars..." : "Start a run"}</Button>
       {error && <p className="text-sm text-[#ff8f93]" role="alert">{error}</p>}
       <OpponentsLink />
+      <NotAffiliated />
     </form>
   );
 }

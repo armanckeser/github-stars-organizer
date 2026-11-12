@@ -24,13 +24,23 @@ const ORIGIN = "https://stars-demo.example";
 /** A fresh edge cache, for `vi.stubGlobal("caches", ...)`. */
 export const memoryCaches = () => ({ default: new MemoryCache() });
 
-/** One request to the Worker. Work it hands to `waitUntil` (cache writes) is finished before this returns. */
-export async function callWorker(path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+/** The Worker's secrets, as `wrangler secret put` sets them. */
+type Secrets = { GITHUB_TOKEN: string; BATTLE_KEY?: string; NO_PLAY?: string };
+const SECRETS: Secrets = { GITHUB_TOKEN: "a-token", BATTLE_KEY: KEY };
+
+/**
+ * One request to the Worker. Work it hands to `waitUntil` (cache writes) is finished
+ * before this returns. `body` is the reply read as JSON, or empty when it isn't JSON;
+ * `text` is the reply as it came.
+ */
+export async function callWorker(path: string, body?: unknown, secrets: Partial<Secrets> = {}): Promise<{ status: number; body: Record<string, unknown>; text: string }> {
   const pending: Promise<unknown>[] = [];
   // The Worker only calls waitUntil; the rest of ExecutionContext is never touched.
   const context = { waitUntil: (promise: Promise<unknown>) => void pending.push(promise), passThroughOnException: () => {} } as unknown as ExecutionContext;
   const request = new Request(`${ORIGIN}${path}`, body === undefined ? undefined : { method: "POST", body: JSON.stringify(body) });
-  const response = await worker.fetch(request, { GITHUB_TOKEN: "a-token", BATTLE_KEY: KEY }, context);
+  const response = await worker.fetch(request, { ...SECRETS, ...secrets }, context);
   await Promise.all(pending);
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+  const text = await response.text();
+  const isJson = (response.headers.get("Content-Type") ?? "").includes("application/json");
+  return { status: response.status, body: isJson ? (JSON.parse(text) as Record<string, unknown>) : {}, text };
 }

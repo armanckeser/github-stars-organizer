@@ -6,7 +6,13 @@ import { rarityOf } from "../../server/run/stats.ts";
 import type { Card } from "../../server/run/types.ts";
 import type { RunPool } from "./battle.ts";
 import { runResponse, type RunDeps } from "./run.ts";
-import { teamResponse } from "./team.ts";
+import { fakeGitHubWhere } from "./fake-github.test-helper.ts";
+import { teamPreview, teamResponse } from "./team.ts";
+import { callWorker, memoryCaches } from "./worker-host.test-helper.ts";
+
+// The share picture's assets are bundled by wrangler and can't load in Node; nothing here draws a picture.
+vi.mock("@resvg/resvg-wasm/index_bg.wasm", () => ({ default: new Uint8Array() }));
+vi.mock("./SpaceGrotesk-Bold.ttf", () => ({ default: new ArrayBuffer(0) }));
 
 // A finished run's team: saved by the Worker after it replays the run, read back from
 // the share link's token, and played against from "Beat this team". GitHub is faked
@@ -143,9 +149,12 @@ describe("POST /api/run/team", () => {
 
   it("refuses a link for an account that opted out of being played against", async () => {
     // Regression guarded: a stard/no-play account's cards reaching other players through a team link.
-    const { status, body } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }, [], [PLAYER]));
+    const reads: string[] = [];
+    const { status, body } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }, reads, [PLAYER]));
     expect(status).toBe(422);
     expect(body.error).toBe("greendale has asked not to be played against, so their team gets no link.");
+    // A blocked account's stars are never read, not even to be refused.
+    expect(reads).toEqual([]);
   });
 
   it("refuses a boost before the round that offers one", async () => {
@@ -244,5 +253,42 @@ describe("Beat this team", () => {
     const { status, body } = await post({ login: CHALLENGER, rounds: [aceOnly(CHALLENGER)], against: "made.up" }, depsFor({}));
     expect(status).toBe(403);
     expect(body.error).toBe("This team link was changed, so the team can't be trusted.");
+  });
+});
+
+describe("a team link's preview", () => {
+  // Regression guarded: the preview read "greendale's team · Stard run", as if greendale
+  // had played, when anyone can type any username and draft a team from its stars.
+  it("names whose stars the team came from, its record and its cards", async () => {
+    const { body } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }));
+    expect(teamPreview(body.team as Parameters<typeof teamPreview>[0])).toEqual({
+      title: "A team from @greendale's stars · Stard",
+      description: "5 wins, 0 losses, with repo-0. Beat this team on Stard.",
+      alt: "A team of repo cards from @greendale's stars, 5 wins, 0 losses",
+    });
+  });
+});
+
+describe("GET /api/card/team.png", () => {
+  it("refuses the picture of a team whose account has a stard/no-play file", async () => {
+    // Regression guarded: the picture opened the token without asking about the opt-out,
+    // so an opted-out account's team kept showing in every chat it was posted to.
+    const token = await savedStrongTeam();
+    vi.stubGlobal("fetch", fakeGitHubWhere({ noPlay: [PLAYER] }).fetch);
+    vi.stubGlobal("caches", memoryCaches());
+    const { status, text } = await callWorker(`/api/card/team.png?t=${encodeURIComponent(token)}`);
+    expect(status).toBe(403);
+    expect(text).toBe("greendale has asked not to be played against.");
+  });
+
+  it("refuses a picture already in the edge cache once the account is on the block list", async () => {
+    // Regression guarded: the cache was read before the opt-out, so a picture drawn once
+    // was served for a day after its account asked not to be played.
+    const token = await savedStrongTeam();
+    const holdsEveryPicture = { default: { match: async () => new Response("an old picture", { headers: { "Content-Type": "image/png" } }), put: async () => {} } };
+    vi.stubGlobal("caches", holdsEveryPicture);
+    const { status, text } = await callWorker(`/api/card/team.png?t=${encodeURIComponent(token)}`, undefined, { NO_PLAY: "Greendale" });
+    expect(status).toBe(403);
+    expect(text).toBe("greendale has asked not to be played against.");
   });
 });

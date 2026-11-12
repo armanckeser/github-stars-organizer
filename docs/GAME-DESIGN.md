@@ -322,4 +322,12 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | After the first run a player makes their own character and starts playing people they know. | open (item 4 above) |
 | Launch, rename, positioning: the README leads with "A card battle built from your GitHub stars" (#87). `stard.armanckeser.com` becomes the main address before the launch; `stars-demo.armanckeser.com` keeps serving forever (trainer cards in READMEs and battle threads point at it). The repo and npm renames wait for the 7-day launch numbers. GitHub About matches the headline (topics keep `portfolio` and `bookmark-manager`). Launch posts and strategy stay out of this repo. | built (#87, About), decided |
 
+**Abilities in a fight**
+
+> "I hate that the abilities are just text popups instead of animations and stylized."
+
+| Feedback | Status |
+|---|---|
+| An ability firing shows as a slate text card over the creature (GAME-UI §9). It should be an animation on the board, stylized, readable without reading words. One look per effect kind (damage, shield, heal, stat, condition), so 23 abilities, the set bonuses and the boosts all share it. | open |
+
 The owner played a whole run on 2026-11-12: "it was actually fun".

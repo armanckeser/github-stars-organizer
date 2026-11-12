@@ -9,8 +9,8 @@ export default defineConfig({
   testMatch: "*.e2e.ts",
   timeout: 120_000,
   expect: { timeout: 10_000 },
-  // Software WebGL is slow: more than a few boards at once starve each other.
-  workers: 3,
+  // Software WebGL is slow: more than a few boards at once starve each other, and on CI's runner three do.
+  workers: process.env.CI ? 1 : 3,
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   use: {

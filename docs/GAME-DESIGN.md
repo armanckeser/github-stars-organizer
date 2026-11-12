@@ -310,4 +310,16 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Opponents take too long to load: a longer edge cache. | built (#80) |
 | The deployed app broke after a merge. Every change is checked on the live site, not only locally. | built (process) |
 
+**The journey after the first run**
+
+> "Let's say people play against these creators, what do we tell them, just share? What about the next, how do they versus other people, how is our funnel shaped such that after that first they get to create their character and start playing people they know."
+
+| Feedback | Status |
+|---|---|
+| Think through the whole journey, not one screen: arrive, first run against the 12 well-known accounts, then what? A copy-link button alone is not the answer. | open |
+| **Decided 2026-11-12, build before the launch, in order:** (1) counters per day: runs started, reached round 2, team links made, links opened, challenges played; (2) the end screen leads with who you beat ("You beat @antfu and @simonw"), its main button is Challenge a friend (type their username; their public stars become the opponent; the `no-play` opt-out still applies), share text is prefilled; (3) the friend's end screen offers Send your result back, a reply link carrying both results; (4) after the first run, Make your trainer links to `/compose` and a README card with Beat my team. | open |
+| After the numbers: a board for a group of friends, "fight @x's latest team" (needs storage), and a link from the run to the manager. | idea |
+| After the first run a player makes their own character and starts playing people they know. | open (item 4 above) |
+| Launch, rename, positioning: the README leads with "A card battle built from your GitHub stars" (#87). `stard.armanckeser.com` becomes the main address before the launch; `stars-demo.armanckeser.com` keeps serving forever (trainer cards in READMEs and battle threads point at it). The repo and npm renames wait for the 7-day launch numbers. GitHub About matches the headline (topics keep `portfolio` and `bookmark-manager`). Launch posts and strategy stay out of this repo. | built (#87, About), decided |
+
 The owner played a whole run on 2026-11-12: "it was actually fun".

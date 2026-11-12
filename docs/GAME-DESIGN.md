@@ -298,8 +298,8 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Rules must lead to a nice-looking game: change the rule, not just the screen. | rule (`docs/GAME-UI.md`) |
 | Shop cards: no borders inside, no gradient background, attributes shown as TFT shows them. | built |
 | Trainers stand next to their own Drafts shelf. | built |
-| "Play a run" sounds meh: say "Play Stard" everywhere (share pictures, README badge, team page button, team preview). | PR #77 |
-| Share pictures show creatures (flat stickers), fill the set hexes, title only. README GIF ends on the new end screen. | PR #71, #77 |
+| "Play a run" sounds meh: say "Play Stard" everywhere (share pictures, README badge, team page button, team preview). | built (#77) |
+| Share pictures show creatures (flat stickers), fill the set hexes, title only. README GIF ends on the new end screen. | built (#71, #77) |
 | Front page: a normal-size Play button beside the title, no sample-account button. | built |
 
 **Demo and speed**

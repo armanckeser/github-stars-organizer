@@ -408,8 +408,8 @@ function RunPage() {
           </div>
           <ul className="space-y-1.5 text-white/80">
             <li className="flex gap-2"><Coins className="mt-0.5 size-4 shrink-0 text-[#ffd84d]" /> Tap a shop card to see the card, then buy. Cards come from your stars. {ROUND_GOLD} gold each round, {WIN_GOLD} more for a win.</li>
-            <li className="flex gap-2"><Sword className="mt-0.5 size-4 shrink-0" /> Sword cards fight up close. Put them in the front row.</li>
-            <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Target cards hit from three cells away. Keep them behind.</li>
+            <li className="flex gap-2"><Sword className="mt-0.5 size-4 shrink-0" /> Melee cards (sword) hit the enemy next to them. Put them in the front row.</li>
+            <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Ranged cards (target) hit from three cells away. Keep them behind.</li>
             <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Bought cards wait on the Drafts shelf. Drag between the shelf and the board, or into the Archive to sell for the full price. Only the board counts toward the team.</li>
             <li className="flex gap-2"><Layers className="mt-0.5 size-4 shrink-0 text-[#35c450]" /> Two or three cards that share a language or topic give each other a bonus.</li>
             <li className="flex gap-2"><Star className="mt-0.5 size-4 shrink-0" /> Press Fight and watch. {WINS_TO_FINISH} wins finishes the run, {LOSSES_TO_END} losses ends the run.</li>

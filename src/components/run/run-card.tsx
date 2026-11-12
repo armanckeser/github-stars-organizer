@@ -71,7 +71,7 @@ export function RunCard({ fighter, team }: { fighter: RunFighter; team: RunFight
             {creature && <img src={creature} alt="" className="absolute inset-0 h-full w-full object-contain" style={{ filter: "drop-shadow(0 1.5cqw 2cqw rgba(0,0,0,0.35))" }} draggable={false} />}
             <span className="absolute flex items-center bg-[#1b1d21] font-semibold text-[#f5f1e8]" style={{ left: "2cqw", bottom: "2cqw", gap: "1cqw", fontSize: "3.2cqw", padding: "0.6cqw 2cqw", borderRadius: "1cqw" }}>
               {reach ? <Crosshair style={{ width: "3.6cqw", height: "3.6cqw" }} aria-hidden /> : <Sword style={{ width: "3.6cqw", height: "3.6cqw" }} aria-hidden />}
-              {reach ? "Hits from behind" : "Fights up close"}
+              {reach ? "Ranged" : "Melee"}
             </span>
           </div>
 

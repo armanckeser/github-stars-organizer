@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, runCard, topFourCard, wrap, type CardRepo } from "./cards.ts";
+import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, runPreviewCard, savedTeamCard, topFourCard, wrap, type CardRepo, type ShareCard, type ShelfPlayer } from "./cards.ts";
 import { defaultCharacter } from "./character.ts";
 
 function repo(fullName: string, extra: Partial<CardRepo> = {}): CardRepo {
@@ -80,23 +80,74 @@ describe("the cards", () => {
   });
 });
 
-describe("runCard", () => {
-  const side = {
-    login: "greendale", name: "greendale", klass: "Rookie", tint: "#1f8fe0", look: defaultCharacter("greendale").look, avatar: null,
-    team: ["dreamatorium", "paintball-assassin", "human-being", "kickpuncher", "blanket-fort"].map((name) => ({ name, color: "#1f8fe0", shiny: false })),
-  };
+describe("the run's share picture", () => {
+  const player = (cards: ShareCard[]): ShelfPlayer => ({
+    login: "troybarnes",
+    name: "Troy",
+    klass: "Scout",
+    look: defaultCharacter("troybarnes").look,
+    avatar: null,
+    cards,
+  });
+  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], avatar: null });
 
-  test("draws a finished run at the link-preview size with the record and every card", () => {
-    const svg = runCard(side, 5, 1, "Space Grotesk");
+  test("names the player and their first four cards, at link-preview size, when a player is given", () => {
+    // Regression guarded: a /run?me= link previewed someone else's run, or a fifth card ran off the picture.
+    const svg = runPreviewCard(player([card("dreamatorium"), card("paintball"), card("blanketfort"), card("koosh"), card("chang")]), "Space Grotesk");
     expect(svg).toContain('width="1200" height="630"');
-    expect(svg).toContain(">5 wins</text>");
-    expect(svg).toContain(">1 loss</text>");
-    for (const name of ["dreamatorium", "paintball-assas…", "human-being", "kickpuncher", "blanket-fort"]) expect(svg).toContain(`>${name}</text>`);
+    expect(svg).toContain(`aria-label="Play a run with troybarnes&#39;s stars"`);
+    expect(svg).toContain(">troybarnes</text>");
+    expect(svg).toContain(">Scout · Troy</text>");
+    for (const name of ["dreamatorium", "paintball", "blanketfort", "koosh"]) expect(svg).toContain(`>${name}</text>`);
+    expect(svg).not.toContain(">chang</text>");
+    expect(svg).toContain(">Fight other teams. 5 wins finishes a run, 3 losses ends one.</text>");
   });
 
-  test("says one win and no losses in the singular and plural", () => {
-    const svg = runCard({ ...side, team: [] }, 1, 0, "Space Grotesk");
-    expect(svg).toContain(">1 win</text>");
-    expect(svg).toContain(">0 losses</text>");
+  test("colours a card's border with its cost's tier and nothing else, when cards of two costs are shown", () => {
+    // Regression guarded: the tier colour leaked onto the picture as decoration, or a card lost its tier.
+    const svg = runPreviewCard(player([card("dreamatorium", 5), card("paintball", 2)]), "Space Grotesk");
+    expect(svg.match(/#e3b341/g)).toHaveLength(1);
+    expect(svg.match(/#3fb950/g)).toHaveLength(1);
+    expect(svg).toContain('stroke="#e3b341" stroke-width="2"');
+    expect(svg).not.toContain("Gradient");
+  });
+
+  test("shows the run for anyone, a blank card of each cost and no username, when no player is given", () => {
+    const svg = runPreviewCard(null, "Space Grotesk");
+    expect(svg).toContain('aria-label="Play a run with your GitHub stars"');
+    expect(svg).toContain(">Build a team from your GitHub stars. No sign-in.</text>");
+    for (const tier of ["#8b949e", "#3fb950", "#4a90d9", "#a371f7", "#e3b341"]) expect(svg).toContain(`stroke="${tier}"`);
+    expect(svg).not.toContain("troybarnes");
+  });
+
+  test("a repo name can't add markup to the picture", () => {
+    const svg = runPreviewCard(player([card("<script>x")]), "Space Grotesk");
+    expect(svg).not.toContain("<script>");
+    expect(svg).toContain("&lt;script&gt;x");
+  });
+});
+
+describe("a saved team's share picture", () => {
+  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], avatar: null });
+  const player = (cards: ShareCard[]): ShelfPlayer => ({ login: "greendale", name: "greendale", klass: "Rookie", look: defaultCharacter("greendale").look, avatar: null, cards });
+
+  test("draws a finished run at link-preview size with the record as the title and every card, when the team has five", () => {
+    // Regression guarded: the record or a card of the final team went missing from the preview.
+    const svg = savedTeamCard(player(["troy", "abed", "annie", "britta", "shirley"].map((name) => card(name))), 5, 1, "Space Grotesk");
+    expect(svg).toContain('width="1200" height="630"');
+    expect(svg).toContain('aria-label="greendale&#39;s team: 5 wins, 1 loss"');
+    expect(svg).toContain(">5 wins, 1 loss</text>");
+    for (const name of ["troy", "abed", "annie", "britta", "shirley"]) expect(svg).toContain(`>${name}</text>`);
+  });
+
+  test("says one win and no losses in the singular and plural, when the run won once", () => {
+    const svg = savedTeamCard(player([card("dreamatorium")]), 1, 0, "Space Grotesk");
+    expect(svg).toContain(">1 win, 0 losses</text>");
+  });
+
+  test("keeps a rookie's class line off the picture, when the character was never built", () => {
+    const svg = savedTeamCard(player([card("dreamatorium", 3)]), 3, 3, "Space Grotesk");
+    expect(svg).not.toContain("Rookie");
+    expect(svg).toContain('stroke="#4a90d9" stroke-width="2"');
   });
 });

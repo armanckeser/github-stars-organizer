@@ -1,11 +1,9 @@
-import { TYPE_COLOR, runCard } from "../../server/cards.ts";
-import { CLASSES } from "../../server/character.ts";
+import { savedTeamCard } from "../../server/cards.ts";
 import { finalUnits } from "../../server/run/saved-team.ts";
-import { avatarData } from "./cards.ts";
 import { RunRefused, openTeam } from "./run.ts";
-import { png } from "./share.ts";
+import { png, shelfPlayer } from "./share.ts";
 
-// The share picture of a finished run's team, drawn the way the versus picture is (worker/src/share.ts).
+// The share picture of a finished run's team, drawn the way the run's picture is (worker/src/share.ts).
 //
 //   /api/card/team.png?t=<team token>
 
@@ -26,21 +24,10 @@ export async function teamPictureResponse(params: URLSearchParams, key: string |
   if (!key) return new Response("Runs aren't set up on this server yet.", { status: 503 });
   try {
     const saved = await openTeam(params.get("t") ?? "", key);
-    const team = finalUnits(saved).map((unit) => unit.fighter);
-    // GitHub serves avatars at any size; the card shows this one large.
-    const avatar = saved.avatarUrl ? await avatarData(saved.avatarUrl.replace(/([?&]s=)\d+/, "$1240")) : null;
-    const klass = CLASSES[saved.character.klass];
-    const side = {
-      login: saved.login,
-      name: saved.character.name,
-      klass: klass.label,
-      // A rookie has no class colour, so the ace's type colours the side, as on the versus picture.
-      tint: saved.character.klass === "rookie" && team[0] ? TYPE_COLOR[team[0].type] : klass.color,
-      look: saved.character.look,
-      avatar,
-      team: team.map((fighter) => ({ name: fighter.fullName.split("/")[1] ?? fighter.fullName, color: TYPE_COLOR[fighter.type], shiny: fighter.shiny })),
-    };
-    return image(await png(runCard(side, saved.wins, saved.losses, FONT_FAMILY)));
+    // Front row first, as the board stands the team.
+    const team = finalUnits(saved).sort((one, other) => one.row - other.row || one.col - other.col).map((unit) => unit.fighter);
+    const player = await shelfPlayer(saved.login, saved.avatarUrl, saved.character, team);
+    return image(await png(savedTeamCard(player, saved.wins, saved.losses, FONT_FAMILY)));
   } catch (error) {
     if (error instanceof RunRefused) return new Response(error.message, { status: error.status });
     console.error(error);

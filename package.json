@@ -10,6 +10,7 @@
     "publish:first": "npm test && npm run build:cli && npm publish ./cli --access public",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "preview": "vite preview",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
@@ -60,6 +61,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@hono/node-server": "^1.19.14",
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/vite": "^4.2.4",
     "@tanstack/router-plugin": "^1.167.27",
     "@types/node": "^24.12.2",

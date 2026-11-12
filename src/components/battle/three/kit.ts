@@ -6,7 +6,9 @@ const BANDS = new THREE.DataTexture(new Uint8Array([105, 180, 255]), 3, 1, THREE
 BANDS.minFilter = BANDS.magFilter = THREE.NearestFilter;
 BANDS.needsUpdate = true;
 
-const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x12151a, side: THREE.BackSide });
+/** The outline's ink. */
+export const INK = 0x12151a;
+const OUTLINE = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
 const OUTLINE_WIDTH = 0.028;
 
 export type Paint = THREE.ColorRepresentation;

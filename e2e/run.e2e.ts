@@ -131,12 +131,22 @@ test("a creature dropped in the Archive is sold for its price", async ({ page })
   await expect(page.getByRole("button", { name: new RegExp(`^Look at ${name.replace("/", "\\/")}, `) })).toBeVisible();
 });
 
-test("the last card is not sold", async ({ page }) => {
+test("the last card sells, and Fight waits for a card on the board", async ({ page }) => {
+  // Regression guarded: the Archive refused the last card ("Keep one"), so a player
+  // couldn't sell everything to afford one better card.
   await startRun(page);
   const before = await gold(page);
   await drag(page, (await unitSpot(page, aceName()))!, await archiveSpot(page));
+  await expect(page.getByLabel("0 of 2 cards on the board").locator("visible=true")).toBeVisible();
+  expect(await gold(page)).toBeGreaterThan(before);
+  const fight = page.getByRole("button", { name: "Fight" }).locator("visible=true");
+  await expect(fight).toBeDisabled();
+
+  const name = (await buyCheapest(page))!;
+  await settled(page);
+  await drag(page, (await unitSpot(page, name))!, await cellSpot(page, 1, 0));
   await expect(page.getByLabel("1 of 2 cards on the board").locator("visible=true")).toBeVisible();
-  expect(await gold(page)).toBe(before);
+  await expect(fight).toBeEnabled();
 });
 
 test("a reroll costs one gold and shows other cards", async ({ page }) => {

@@ -132,7 +132,6 @@ function RunPage() {
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? boardLimit(round.number, bought) : 0;
   const roster: Roster = { board: units, bench };
-  const held = cardsOf(roster).length;
   const fighting = played !== null && !played.over;
 
   async function openRound(me: Player, owned: RunFighter[], number: number) {
@@ -193,7 +192,7 @@ function RunPage() {
   }
 
   function sell(fighter: RunFighter) {
-    if (held <= 1 || !settle(without(roster, fighter.fullName))) return;
+    if (!settle(without(roster, fighter.fullName))) return;
     setGold(gold + costOf(fighter));
     // The card goes back on an empty shelf, so a purchase can be taken back.
     const empty = shop.indexOf(null);
@@ -302,7 +301,7 @@ function RunPage() {
           onMove={move}
           sellPrice={(id) => {
             const fighter = cardsOf(roster).find((card) => idOf(0, card) === id);
-            return fighter && held > 1 ? costOf(fighter) : null;
+            return fighter ? costOf(fighter) : null;
           }}
           onDrag={() => {}}
         />
@@ -446,7 +445,7 @@ function RunPage() {
                 <Coins /> {!bench.includes(null) ? "Bench is full" : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}
               </Button>
             )}
-            {(viewing.unit || viewing.bench !== undefined) && building && held > 1 && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.fighter); close(); }}><Coins /> Sell for {costOf(viewing.fighter)}</Button>}
+            {(viewing.unit || viewing.bench !== undefined) && building && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.fighter); close(); }}><Coins /> Sell for {costOf(viewing.fighter)}</Button>}
           </>
         )}
       </InspectOverlay>

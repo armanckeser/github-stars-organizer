@@ -158,7 +158,7 @@ export class BoardWorld {
       onDrag: (id: string | null) => void;
       /** A carried creature put down on a cell, a Drafts slot or the Archive. */
       onMove: (id: string, spot: Spot) => void;
-      /** What a creature sells for in the Archive, or null when it can't be sold (the player's last card). */
+      /** What a creature sells for in the Archive, or null when it can't be sold (a board only shown, as on a team page). */
       sellPrice: (id: string) => number | null;
     },
   ) {
@@ -1000,7 +1000,7 @@ export class BoardWorld {
   private showRefund(id: string, at: Point) {
     const price = this.options.sellPrice(id);
     const box = this.host.getBoundingClientRect();
-    this.refund.textContent = price === null ? "Keep one" : `+${price}`;
+    this.refund.textContent = price === null ? "Can't sell" : `+${price}`;
     this.refund.dataset.kind = price === null ? "refused" : "refund";
     this.refund.style.left = `${at.clientX - box.left + 34}px`;
     this.refund.style.top = `${at.clientY - box.top - 46}px`;

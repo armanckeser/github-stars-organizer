@@ -193,7 +193,7 @@ test("a whole run plays to its end, with the two boost picks", async ({ page }) 
     }
   }
   await expect(page.getByText(/^Run (finished|over)$/)).toBeVisible();
-  await expect(page.getByText(/\d wins?, \d loss(es)?\./)).toBeVisible();
+  await expect(page.getByText(/^\d wins?, \d loss(es)?$/)).toBeVisible();
   expect(picks).toBe(2);
 });
 

@@ -1,6 +1,17 @@
 import { describe, expect, test } from "vitest";
-import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, runPreviewCard, topFourCard, wrap, type CardRepo, type ShareCard, type ShelfPlayer } from "./cards.ts";
+import { CARD_WIDTH, listCard, messageCard, nameLines, reviewCard, runPreviewCard, savedTeamCard, topFourCard, wrap, type CardRepo, type ShareCard, type ShelfPlayer } from "./cards.ts";
+import { fighterFor, type RepoFacts } from "./battle.ts";
 import { defaultCharacter } from "./character.ts";
+import { creatureRecipe } from "./creature-recipe.ts";
+
+const NOW = Date.parse("2026-11-10T00:00:00Z");
+
+function repoFacts(fullName: string): RepoFacts {
+  return {
+    fullName, description: null, stars: 5000, forks: 300, language: "Python", color: "#3572A5", avatarUrl: "https://avatars.githubusercontent.com/u/1",
+    isArchived: false, createdAt: "2022-01-01T00:00:00Z", pushedAt: "2026-11-07T00:00:00Z", openIssues: 50, closedIssues: 450, releases: 12, contributors: 40, commits: 2000,
+  };
+}
 
 function repo(fullName: string, extra: Partial<CardRepo> = {}): CardRepo {
   return { fullName, stars: 1234, language: "TypeScript", color: "#3178c6", avatar: null, ...extra };
@@ -89,18 +100,43 @@ describe("the run's share picture", () => {
     avatar: null,
     cards,
   });
-  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], avatar: null });
+  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], language: "python", creature: null });
 
   test("names the player and their first four cards, at link-preview size, when a player is given", () => {
     // Regression guarded: a /run?me= link previewed someone else's run, or a fifth card ran off the picture.
     const svg = runPreviewCard(player([card("dreamatorium"), card("paintball"), card("blanketfort"), card("koosh"), card("chang")]), "Space Grotesk");
     expect(svg).toContain('width="1200" height="630"');
-    expect(svg).toContain(`aria-label="Play a run with troybarnes&#39;s stars"`);
+    expect(svg).toContain(`aria-label="Play Stard with troybarnes&#39;s stars"`);
     expect(svg).toContain(">troybarnes</text>");
     expect(svg).toContain(">Scout · Troy</text>");
     for (const name of ["dreamatorium", "paintball", "blanketfort", "koosh"]) expect(svg).toContain(`>${name}</text>`);
     expect(svg).not.toContain(">chang</text>");
-    expect(svg).toContain(">Fight other teams. 5 wins finishes a run, 3 losses ends one.</text>");
+  });
+
+  test("keeps the run's rules off the picture, when a player is given", () => {
+    // Regression guarded: the picture repeated the sentences the link preview's description already shows under it.
+    const svg = runPreviewCard(player([card("dreamatorium")]), "Space Grotesk");
+    expect(svg).toContain(">Play Stard</text>");
+    expect(svg).not.toContain("5 wins finishes a run");
+    expect(svg).not.toContain("No sign-in");
+  });
+
+  test("draws each card's creature and no owner avatar, when the cards have creatures", () => {
+    // Regression guarded: a card's art showed the repo owner's avatar where the game shows its creature.
+    const cards = ["greendale/dreamatorium", "greendale/paintball"].map((fullName): ShareCard => ({ ...card(fullName.split("/")[1]), creature: creatureRecipe(fighterFor(repoFacts(fullName), "greendale", NOW)) }));
+    const svg = runPreviewCard(player(cards), "Space Grotesk");
+    expect(svg.match(/viewBox="-1 -1 2 2"/g)).toHaveLength(2);
+    expect(svg).not.toContain("<image");
+    expect(svg).not.toContain("NaN");
+  });
+
+  test("marks each set's hex with its icon, its initials or a hash, when cards carry a topic, a language and an unknown topic", () => {
+    // Regression guarded: the hexes beside the set names were drawn empty.
+    const svg = runPreviewCard(player([{ ...card("troy-cli"), sets: ["cli", "python"] }, { ...card("paintball"), sets: ["paintball-league"] }]), "Space Grotesk");
+    expect(svg).toContain('d="m4 17 6-6-6-6"');
+    expect(svg).toContain(">Py</text>");
+    expect(svg).toContain('x1="4" x2="20" y1="9" y2="9"');
+    expect(svg).not.toContain('key="');
   });
 
   test("colours a card's border with its cost's tier and nothing else, when cards of two costs are shown", () => {
@@ -114,8 +150,8 @@ describe("the run's share picture", () => {
 
   test("shows the run for anyone, a blank card of each cost and no username, when no player is given", () => {
     const svg = runPreviewCard(null, "Space Grotesk");
-    expect(svg).toContain('aria-label="Play a run with your GitHub stars"');
-    expect(svg).toContain(">Build a team from your GitHub stars. No sign-in.</text>");
+    expect(svg).toContain('aria-label="Play Stard with your GitHub stars"');
+    expect(svg).toContain(">Play Stard</text>");
     for (const tier of ["#8b949e", "#3fb950", "#4a90d9", "#a371f7", "#e3b341"]) expect(svg).toContain(`stroke="${tier}"`);
     expect(svg).not.toContain("troybarnes");
   });
@@ -124,5 +160,37 @@ describe("the run's share picture", () => {
     const svg = runPreviewCard(player([card("<script>x")]), "Space Grotesk");
     expect(svg).not.toContain("<script>");
     expect(svg).toContain("&lt;script&gt;x");
+  });
+});
+
+describe("a saved team's share picture", () => {
+  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], language: "python", creature: null });
+  const player = (cards: ShareCard[]): ShelfPlayer => ({ login: "greendale", name: "greendale", klass: "Rookie", look: defaultCharacter("greendale").look, avatar: null, cards });
+
+  test("draws a finished run at link-preview size with the record as the title and every card, when the team has five", () => {
+    // Regression guarded: the record or a card of the final team went missing from the preview.
+    const svg = savedTeamCard(player(["troy", "abed", "annie", "britta", "shirley"].map((name) => card(name))), 5, 1, "Space Grotesk");
+    expect(svg).toContain('width="1200" height="630"');
+    expect(svg).toContain('aria-label="greendale&#39;s team: 5 wins, 1 loss"');
+    expect(svg).toContain(">5 wins, 1 loss</text>");
+    for (const name of ["troy", "abed", "annie", "britta", "shirley"]) expect(svg).toContain(`>${name}</text>`);
+  });
+
+  test("keeps the team's sentences off the picture, when a team is drawn", () => {
+    // Regression guarded: the picture repeated the link preview's description over the shelf.
+    const svg = savedTeamCard(player([card("dreamatorium")]), 5, 2, "Space Grotesk");
+    expect(svg).not.toContain("Beat it with yours");
+    expect(svg).not.toContain("as it stood that round");
+  });
+
+  test("says one win and no losses in the singular and plural, when the run won once", () => {
+    const svg = savedTeamCard(player([card("dreamatorium")]), 1, 0, "Space Grotesk");
+    expect(svg).toContain(">1 win, 0 losses</text>");
+  });
+
+  test("keeps a rookie's class line off the picture, when the character was never built", () => {
+    const svg = savedTeamCard(player([card("dreamatorium", 3)]), 3, 3, "Space Grotesk");
+    expect(svg).not.toContain("Rookie");
+    expect(svg).toContain('stroke="#4a90d9" stroke-width="2"');
   });
 });

@@ -3,11 +3,11 @@
 <p align="center">A card battle played with your GitHub stars. Each repo you starred becomes a creature, and you build a team from them.</p>
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/run"><img src="https://img.shields.io/badge/Play_a_run-2f9e7a?style=for-the-badge" alt="Play a run" height="36"></a>
+  <a href="https://stars-demo.armanckeser.com/run"><img src="https://img.shields.io/badge/Play_Stard-2f9e7a?style=for-the-badge" alt="Play Stard" height="36"></a>
 </p>
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/run"><img src="img/run.gif" alt="A round of a run in the demo: a card bought from the shop is dragged onto the board, two teams of creatures fight, then the run finishes with 5 wins and 2 losses" width="480" /></a>
+  <a href="https://stars-demo.armanckeser.com/run"><img src="img/run.gif" alt="A round of a run in the demo: a card bought from the shop is dragged onto the board, two teams of creatures fight, then the run finishes with 5 wins and 2 losses and shows the final team" width="480" /></a>
 </p>
 
 <p align="center">

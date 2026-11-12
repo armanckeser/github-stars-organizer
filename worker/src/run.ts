@@ -5,41 +5,46 @@ import {
   LOSSES_TO_END, NoOpponentLeft, OPPONENTS, REROLL_COST, ROUND_GOLD, SHOP_SIZE, START_GOLD, WINS_TO_FINISH, WIN_GOLD,
   freeCell, inHalf, opponentLogin, opponentUnits, priceOf, shopFor, teamSizeAt, winnerOf, type RunFighter,
 } from "../../server/run/rules.ts";
+import { SAVED_TEAM_VERSION, savedSnapshotAt, savedUnitsAt, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Card, Fight, FightEvent, Placed, Side, Snapshot } from "../../server/run/types.ts";
-import type { RunPool, Team } from "./battle.ts";
+import type { RunPool } from "./battle.ts";
 import { LOGIN } from "./cards.ts";
-import { sign } from "./game.ts";
 import type { OptOuts } from "./no-play.ts";
+import { BrokenSeal, seal, unseal, type Packing } from "./sealed.ts";
 
 // A run, refereed here so its result can be trusted (rules in server/run/rules.ts).
 // The Worker stores nothing: the whole run travels in a token signed with BATTLE_KEY,
 // the way a match's opening post is signed (worker/src/game.ts).
 //
-//   POST /api/run/new {login}                 the ace, the first shop and the token
+//   POST /api/run/new {login, against?}       the ace, the first shop and the token
 //   POST /api/run/act {token, <choice>, boost?}  one choice applied, the next token
 //
 // A choice is one of: `buy: <shop slot>`, `sell: <card>`, `reroll: true`,
 // `place: {card, col, row}`, `fight: true`. A card is its index in `run.pool`.
 // With no choice, `act` answers with the run as the token holds it (a reload).
 // `boost: <id>` picks one of `run.offer`, and has to come before any other choice.
+// `against: <team token>` plays every round against a finished run's saved team (worker/src/team.ts).
 
 export const RUN_PATH = /^\/api\/run\/(new|act)$/;
 
 /** The fight engine, with abilities, set bonuses and boosts (server/run/game-rules.ts). */
-const fight: Fight = runFight;
+export const fight: Fight = runFight;
 
 /** A card's numbers, frozen when the run starts: the pool deals each fighter with its run card (poolResponse). */
 const cardOf = (fighter: RunFighter): Card => fighter.card;
 
 
-const TOKEN_VERSION = 1;
-// Signed with the token, so a match's signature can never pass for a run's.
+const TOKEN_VERSION = 2;
+// Signed with the token, so a match's signature can never pass for a run's, nor a run's for a saved team's.
 const TOKEN_PURPOSE = "stard-run";
+export const TEAM_PURPOSE = "stard-team";
+// A team travels in a link, so its token is deflated: about a quarter of the length.
+export const TEAM_PACKING: Packing = "deflated";
 const MAX_BODY_CHARS = 64 * 1024;
-const BAD_REQUEST = 400;
+export const BAD_REQUEST = 400;
 const FORBIDDEN = 403;
 const NOT_FOUND = 404;
-const REFUSED = 422;
+export const REFUSED = 422;
 const UNAVAILABLE = 503;
 
 /** A card on the team: `card` is its index in the pool. */
@@ -66,6 +71,8 @@ type RunState = {
   /** Boost ids to pick one of; empty when no pick is due. */
   offer: string[];
   results: Result[];
+  /** The saved team every round is played against, when the run was started from a share link. */
+  against: SavedTeam | null;
 };
 
 type RunView = {
@@ -93,7 +100,7 @@ type RunView = {
 type FightReport = {
   round: number;
   seed: string;
-  opponent: { login: string; avatarUrl: string | null; character: Team["character"]; fighters: Fighter[] };
+  opponent: { login: string; avatarUrl: string | null; character: SavedTeam["character"]; fighters: Fighter[] };
   teams: [Snapshot, Snapshot];
   events: FightEvent[];
   winner: Side | null;
@@ -124,44 +131,70 @@ export class RunRefused extends Error {
   }
 }
 
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
+export const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
 
-function json(body: unknown, status: number): Response {
+export function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...CORS } });
 }
 
-function toBase64Url(text: string): string {
-  let binary = "";
-  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function sealRun(state: RunState, key: string): Promise<string> {
+  return seal(state, key, TOKEN_PURPOSE);
 }
 
-function fromBase64Url(code: string): string {
-  const binary = atob(code.replace(/-/g, "+").replace(/_/g, "/"));
-  return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
-}
-
-async function seal(state: RunState, key: string): Promise<string> {
-  const payload = toBase64Url(JSON.stringify(state));
-  return `${payload}.${await sign(key, `${TOKEN_PURPOSE}.${payload}`)}`;
-}
-
-// Compared in constant time, so the answer's timing says nothing about the signature.
-async function verify(key: string, payload: string, signature: string): Promise<void> {
-  const expected = await sign(key, `${TOKEN_PURPOSE}.${payload}`);
-  let difference = expected.length ^ signature.length;
-  for (let i = 0; i < expected.length; i++) difference |= expected.charCodeAt(i) ^ (signature.charCodeAt(i) || 0);
-  if (difference !== 0) throw new RunRefused("This run's token was changed, so the run can't go on.", FORBIDDEN);
-}
-
-async function unseal(token: string, key: string): Promise<RunState> {
-  const [payload, signature, ...rest] = token.split(".");
-  if (!payload || !signature || rest.length > 0) throw new RunRefused("That isn't a run token.", BAD_REQUEST);
-  await verify(key, payload, signature);
-  const state = JSON.parse(fromBase64Url(payload)) as RunState;
+async function unsealRun(token: string, key: string): Promise<RunState> {
+  const state = (await opened(token, key, TOKEN_PURPOSE, { notToken: "That isn't a run token.", changed: "This run's token was changed, so the run can't go on." })) as RunState;
   if (state.v !== TOKEN_VERSION) throw new RunRefused("This run is from an older version of the game. Start a new run.", BAD_REQUEST);
   return state;
 }
+
+/** A token's value, with a broken seal turned into a refusal the player can read. */
+async function opened(token: string, key: string, purpose: string, says: { notToken: string; changed: string }, packing: Packing = "plain"): Promise<unknown> {
+  try {
+    return await unseal(token, key, purpose, packing);
+  } catch (error) {
+    if (!(error instanceof BrokenSeal)) throw error;
+    throw error.reason === "changed" ? new RunRefused(says.changed, FORBIDDEN) : new RunRefused(says.notToken, BAD_REQUEST);
+  }
+}
+
+/** A finished run's team from its share link (worker/src/team.ts signs one). */
+export async function openTeam(token: string, key: string): Promise<SavedTeam> {
+  const saved = (await opened(token, key, TEAM_PURPOSE, { notToken: "That isn't a team link.", changed: "This team link was changed, so the team can't be trusted." }, TEAM_PACKING)) as SavedTeam;
+  if (saved.v !== SAVED_TEAM_VERSION) throw new RunRefused("This team is from an older version of the game.", BAD_REQUEST);
+  return saved;
+}
+
+/**
+ * Refuses a saved team whose account has opted out of being played against
+ * (worker/src/no-play.ts), unless the player is that account. An opt-out after the
+ * link was shared closes the link too.
+ */
+export async function playableTeam(saved: SavedTeam, player: string, optOuts: OptOuts): Promise<void> {
+  if (saved.login.toLowerCase() === player.toLowerCase()) return;
+  const [opted] = await optOuts([saved.login]);
+  if (opted) throw new RunRefused(`${saved.login} has asked not to be played against.`, FORBIDDEN);
+}
+
+/** Who a round is played against, and the opponent's team as the fight reads it. */
+export type Opponent = { login: string; avatarUrl: string | null; character: SavedTeam["character"]; fighters: RunFighter[]; snapshot: Snapshot };
+
+/**
+ * The team a player meets at a round: a saved team when the run was started from a
+ * share link, else a team drafted from a well-known account's stars (opponentUnits).
+ */
+export async function opponentAt(login: string, round: number, day: string, against: SavedTeam | null, read: RunDeps["read"], optedOut: readonly string[]): Promise<Opponent> {
+  if (against) {
+    const snapshot = savedSnapshotAt(against, round);
+    return { login: against.login, avatarUrl: against.avatarUrl, character: against.character, fighters: savedUnitsAt(against, round).map((unit) => unit.fighter), snapshot };
+  }
+  const opponent = await read(opponentLogin(login, round, day, optedOut));
+  const units = opponentUnits(opponent, round, day);
+  const snapshot: Snapshot = { login: opponent.login, round, units: units.map((unit): Placed => ({ card: cardOf(unit.fighter), col: unit.col, row: unit.row })), boosts: [] };
+  return { login: opponent.login, avatarUrl: opponent.avatarUrl, character: opponent.character, fighters: units.map((unit) => unit.fighter), snapshot };
+}
+
+/** The seed a round's fight is played with, the same on the Play screen. */
+export const fightSeed = (login: string, opponent: string, round: number, day: string) => `${login}|${opponent}|${round}|${day}`;
 
 const winsOf = (state: RunState) => state.results.filter((result) => result.winner === 0).length;
 const lossesOf = (state: RunState) => state.results.filter((result) => result.winner === 1).length;
@@ -189,7 +222,7 @@ function view(state: RunState, optedOut: readonly string[]): RunView {
     team: state.team,
     boosts: state.boosts,
     offer: state.offer,
-    opponent: status === "playing" ? opponentLogin(state.login, state.round, state.day, optedOut) : null,
+    opponent: status !== "playing" ? null : (state.against?.login ?? opponentLogin(state.login, state.round, state.day, optedOut)),
     results: state.results,
   };
 }
@@ -252,18 +285,16 @@ function place(state: RunState, card: number, col: number, row: number): RunStat
 
 // The opponent is picked from the accounts that haven't opted out, so an opted-out account is never read here.
 async function playRound(state: RunState, deps: RunDeps, optedOut: readonly string[]): Promise<{ state: RunState; report: FightReport }> {
-  const opponent = await deps.read(opponentLogin(state.login, state.round, state.day, optedOut));
-  const theirs = opponentUnits(opponent, state.round, state.day);
+  const opponent = await opponentAt(state.login, state.round, state.day, state.against ?? null, deps.read, optedOut);
   const mine: Snapshot = { login: state.login, round: state.round, units: state.team.map((member): Placed => ({ card: state.pool[member.card], col: member.col, row: member.row })), boosts: state.boosts };
-  const against: Snapshot = { login: opponent.login, round: state.round, units: theirs.map((unit): Placed => ({ card: cardOf(unit.fighter), col: unit.col, row: unit.row })), boosts: [] };
-  const seed = `${state.login}|${opponent.login}|${state.round}|${state.day}`;
-  const events = fight(mine, against, seed);
+  const seed = fightSeed(state.login, opponent.login, state.round, state.day);
+  const events = fight(mine, opponent.snapshot, seed);
   const winner = winnerOf(events);
   const report: FightReport = {
     round: state.round,
     seed,
-    opponent: { login: opponent.login, avatarUrl: opponent.avatarUrl, character: opponent.character, fighters: theirs.map((unit) => unit.fighter) },
-    teams: [mine, against],
+    opponent: { login: opponent.login, avatarUrl: opponent.avatarUrl, character: opponent.character, fighters: opponent.fighters },
+    teams: [mine, opponent.snapshot],
     events,
     winner,
   };
@@ -282,7 +313,7 @@ async function playRound(state: RunState, deps: RunDeps, optedOut: readonly stri
   return { state: next, report };
 }
 
-function integer(value: unknown, what: string): number {
+export function integer(value: unknown, what: string): number {
   if (typeof value !== "number" || !Number.isInteger(value)) throw new RunRefused(`${what} has to be a whole number.`, BAD_REQUEST);
   return value;
 }
@@ -299,7 +330,7 @@ function choiceIn(body: Record<string, unknown>): Choice {
   return { kind: "place", card: integer(cell.card, "place.card"), col: integer(cell.col, "place.col"), row: integer(cell.row, "place.row") };
 }
 
-async function readBody(request: Request): Promise<Record<string, unknown>> {
+export async function readBody(request: Request): Promise<Record<string, unknown>> {
   const text = await request.text();
   if (text.length > MAX_BODY_CHARS) throw new RunRefused("That request is too big.", BAD_REQUEST);
   try {
@@ -314,7 +345,9 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 async function newRun(body: Record<string, unknown>, deps: RunDeps, key: string) {
   const login = typeof body.login === "string" ? body.login : "";
   if (!LOGIN.test(login)) throw new RunRefused("A run needs a GitHub username.", BAD_REQUEST);
-  const [player, optedOut] = await Promise.all([deps.read(login), deps.optedOut(OPPONENTS)]);
+  if (body.against !== undefined && typeof body.against !== "string") throw new RunRefused("A team to play against is its link's token.", BAD_REQUEST);
+  const against = typeof body.against === "string" ? await openTeam(body.against, key) : null;
+  const [player, optedOut] = await Promise.all([deps.read(login), deps.optedOut(OPPONENTS), against ? playableTeam(against, login, deps.optedOut) : null]);
   if (player.team.length === 0) throw new RunRefused(`${player.login} has no public repos to play with.`, NOT_FOUND);
   const pool = player.team.map(cardOf);
   const start: Omit<RunState, "shop"> = {
@@ -329,10 +362,11 @@ async function newRun(body: Record<string, unknown>, deps: RunDeps, key: string)
     boosts: [],
     offer: [],
     results: [],
+    against,
   };
   const state: RunState = { ...start, shop: shopAt(start, 1, 0) };
   return {
-    token: await seal(state, key),
+    token: await sealRun(state, key),
     run: view(state, optedOut),
     player: { login: player.login, avatarUrl: player.avatarUrl, character: player.character },
     ace: player.team[0],
@@ -344,26 +378,26 @@ async function newRun(body: Record<string, unknown>, deps: RunDeps, key: string)
 async function act(body: Record<string, unknown>, deps: RunDeps, key: string) {
   if (typeof body.token !== "string") throw new RunRefused("A choice needs the run's token.", BAD_REQUEST);
   const choice = choiceIn(body);
-  let state = await unseal(body.token, key);
+  let state = await unsealRun(body.token, key);
   if (body.boost !== undefined) {
     if (typeof body.boost !== "string") throw new RunRefused("A boost is its id.", BAD_REQUEST);
     state = pickBoost(state, body.boost);
   }
   const optedOut = await deps.optedOut(OPPONENTS);
-  if (choice.kind === "look") return { token: await seal(state, key), run: view(state, optedOut) };
+  if (choice.kind === "look") return { token: await sealRun(state, key), run: view(state, optedOut) };
   if (statusOf(state) !== "playing") throw new RunRefused("This run is over. Start a new one.", REFUSED);
   if (state.offer.length > 0) throw new RunRefused("Pick a boost first.", REFUSED);
 
   if (choice.kind === "fight") {
     const played = await playRound(state, deps, optedOut);
-    return { token: await seal(played.state, key), run: view(played.state, optedOut), fight: played.report };
+    return { token: await sealRun(played.state, key), run: view(played.state, optedOut), fight: played.report };
   }
   const next =
     choice.kind === "buy" ? buy(state, choice.slot)
     : choice.kind === "sell" ? sell(state, choice.card)
     : choice.kind === "reroll" ? reroll(state)
     : place(state, choice.card, choice.col, choice.row);
-  return { token: await seal(next, key), run: view(next, optedOut) };
+  return { token: await sealRun(next, key), run: view(next, optedOut) };
 }
 
 export async function runResponse(kind: string, request: Request, deps: RunDeps): Promise<Response> {

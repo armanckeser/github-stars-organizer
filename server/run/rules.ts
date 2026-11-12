@@ -114,3 +114,21 @@ export function winnerOf(events: FightEvent[]): Side | null {
   const end = events.find((event) => event.kind === "end");
   return end?.kind === "end" ? end.winner : null;
 }
+
+/** A run's record on the Play screen: wins, losses, and the last round counted in them. */
+export type Tally = { wins: number; losses: number; counted: number };
+export const NEW_TALLY: Tally = { wins: 0, losses: 0, counted: 0 };
+
+/**
+ * The record once round `round`'s fight is counted, and the gold it earns toward the
+ * next round. A round counts once: when the next round fails to open, Continue can be
+ * pressed again, and that press must not count the same fight twice. A draw counts for
+ * neither side, and the round that ends the run earns nothing.
+ */
+export function countRound(tally: Tally, round: number, winner: Side | null): { tally: Tally; earned: number } {
+  if (round <= tally.counted) return { tally, earned: 0 };
+  const wins = tally.wins + (winner === 0 ? 1 : 0);
+  const losses = tally.losses + (winner === 1 ? 1 : 0);
+  const over = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
+  return { tally: { wins, losses, counted: round }, earned: over ? 0 : ROUND_GOLD + (winner === 0 ? WIN_GOLD : 0) };
+}

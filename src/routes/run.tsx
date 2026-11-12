@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, RotateCw, Layers, Maximize, Minimize, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, RotateCw, Layers, Maximize, Minimize, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/copy-button";
 import { InspectOverlay } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
 import { RunStart } from "@/components/battle/run-start";
@@ -13,16 +12,18 @@ import { BarButton } from "@/components/run/bar-button";
 import { BoostPick } from "@/components/run/boost-pick";
 import { RunCard } from "@/components/run/run-card";
 import { Checks } from "@/components/run/checks";
+import { RunEnd } from "@/components/run/run-end";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
-import { APP_URL, validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { validLogin } from "@/lib/published-list";
+import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
 import { CLASSES } from "../../server/character";
 import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
 import { benchToBoard, boardToBench, cardsOf, emptyBench, swapBench, toBench, without, type Roster } from "../../server/run/roster";
 import { SLOT_COST, boardLimit } from "../../server/run/rules";
 import { fight as playFight } from "../../server/run/fight";
-import { cellOf, type Side } from "../../server/run/types";
+import { cellOf, type Side, type Snapshot } from "../../server/run/types";
 
 // The Play screen: a run, played on one board. The player buys cards from the shop
 // along the bottom, drags them around their half, and presses Fight; every creature
@@ -30,11 +31,14 @@ import { cellOf, type Side } from "../../server/run/types";
 
 export const Route = createFileRoute("/run")({
   component: RunPage,
-  validateSearch: (search: Record<string, unknown>): { me?: string } => ({ me: typeof search.me === "string" ? search.me : undefined }),
+  validateSearch: (search: Record<string, unknown>): { me?: string; against?: string } => ({
+    me: typeof search.me === "string" ? search.me : undefined,
+    // A finished run's team from its share link (/team): every round is played against that team.
+    against: typeof search.against === "string" ? search.against : undefined,
+  }),
 });
 
 const Board3D = lazy(() => import("@/components/battle/board3d"));
-const REPO_URL = "https://github.com/armanckeser/github-stars-organizer";
 const idOf = (side: Side, fighter: RunFighter) => `${side}:${fighter.fullName}`;
 /** The shop's tab, which stays on screen when the shop folds down. */
 const SHOP_TAB = 34;
@@ -95,8 +99,8 @@ function RunPage() {
   // Board slots bought on top of the round's limit, for the rest of the run.
   const [bought, setBought] = useState(0);
   const [round, setRound] = useState<Round | null>(null);
-  const [wins, setWins] = useState(0);
-  const [losses, setLosses] = useState(0);
+  const [tally, setTally] = useState(NEW_TALLY);
+  const { wins, losses } = tally;
   const [gold, setGold] = useState(START_GOLD);
   const [rerolls, setRerolls] = useState(0);
   const [shop, setShop] = useState<(RunFighter | null)[]>([]);
@@ -111,6 +115,9 @@ function RunPage() {
   const [boosts, setBoosts] = useState<string[]>([]);
   // Three boosts to pick one from, after rounds 2 and 4; null the rest of the time.
   const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
+  // The team as fought at each round, for the end screen's share link.
+  const [history, setHistory] = useState<Snapshot[]>([]);
+  const [against, setAgainst] = useState<SavedTeam | null>(null);
 
   // A link with ?me= starts the run on load, so opening the link is all it takes.
   const linked = search.me && validLogin(search.me) ? search.me.trim() : null;
@@ -135,12 +142,15 @@ function RunPage() {
   const held = cardsOf(roster).length;
   const fighting = played !== null && !played.over;
 
-  async function openRound(me: Player, owned: RunFighter[], number: number) {
+  async function openRound(me: Player, owned: RunFighter[], number: number, saved = against) {
     setLoading(true);
     setError("");
     try {
-      const opponent = await fetchOpponent(me.login, number);
-      setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
+      if (saved) setRound({ number, ...savedRound(saved, number) });
+      else {
+        const opponent = await fetchOpponent(me.login, number);
+        setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
+      }
       setRerolls(0);
       setShop(shopFor(me, owned, number, 0));
       setPlayed(null);
@@ -158,19 +168,20 @@ function RunPage() {
     setError("");
     try {
       // Round 1's opponent is known from the name alone, so both teams are read at once.
-      fetchOpponent(who, 1).catch(() => {});
-      const me = await fetchPlayer(who);
+      if (!search.against) fetchOpponent(who, 1).catch(() => {});
+      const [me, saved] = await Promise.all([fetchPlayer(who), search.against ? openTeam(search.against) : null]);
       const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
+      setAgainst(saved);
+      setHistory([]);
       setPlayer(me);
       setUnits(team);
       setBench(emptyBench());
       setBought(0);
-      setWins(0);
-      setLosses(0);
+      setTally(NEW_TALLY);
       setGold(START_GOLD);
       setBoosts([]);
       setOffer(null);
-      await openRound(me, team.map((unit) => unit.fighter), 1);
+      await openRound(me, team.map((unit) => unit.fighter), 1, saved);
     } catch (cause) {
       setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The cards couldn't be read. Check the connection and try again.");
       setLoading(false);
@@ -236,20 +247,23 @@ function RunPage() {
   function fight() {
     if (!player || !round || units.length === 0) return;
     const seed = `${player.login}|${round.opponent.login}|${round.number}|${today()}`;
-    const events = playFight(snapshot(player.login, round.number, units, boosts), snapshot(round.opponent.login, round.number, round.theirs), seed);
+    const mine = snapshot(player.login, round.number, units, boosts);
+    // A saved team fights with the boosts it had at that round, as the Worker replays it (worker/src/team.ts).
+    const theirs = against ? savedSnapshotAt(against, round.number) : snapshot(round.opponent.login, round.number, round.theirs);
+    const events = playFight(mine, theirs, seed);
+    setHistory([...history, mine]);
     setSelected(null);
     setPlayed({ fight: { key: `${seed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner: winnerOf(events), over: false });
   }
 
   function next() {
-    if (!player || !round || !played) return;
-    // A draw counts for neither side.
-    const won = wins + (played.winner === 0 ? 1 : 0);
-    const lost = losses + (played.winner === 1 ? 1 : 0);
-    setWins(won);
-    setLosses(lost);
-    if (won >= WINS_TO_FINISH || lost >= LOSSES_TO_END) return setPlayed(null);
-    setGold(gold + ROUND_GOLD + (played.winner === 0 ? WIN_GOLD : 0));
+    // While the next round opens, a second press would open it twice.
+    if (!player || !round || !played || loading) return;
+    // Counted once per round, so pressing Continue again after the next round failed to open only retries the opening.
+    const counted = countRound(tally, round.number, played.winner);
+    setTally(counted.tally);
+    if (counted.tally.wins >= WINS_TO_FINISH || counted.tally.losses >= LOSSES_TO_END) return setPlayed(null);
+    setGold(gold + counted.earned);
     // The same seed as the Worker's offer (worker/src/run.ts), so both offer the same three.
     if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${today()}|${round.number}`, boosts) });
     void openRound(player, cardsOf(roster), round.number + 1);
@@ -389,15 +403,7 @@ function RunPage() {
 
       {player && finished && !played && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 p-4">
-          <div className={`${PANEL} w-full max-w-sm space-y-3 p-5 text-center`}>
-            <p className="font-display text-2xl font-bold tracking-tight">{wins >= WINS_TO_FINISH ? "Run finished" : "Run over"}</p>
-            <p className="text-sm text-white/70">{wins} {wins === 1 ? "win" : "wins"}, {losses} {losses === 1 ? "loss" : "losses"}.</p>
-            <Button className="w-full" onClick={() => void start()} disabled={loading}><RotateCcw /> New run</Button>
-            <div className="flex items-center justify-between gap-2">
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-white/70 underline-offset-4 hover:text-white hover:underline"><Star className="size-4" /> Star Stard on GitHub</a>
-              <CopyButton text={`${APP_URL}run`} label="Share" />
-            </div>
-          </div>
+          <RunEnd login={player.login} rounds={history} team={units} wins={wins} losses={losses} against={against ? search.against : undefined} loading={loading} onNewRun={() => void start()} />
         </div>
       )}
 

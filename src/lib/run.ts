@@ -9,8 +9,22 @@ export * from "../../server/run/rules";
 
 export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: RunFighter[] };
 
+// One read per account, run and day for the page, so the first opponent can be read
+// while the player's own cards are (a cold read is several seconds each).
+const reads = new Map<string, Promise<Player>>();
+
 /** An account's cards for the day. `forRun` names whose run reads them, when that is someone else's. */
-export async function fetchPlayer(login: string, forRun?: string): Promise<Player> {
+export function fetchPlayer(login: string, forRun?: string): Promise<Player> {
+  const key = `${login.toLowerCase()}|${forRun?.toLowerCase() ?? ""}|${today()}`;
+  const known = reads.get(key);
+  if (known) return known;
+  const read = readPlayer(login, forRun);
+  reads.set(key, read);
+  read.catch(() => reads.delete(key));
+  return read;
+}
+
+async function readPlayer(login: string, forRun?: string): Promise<Player> {
   const whose = forRun ? `&for=${encodeURIComponent(forRun)}` : "";
   const response = await fetch(`${CARD_ORIGIN}/api/run/pool?login=${encodeURIComponent(login)}${whose}`);
   const body = (await response.json()) as Player & { error?: string };

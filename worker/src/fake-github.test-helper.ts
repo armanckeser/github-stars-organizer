@@ -2,6 +2,8 @@
 // so a test can open a match without the network. Every login and repo here is
 // invented; nothing is read from a real account.
 
+import { OPPONENTS } from "../../server/run/rules.ts";
+
 type Repo = { language: string | null; stars: number; forks: number; topics: string[]; pushedAt: string };
 
 const REPOS: Record<string, Repo> = {
@@ -18,6 +20,9 @@ type Account = { readme: string | null; pinned: string[]; stars: string[] };
 
 export const HOST = "study-group-abed";
 export const GUEST = "study-group-annie";
+// A run's opponents are a fixed list of real logins (server/run/rules.ts). This one
+// answers with invented Greendale repos; nothing is read from the real account.
+export const RIVAL = OPPONENTS[0];
 
 const ACCOUNTS: Record<string, Account> = {
   // A trainer card and a top four in the `stard` README: a specialist, with an ace from the README.
@@ -28,6 +33,7 @@ const ACCOUNTS: Record<string, Account> = {
   },
   // No README: the default character, the ace from a pinned repo, only two stars.
   [GUEST]: { readme: null, pinned: ["greendale/paintball-assassin"], stars: ["city-college/mascot", "greendale/human-being"] },
+  [RIVAL]: { readme: null, pinned: ["city-college/mascot"], stars: ["greendale/dreamatorium", "troy-barnes/blanket-fort"] },
 };
 
 function repoNode(fullName: string) {

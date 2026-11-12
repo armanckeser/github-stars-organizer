@@ -5,7 +5,7 @@ import { BoardWorld, type BoardFight, type BoardUnit, type Spot } from "./three/
 declare global {
   interface Window {
     /** The board, for the browser tests (e2e/), in development builds only. */
-    stardBoard?: Pick<BoardWorld, "screenOf" | "screenOfUnit" | "screenOfArchive">;
+    stardBoard?: Pick<BoardWorld, "screenOf" | "screenOfSlot" | "screenOfUnit" | "screenOfArchive">;
   }
 }
 

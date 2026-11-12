@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { boostById } from "../../../server/run/boosts";
 import { setName } from "../../../server/run/names";
 import { teamSets, type TeamSet } from "../../../server/run/sets";
@@ -6,6 +8,8 @@ import type { Card } from "../../../server/run/types";
 // The team's sets as a pull request's checks: a green check is a set whose bonus is
 // live, an amber ring is one still waiting for another card. Each row says how many
 // cards share the set of how many the next bonus needs. The bonus text shows on hover.
+// The other side's list holds only its live sets until it is opened, so it stays a
+// short column that never covers their character (docs/GAME-UI.md §7).
 
 const TIERS = [2, 3] as const;
 
@@ -22,16 +26,26 @@ function rowsOf(cards: Card[]): Row[] {
     .sort((a, b) => Number(b.live) - Number(a.live) || b.have - a.have);
 }
 
-export function Checks({ title, cards, boosts, align = "left" }: { title: string; cards: Card[]; boosts: string[]; align?: "left" | "right" }) {
+type Props = { title: string; cards: Card[]; boosts: string[]; align?: "left" | "right"; /** Show only the live sets until the list is opened. */ liveOnly?: boolean };
+
+export function Checks({ title, cards, boosts, align = "left", liveOnly = false }: Props) {
+  const [opened, setOpened] = useState(false);
   const rows = rowsOf(cards);
   const held = boosts.flatMap((id) => boostById(id) ?? []);
   if (rows.length === 0 && held.length === 0) return null;
   const passing = rows.filter((row) => row.live).length;
   return (
     <div className={`checks pointer-events-auto ${align === "right" ? "checks-right" : ""}`} aria-label={`${passing} of ${rows.length} set bonuses live`}>
-      <p className="checks-head"><span>{title}</span><span className="tabular-nums">{passing}/{rows.length}</span></p>
+      {liveOnly ? (
+        <button type="button" className="checks-head checks-toggle" aria-expanded={opened} onClick={() => setOpened(!opened)}>
+          <span>{title}</span>
+          <span className="flex items-center gap-1 tabular-nums">{passing}/{rows.length}<ChevronDown className="size-3 transition-transform" style={{ rotate: opened ? "180deg" : "0deg" }} /></span>
+        </button>
+      ) : (
+        <p className="checks-head"><span>{title}</span><span className="tabular-nums">{passing}/{rows.length}</span></p>
+      )}
       <ul className="space-y-px">
-        {rows.map((row) => (
+        {rows.filter((row) => opened || !liveOnly || row.live).map((row) => (
           <li key={row.set} tabIndex={0} className="check-row group" data-live={row.live ? "" : undefined} data-testid="set-bonus">
             <span className="check-mark" aria-hidden />
             <span className="check-name">{setName(row.set)}</span>

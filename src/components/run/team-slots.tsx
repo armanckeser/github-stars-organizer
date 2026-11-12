@@ -1,16 +1,18 @@
 import { Plus } from "lucide-react";
 import { BOARD_MAX, SLOT_COST } from "../../../server/run/rules";
+import { BarButton } from "./bar-button";
 
-/** How many cards are on the board of how many allowed, and a slot to buy once gold has nothing else to go to. */
-export function TeamSlots({ count, limit, gold, onBuy, className = "" }: { count: number; limit: number; gold: number; onBuy: () => void; className?: string }) {
+/** How many cards are on the board of how many allowed, on the button that buys one more slot. */
+export function TeamSlots({ count, limit, gold, onBuy }: { count: number; limit: number; gold: number; onBuy: () => void }) {
+  const full = limit >= BOARD_MAX;
   return (
-    <div className={`team-slots flex items-center gap-1.5 sm:flex-col sm:items-stretch ${className}`}>
-      <p className="text-center font-display text-sm font-[750] tabular-nums text-white/80 [font-stretch:108%]" aria-label={`${count} of ${limit} cards on the board`}>{count}/{limit}<span className="team-slots-word hidden sm:inline"> on board</span></p>
-      {limit < BOARD_MAX && (
-        <button type="button" className="hud-button flex h-8 items-center justify-center gap-1 px-2.5 text-xs" disabled={gold < SLOT_COST} onClick={onBuy} aria-label={`One more board slot for ${SLOT_COST} gold`}>
-          <Plus className="size-3.5" /><span className="hidden sm:inline">Slot</span> <span className="shop-coin" />{SLOT_COST}
-        </button>
-      )}
-    </div>
+    <BarButton
+      label={<>Slot <span className="bar-button-count" aria-label={`${count} of ${limit} cards on the board`}>{count}/{limit}</span></>}
+      cost={full ? null : SLOT_COST}
+      icon={<Plus className="size-4" strokeWidth={2.6} />}
+      disabled={full || gold < SLOT_COST}
+      onClick={onBuy}
+      aria-label={full ? `${count} of ${limit} cards on the board` : `One more board slot for ${SLOT_COST} gold`}
+    />
   );
 }

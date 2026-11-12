@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { seededRandom, type Fighter } from "../../../../server/battle";
 import type { Look } from "../../../../server/character";
 import type { Condition } from "../../../../server/run/hooks";
-import { CONDITION_NAMES, sourceOf, type Source } from "../../../../server/run/names";
+import { CONDITION_NAMES, popOf } from "../../../../server/run/names";
 import { BENCH_SIZE } from "../../../../server/run/rules";
 import { COLS, ROWS, TICK_MS, type FightEvent, type Side } from "../../../../server/run/types";
 import { ARCHIVE_DEPTH, ARCHIVE_WIDTH, buildArchive, type Archive } from "./archive";
@@ -54,9 +54,12 @@ const SIZE = 0.7;
 const MINE = [0x0e3a25, 0x0a5a2c];
 const THEIRS = [0x2a1d24, 0x3a2129];
 const FLOOR: [string, number][] = [["#10151b", 0.62], ["#0e2a1d", 0.2], ["#0a3d22", 0.12], ["#14602c", 0.06]];
+/** How much of its colour an off-board floor tile keeps, and the most light it may have: about a third of the board's brighter green. */
+const FLOOR_SATURATION = 0.4;
+const FLOOR_CAP = new THREE.Color(MINE[1]).getHSL({ h: 0, s: 0, l: 0 }).l * 0.35;
 
-/** The colours an ability, set bonus or boost is named in over a creature: background, then text. */
-const NAMED: Record<Source["kind"], [string, string]> = { ability: ["#3ea6ff", "#06121d"], set: ["#35c450", "#04140a"], boost: ["#ffd84d", "#1d1600"], condition: ["#a47cff", "#ffffff"] };
+/** How long an ability's card stays over the creature, in milliseconds. */
+const POP_LIFE = 1000;
 const CONDITION_COLOR: Record<Condition, string> = { "merge-conflict": "#ff8f3d", "rate-limited": "#3ea6ff", deprecated: "#a47cff", flaky: "#ffd84d" };
 const HEAL = "#5be37a";
 /** Names over one creature show at least this far apart, and the same name at most this often, in fight seconds. */
@@ -72,6 +75,13 @@ const BENCH_Z = ROWS * CELL + 0.95;
 const BENCH_X = -0.55;
 const BENCH_DEPTH = 1.02;
 const BENCH_SCALE = 0.82;
+const SHELF_WIDTH = BENCH_SIZE * BENCH_PITCH + 0.34;
+/** Each character stands at the open end of its own Drafts shelf, the end away from the Archive (docs/GAME-UI.md §6). */
+const TRAINER_X = BENCH_X - SHELF_WIDTH / 2 - 0.42;
+/** How far across the floor the two shelves, the Archive and the characters reach. */
+const SHELF_REACH = 3.95;
+/** The Archive's size on an upright phone, against its size on a wide screen. */
+const ARCHIVE_ON_PHONE = 0.72;
 
 /** How far into the free band the scene may reach, as a share of it. */
 const FIT_MARGIN = 0.96;
@@ -82,8 +92,8 @@ type Frame = { box: THREE.Box3; pitch: number; steepest: number; fov: number; to
  * board's depth fills the height, and keeps the Archive and the player's character in
  * front of the Drafts. `top` is the screen kept clear for the top bar.
  */
-const WIDE_FRAME: Frame = { box: new THREE.Box3(new THREE.Vector3(-3.6, 0, -ROWS * CELL + 0.2), new THREE.Vector3(3.6, 1.55, ROWS * CELL + 0.95 + 0.55)), pitch: 0.82, steepest: 0.82, fov: 34, top: 44 };
-const UPRIGHT_FRAME: Frame = { box: new THREE.Box3(new THREE.Vector3(-3.15, 0, -ROWS * CELL - 0.9), new THREE.Vector3(2.7, 1.3, ROWS * CELL + 0.95 + 1.85)), pitch: 1.0, steepest: 1.17, fov: 40, top: 56 };
+const WIDE_FRAME: Frame = { box: new THREE.Box3(new THREE.Vector3(-4.15, 0, -BENCH_Z - 0.35), new THREE.Vector3(4.15, 1.3, BENCH_Z + 0.65)), pitch: 0.82, steepest: 0.82, fov: 34, top: 44 };
+const UPRIGHT_FRAME: Frame = { box: new THREE.Box3(new THREE.Vector3(-3.3, 0, -BENCH_Z - 1.25), new THREE.Vector3(3.3, 1.1, BENCH_Z + 1.4)), pitch: 1.0, steepest: 1.17, fov: 40, top: 56 };
 const SHELF = 0x2a3038;
 const DRAFT = [0x3b434d, 0x353c45];
 const DRAFT_LIT = 0x8b949e;
@@ -241,21 +251,23 @@ export class BoardWorld {
     this.post();
   }
 
-  // Where the two characters stand: beside the board on a wide screen, and at its near
-  // and far ends on an upright phone, where the sides are off the screen.
+  // Where the two characters stand: each at the open end of its own Drafts shelf, the
+  // player's by the near shelf, the other's by the far one, the board between them.
   private post() {
+    // An upright phone has little floor beside the shelves: each character steps forward of its shelf's end.
     const upright = this.upright;
-    // The Archive closes the Drafts row on a wide screen; on a phone, where the row fills the width, it sits in front of the row's end.
-    if (upright) this.archive.root.position.set(BENCH_X + BENCH_SIZE * BENCH_PITCH * 0.36, 0.02, BENCH_Z + 1.35);
-    else this.archive.root.position.set(BENCH_X + (BENCH_SIZE / 2) * BENCH_PITCH + 0.85, 0.02, BENCH_Z - 0.05);
+    // The Archive closes the shelf's far end; a phone has less floor beside it, so the box is smaller there.
+    const archive = upright ? ARCHIVE_ON_PHONE : 1;
+    this.archive.root.scale.setScalar(archive);
+    this.archive.root.position.set(BENCH_X + SHELF_WIDTH / 2 + 0.1 + (ARCHIVE_WIDTH / 2) * archive, 0.02, BENCH_Z - 0.05);
     this.archive.root.rotation.y = upright ? -0.2 : -0.35;
     this.trainers.forEach((trainer, side) => {
       if (!trainer) return;
       const sign = side === 0 ? 1 : -1;
-      // On a phone the player's character stands in front of the Drafts shelf, the other one behind the far row.
-      if (upright) trainer.root.position.set(-sign * CELL * 1.5, 0.05, side === 0 ? BENCH_Z + 1.25 : -(ROWS * CELL + 0.75));
-      else trainer.root.position.set(-sign * (COLS * CELL * 0.5 + 0.85), 0.05, sign * CELL * (side === 0 ? 0.4 : 0.9));
-      trainer.root.rotation.y = upright ? (side === 0 ? Math.PI : 0) : side === 0 ? Math.PI * 0.75 : -Math.PI * 0.25;
+      if (upright) trainer.root.position.set(sign * (TRAINER_X + 0.95), 0.05, sign * (BENCH_Z + 0.85));
+      else trainer.root.position.set(sign * TRAINER_X, 0.05, sign * BENCH_Z);
+      // Turned to the board: the player's seen from behind, as TFT's is, the other's facing the player.
+      trainer.root.rotation.y = side === 0 ? Math.PI * (upright ? 0.9 : 0.82) : -Math.PI * (upright ? 0.1 : 0.18);
     });
   }
 
@@ -329,6 +341,11 @@ export class BoardWorld {
     return this.toScreen(world(x, y));
   }
 
+  /** Where a slot of the player's Drafts shelf is on screen. The browser tests drag from it. */
+  screenOfSlot(slot: number): Point {
+    return this.toScreen(benchSpot(slot));
+  }
+
   /** Where the Archive's open mouth is on screen. The browser tests drop on it. */
   screenOfArchive(): Point {
     return this.toScreen(this.archive.root.position.clone().setY(0.6));
@@ -364,13 +381,14 @@ export class BoardWorld {
         const x = i * pitch;
         const z = j * pitch;
         const onBoard = Math.abs(x) < COLS * CELL * 0.5 + 0.2 && Math.abs(z) < ROWS * CELL + 0.2;
-        const onShelf = x > -3.6 && x < 3.9 && z > ROWS * CELL && z < BENCH_Z + 2.1;
+        const onShelf = Math.abs(x) < SHELF_REACH && Math.abs(z) > ROWS * CELL && Math.abs(z) < BENCH_Z + 0.9;
         if (Math.hypot(x, z) > 9.4 || onBoard || onShelf) continue;
         spots.push(new THREE.Vector3(x, -0.02, z));
         let roll = random();
-        // Lit from the board outward: the farther a tile, the darker, so the play area is the bright place.
-        const falloff = Math.max(0.22, Math.min(1, 1.25 - Math.hypot(x, z - 0.8) / 7));
-        colours.push(new THREE.Color((FLOOR.find(([, share]) => (roll -= share) < 0) ?? FLOOR[0])[0]).multiplyScalar(falloff));
+        // The arena around the board is calm, as TFT's is: the graph's greens greyed and held under a third of the board's own green, darker toward the edges.
+        const tone = new THREE.Color((FLOOR.find(([, share]) => (roll -= share) < 0) ?? FLOOR[0])[0]).getHSL({ h: 0, s: 0, l: 0 });
+        const falloff = Math.max(0.3, Math.min(1, 1.15 - Math.hypot(x * 0.8, z) / 7.5));
+        colours.push(new THREE.Color().setHSL(tone.h, tone.s * FLOOR_SATURATION, Math.min(tone.l, FLOOR_CAP) * falloff));
       }
     }
     const tiles = new THREE.InstancedMesh(new RoundedBoxGeometry(pitch - 0.1, 0.1, pitch - 0.1, 2, 0.04), toon(0xffffff), spots.length);
@@ -403,6 +421,8 @@ export class BoardWorld {
       const distance = 11 + skyline() * 9;
       const tall = 1.5 + skyline() * skyline() * 9;
       const wide = 0.9 + skyline() * 1.6;
+      // Only beyond the board and its sides: a tower on the camera's side stands between it and the board, cut by the frame's edge.
+      if (Math.sin(angle) > -0.15) continue;
       const tower = new THREE.Mesh(new THREE.BoxGeometry(wide, tall, wide), new THREE.MeshBasicMaterial({ color: shades[i % 3] }));
       tower.position.set(Math.cos(angle) * distance, tall / 2 - 0.06, Math.sin(angle) * distance);
       tower.rotation.y = skyline() * Math.PI;
@@ -411,33 +431,42 @@ export class BoardWorld {
   }
 
   private buildBench() {
-    const width = BENCH_SIZE * BENCH_PITCH + 0.34;
-    const shelf = part(new RoundedBoxGeometry(width, 0.24, BENCH_DEPTH + 0.2, 3, 0.07), toon(SHELF), { at: [BENCH_X, -0.02, BENCH_Z] });
+    this.scene.add(this.shelf(true));
+    // The other player's shelf, turned about the board's middle so it lines their edge.
+    const theirs = this.shelf(false);
+    theirs.rotation.y = Math.PI;
+    this.scene.add(theirs);
+  }
+
+  /** A Drafts shelf along the near edge. Only the player's own holds slots a card can be dropped in. */
+  private shelf(own: boolean): THREE.Group {
+    const group = new THREE.Group();
+    const shelf = part(new RoundedBoxGeometry(SHELF_WIDTH, 0.24, BENCH_DEPTH + 0.2, 3, 0.07), toon(SHELF), { at: [BENCH_X, -0.02, BENCH_Z] });
     shelf.receiveShadow = true;
     shelf.castShadow = false;
-    this.scene.add(shelf);
+    group.add(shelf);
     // A back rail, a divider between each slot, and a lip along the front with the shelf's name on it.
-    const rail = part(new RoundedBoxGeometry(width, 0.3, 0.14, 2, 0.05), toon(0x232930), { at: [BENCH_X, 0.2, BENCH_Z - BENCH_DEPTH / 2 - 0.05] });
-    this.scene.add(rail);
+    group.add(part(new RoundedBoxGeometry(SHELF_WIDTH, 0.3, 0.14, 2, 0.05), toon(0x232930), { at: [BENCH_X, 0.2, BENCH_Z - BENCH_DEPTH / 2 - 0.05] }));
     for (let i = 0; i <= BENCH_SIZE; i++) {
-      const divider = part(new RoundedBoxGeometry(0.07, 0.14, BENCH_DEPTH, 2, 0.03), toon(0x232930), { at: [BENCH_X + (i - BENCH_SIZE / 2) * BENCH_PITCH, 0.15, BENCH_Z] });
-      this.scene.add(divider);
+      group.add(part(new RoundedBoxGeometry(0.07, 0.14, BENCH_DEPTH, 2, 0.03), toon(0x232930), { at: [BENCH_X + (i - BENCH_SIZE / 2) * BENCH_PITCH, 0.15, BENCH_Z] }));
     }
-    const lip = part(new RoundedBoxGeometry(width, 0.3, 0.14, 2, 0.05), toon(0x1d2228), { at: [BENCH_X, 0.03, BENCH_Z + BENCH_DEPTH / 2 + 0.1] });
+    const lip = part(new RoundedBoxGeometry(SHELF_WIDTH, 0.3, 0.14, 2, 0.05), toon(0x1d2228), { at: [BENCH_X, 0.03, BENCH_Z + BENCH_DEPTH / 2 + 0.1] });
     lip.castShadow = false;
-    this.scene.add(lip);
+    group.add(lip);
     const label = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.3), new THREE.MeshBasicMaterial({ map: this.lipLabel(), transparent: true }));
     label.position.set(BENCH_X, 0.03, BENCH_Z + BENCH_DEPTH / 2 + 0.172);
-    this.scene.add(label);
+    group.add(label);
     const tile = new RoundedBoxGeometry(BENCH_PITCH - 0.12, 0.08, BENCH_DEPTH - 0.16, 3, 0.035);
     for (let slot = 0; slot < BENCH_SIZE; slot++) {
       const mesh = new THREE.Mesh(tile, toon(DRAFT[slot % 2]));
       mesh.position.copy(benchSpot(slot)).setY(0.12);
       mesh.receiveShadow = true;
+      group.add(mesh);
+      if (!own) continue;
       mesh.userData = { slot, colour: DRAFT[slot % 2] };
       this.slots.push(mesh);
-      this.scene.add(mesh);
     }
+    return group;
   }
 
   /** "Drafts" with GitHub's draft pull request mark, drawn for the shelf's front lip. */
@@ -563,7 +592,7 @@ export class BoardWorld {
       this.fill(actor);
       if (quick) return;
       if (event.change > 0) actor.flash = 0.5;
-      this.label(this.over(actor, 0.5), event.change > 0 ? `+${event.change}` : String(event.change), { color: event.change > 0 ? HEAL : CONDITION_COLOR[event.cause as Condition] ?? "#ff8f93" });
+      this.label(this.over(actor, 0.25), event.change > 0 ? `+${event.change}` : String(event.change), { color: event.change > 0 ? HEAL : CONDITION_COLOR[event.cause as Condition] ?? "#ff8f93" });
     } else if (event.kind === "condition") {
       const condition = event.condition as Condition;
       actor.badge.visible = event.on && condition in CONDITION_NAMES;
@@ -584,7 +613,7 @@ export class BoardWorld {
         target.flash = 1;
         target.squash = event.critical ? 0.3 : 0.16;
         if (event.critical) this.shake = 0.12;
-        this.label(this.over(target, 0.5), String(event.damage), event.critical ? { color: "#ffd84d", size: 22 } : {});
+        this.label(this.over(target, 0.25), String(event.damage), event.critical ? { color: "#ffd84d", size: 22 } : {});
       };
       if (actor.unit.ranged) {
         const shot = new THREE.Mesh(sphere(0.11, 10), new THREE.MeshBasicMaterial({ color: actor.unit.fighter.color && /^#[0-9a-f]{6}$/i.test(actor.unit.fighter.color) ? actor.unit.fighter.color : 0xffffff }));
@@ -605,31 +634,55 @@ export class BoardWorld {
     }
   }
 
-  /** A point over the creature's head. */
+  /** A point `above` over the creature's HP bar, so what is drawn there never covers the bar. */
   private over(actor: Actor, above: number) {
-    return actor.at.clone().setY(actor.creature.height * SIZE + above);
+    return actor.at.clone().setY(actor.bar.position.y + above);
   }
 
-  /** A number or a name that rises over the board and fades. */
-  private label(at: THREE.Vector3, text: string, style: { color?: string; size?: number; background?: string }) {
-    if (this.options.reduced && !style.background) return;
+  /** A number that rises over the board and fades. */
+  private label(at: THREE.Vector3, text: string, style: { color?: string; size?: number }) {
+    if (this.options.reduced) return;
     const point = at.project(this.camera);
     const label = document.createElement("span");
     label.textContent = text;
-    const pill = style.background ? `background:${style.background};padding:2px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 4px #0008;` : "text-shadow:0 1px 0 #000,0 0 6px #000;";
-    const life = style.background ? 1100 : 650;
-    label.style.cssText = `position:absolute;left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;transform:translate(-50%,-50%);pointer-events:none;z-index:5;font:700 ${style.size ?? (style.background ? 12 : 15)}px/1.2 var(--font-display, system-ui);color:${style.color ?? "#fff"};${pill}transition:transform ${life}ms ease-out,opacity ${life}ms ease-in`;
-    if (style.background) label.dataset.named = text;
+    const life = 650;
+    label.style.cssText = `position:absolute;left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;transform:translate(-50%,-100%);pointer-events:none;z-index:5;font:700 ${style.size ?? 15}px/1.2 var(--font-display, system-ui);color:${style.color ?? "#fff"};text-shadow:0 1px 0 #000,0 0 6px #000;transition:transform ${life}ms ease-out,opacity ${life}ms ease-in`;
     this.host.append(label);
     this.labels.add(label);
     requestAnimationFrame(() => {
-      if (!this.options.reduced) label.style.transform = `translate(-50%,${style.background ? -260 : -190}%)`;
+      label.style.transform = "translate(-50%,-190%)";
       label.style.opacity = "0";
     });
     setTimeout(() => {
       label.remove();
       this.labels.delete(label);
     }, life);
+  }
+
+  /** The small slate card over a creature saying what fired: the name, then "Trigger → effect". It sits above the HP bar, never on it. */
+  private pop(at: THREE.Vector3, id: string) {
+    const what = popOf(id);
+    const point = at.project(this.camera);
+    const card = document.createElement("div");
+    card.className = "ability-pop";
+    card.dataset.named = what.name;
+    card.style.cssText = `left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;--life:${POP_LIFE}ms`;
+    const name = document.createElement("span");
+    name.className = "ability-pop-name";
+    name.textContent = what.name;
+    card.append(name);
+    if (what.line) {
+      const line = document.createElement("span");
+      line.className = "ability-pop-line";
+      line.textContent = what.line;
+      card.append(line);
+    }
+    this.host.append(card);
+    this.labels.add(card);
+    setTimeout(() => {
+      card.remove();
+      this.labels.delete(card);
+    }, POP_LIFE);
   }
 
   /** Names the ability, set bonus or boost that just fired, over the creature. Names queue a little apart, and the same one does not repeat on every hit. */
@@ -639,13 +692,11 @@ export class BoardWorld {
     actor.named.set(id, this.now);
     const at = Math.max(this.now, actor.nextName);
     actor.nextName = at + NAME_GAP;
-    const source = sourceOf(id);
-    const [background, color] = NAMED[source.kind];
     const fight = this.fight;
     this.after(at - this.now, () => {
       if (this.disposed || this.fight !== fight || actor.out) return;
       actor.squash = Math.max(actor.squash, 0.1);
-      this.label(this.over(actor, 0.95), source.name, { background, color });
+      this.pop(this.over(actor, 0.18), id);
     });
   }
 
@@ -831,6 +882,10 @@ export class BoardWorld {
     }
     this.aim.copy(view.aim);
     this.eye.copy(view.aim).addScaledVector(view.direction, view.distance);
+    // The fog starts behind the board wherever the camera stands, so a phone's farther camera never dims the play area; only the city fades.
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = view.distance + 6;
+    fog.far = view.distance + 26;
     this.camera.setViewOffset(width, full, 0, this.shown - top, width, height);
     this.fitted = { inset: this.shown, width, height };
   }

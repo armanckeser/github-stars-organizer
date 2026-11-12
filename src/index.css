@@ -273,67 +273,161 @@ input[type="search"]::-webkit-search-cancel-button {
   }
 }
 
-/* The Play shop (src/components/run/shop.tsx): a card's frame is the metal of its cost, its art is lit from behind. */
-.shop-bar {
-  background: linear-gradient(180deg, rgb(9 12 16 / 0.9), rgb(6 8 11 / 0.97));
-  box-shadow: 0 -26px 44px rgb(6 8 11 / 0.5);
-}
+/* The shop card (docs/GAME-UI.md §4): art edge to edge, the tier on the border and the strip only. */
 .shop-card {
-  background: linear-gradient(155deg, var(--metal-light), var(--metal-dark) 38%, var(--metal-dark) 62%, var(--metal-light) 82%, var(--metal-dark));
-  box-shadow: 0 8px 18px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.5);
-  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease-out;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border: 2px solid var(--tier);
+  border-radius: 4px;
+  background: #0e1418;
+  text-align: left;
+  outline: none;
+  container-type: inline-size;
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.45);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease-out;
 }
 .shop-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 24px rgb(0 0 0 / 0.6), 0 0 18px color-mix(in oklab, var(--metal-glow) 45%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.5);
+  transform: translateY(-3px);
 }
 .shop-card:active {
   transform: translateY(-1px) scale(0.985);
 }
-.shop-card-art {
-  background:
-    radial-gradient(120% 90% at 68% 30%, color-mix(in oklab, var(--metal-glow) 70%, white 18%) 0%, color-mix(in oklab, var(--metal-glow) 38%, #0b0f14) 46%, #0a0d12 92%);
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.55), inset 0 3px 8px rgb(0 0 0 / 0.45);
-}
-.shop-card:not([data-affordable]) .shop-card-art {
-  filter: grayscale(0.75) brightness(0.55);
+.shop-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring), 0 6px 14px rgb(0 0 0 / 0.45);
 }
 .shop-card:not([data-affordable]) {
-  filter: saturate(0.4);
+  opacity: 0.55;
+}
+.shop-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #131b20;
+}
+.shop-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% 50%;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop-card:hover .shop-art img {
+  transform: scale(1.04);
+}
+/* The fade that keeps the sets readable: the left 40%, dark to clear. */
+.shop-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(10 14 17 / 0.7), transparent 45%);
+  pointer-events: none;
+}
+.shop-sets {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.shop-set {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  font: 500 10.5px/1 var(--font-display);
+  color: #fff;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.85);
+  white-space: nowrap;
+}
+.shop-set-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.set-hex {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  place-items: center;
+  clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
+  background: #1c242b;
+  color: #fff;
+}
+.set-initials {
+  font: 800 7px/1 var(--font-display);
+  font-stretch: 90%;
+  letter-spacing: -0.02em;
+}
+.set-initials[data-long] {
+  font-size: 5.5px;
+}
+.shop-reach {
+  flex: none;
+  font: 700 10.5px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: #3fb950;
+}
+.shop-strip {
+  display: flex;
+  height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 7px;
+  background: color-mix(in oklab, var(--tier) 30%, #131b20);
+  font: 750 13px/1 var(--font-display);
+  font-stretch: 106%;
+  color: #fff;
+}
+.shop-cost {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.shop-card:not([data-affordable]) .shop-cost {
+  color: #ff7b72;
 }
 .shop-empty {
+  border-radius: 4px;
   background: rgb(255 255 255 / 0.025);
   box-shadow: inset 0 2px 10px rgb(0 0 0 / 0.6);
 }
-.shop-dot {
-  width: 9px;
-  height: 9px;
-  flex: none;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1.5px rgb(0 0 0 / 0.6), inset 0 1px 1px rgb(255 255 255 / 0.4);
+/* A card under 120px is too narrow for set names: the hexes carry the sets, each with its "would reach" count. */
+@container (max-width: 119px) {
+  .shop-set-name {
+    display: none;
+  }
+  .shop-sets {
+    left: 3px;
+    bottom: 3px;
+    gap: 2px;
+  }
+  .shop-strip {
+    height: 20px;
+    padding: 0 4px;
+    font-size: 9.5px;
+  }
+  .shop-cost {
+    gap: 2px;
+    font-size: 10px;
+  }
 }
-.shop-dot[data-topic] {
-  background: transparent;
-  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.75), 0 0 0 1px rgb(0 0 0 / 0.5);
-}
-.shop-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  flex: none;
-  border-radius: 4px;
-  font: 800 11px/1 var(--font-display);
-  font-variant-numeric: tabular-nums;
-  color: #e6edf3;
-  background: #30363d;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 1px 2px rgb(0 0 0 / 0.7);
-}
-.shop-count-live {
-  color: #04140a;
-  background: linear-gradient(180deg, #5be37a, #2ea043);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 0 10px rgb(53 196 80 / 0.6);
+@media (max-width: 639px) {
+  .shop-art {
+    aspect-ratio: 1;
+  }
 }
 .shop-coin,
 .hud-coin {
@@ -367,13 +461,13 @@ input[type="search"]::-webkit-search-cancel-button {
 .hud-button:disabled {
   opacity: 0.45;
 }
-.hud-fight:hover:not(:disabled) {
-  background: linear-gradient(180deg, #6bee88, #2a9a3f 92%);
-}
 .hud-fight {
   color: #04140a;
-  background: linear-gradient(180deg, #5be37a, #238636 92%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), inset 0 -2px 0 rgb(0 0 0 / 0.2), 0 4px 14px rgb(46 160 67 / 0.4);
+  background: #2ea043;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.4);
+}
+.hud-fight:hover:not(:disabled) {
+  background: #3fb950;
 }
 @media (prefers-reduced-motion: reduce) {
   .shop-card,
@@ -392,61 +486,191 @@ input[type="search"]::-webkit-search-cancel-button {
 .shop-dock:not([data-open]) {
   transform: translateY(var(--drawer));
 }
-.shop-tab {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
+/* The shop bar (docs/GAME-UI.md §5): slate, a gold line on its outer edge, the gold plaque on top. */
+.shop-bar {
+  padding: 10px 16px 12px;
+  border-top: 1px solid rgb(201 164 92 / 0.7);
+  background: #0e1418;
+  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.45);
+}
+.shop-layout {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 7.5rem;
+  gap: 10px;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+.shop-layout::after {
+  /* The corner Fight stands in. */
+  content: "";
+}
+.shop-controls {
   display: flex;
-  height: 40px;
+  flex-direction: column;
+  gap: 6px;
+}
+.shop-plaque {
+  position: absolute;
+  bottom: calc(100% - 1px);
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  width: 8.5rem;
+  height: 34px;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px 0 16px;
+  justify-content: center;
+  gap: 7px;
+  padding-top: 2px;
   translate: -50% 0;
-  border-radius: 12px 12px 0 0;
-  background: rgb(9 12 16 / 0.9);
+  background: rgb(201 164 92 / 0.7);
+  clip-path: polygon(15% 0, 85% 0, 100% 100%, 0 100%);
   outline: none;
 }
-.shop-tab:hover {
-  background: rgb(16 20 26 / 0.95);
+.shop-plaque::before {
+  content: "";
+  position: absolute;
+  inset: 1px 1.5px 0;
+  z-index: -1;
+  background: #0e1418;
+  clip-path: polygon(15% 0, 85% 0, 100% 100%, 0 100%);
 }
-.shop-tab:focus-visible {
+.shop-plaque:hover::before {
+  background: #131b20;
+}
+.shop-plaque:focus-visible::before {
+  background: #1b262d;
+}
+.shop-plaque-gold {
+  font: 800 19px/1 var(--font-display);
+  font-stretch: 110%;
+  font-variant-numeric: tabular-nums;
+  color: #f2c94c;
+}
+.bar-button {
+  display: flex;
+  flex: 1;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 5px 4px 10px;
+  border-radius: 4px;
+  background: #172127;
+  color: #fff;
+  text-align: left;
+  outline: none;
+  transition: background 120ms ease-out, transform 120ms ease-out;
+}
+.bar-button:hover:not(:disabled) {
+  background: #1e2b32;
+}
+.bar-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.bar-button:focus-visible {
   box-shadow: 0 0 0 2px var(--ring);
 }
-.shop-dock-fight {
+.bar-button:disabled {
+  opacity: 0.45;
+}
+.bar-button-label {
+  display: block;
+  font: 750 14px/1.1 var(--font-display);
+  font-stretch: 106%;
+  white-space: nowrap;
+}
+.bar-button-count {
+  margin-left: 3px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: rgb(230 237 243 / 0.55);
+}
+.bar-button-cost {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font: 700 12px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: #f2c94c;
+}
+.bar-button-tile {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 3px;
+  background: #24323b;
+  color: #e6edf3;
+}
+.shop-fight {
   position: absolute;
-  right: 12px;
-  bottom: calc(100% + 0px);
-  margin-bottom: 0;
-  transition: opacity 160ms ease-out;
+  right: calc(16px + max(0px, (100% - 32px - 64rem) / 2));
+  bottom: 12px;
+  z-index: 11;
+  display: flex;
+  width: 7.5rem;
+  height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 4px;
+  font: 800 16px/1 var(--font-display);
+  font-stretch: 108%;
+  outline: none;
+  transition: bottom 280ms cubic-bezier(0.22, 1, 0.36, 1), height 280ms cubic-bezier(0.22, 1, 0.36, 1), background 120ms ease-out;
 }
-.shop-dock[data-open] .shop-dock-fight {
-  opacity: 0;
-  pointer-events: none;
+.shop-fight:not([data-open]) {
+  bottom: 8px;
+  height: 2.6rem;
 }
-.shop-dock:not([data-open]) .shop-dock-fight {
-  bottom: calc(100% + 6px);
+.shop-fight:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.shop-fight:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 639px) {
+  /* An upright phone: the cards across the top, Reroll and Slot under them, Fight in the corner. */
+  .shop-bar {
+    padding: 8px 8px 10px;
+  }
+  .shop-layout {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .shop-layout::after {
+    display: none;
+  }
+  .shop-controls {
+    flex-direction: row;
+    padding-right: 7.25rem;
+  }
+  .bar-button-tile {
+    width: 26px;
+    height: 26px;
+  }
+  .shop-fight {
+    right: 8px;
+    bottom: 10px;
+    width: 6.75rem;
+    height: 2.6rem;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .shop-dock,
-  .shop-dock-fight {
+  .shop-fight {
     transition: none;
   }
 }
 
-/* The arena takes the whole screen in full screen, and on a phone turned wide, where TFT plays. */
-.arena[data-full] {
-  border-radius: 0;
+/* Play owns the screen (docs/GAME-UI.md §1): no app frame, and nothing under a phone's notch or home bar. */
+.arena {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 @media (orientation: landscape) and (max-height: 540px) {
-  .arena {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    height: 100dvh;
-    min-height: 0;
-    max-width: none;
-    border-radius: 0;
-  }
   .hud-top {
     padding-top: 6px;
     padding-bottom: 0.75rem;
@@ -455,35 +679,37 @@ input[type="search"]::-webkit-search-cancel-button {
     top: 40px;
   }
   /* One row of short cards, with the side controls stacked tight, so the open shop keeps a quarter of the height as TFT's does. */
+  .shop-art {
+    aspect-ratio: 2 / 1;
+  }
   .shop-bar {
-    padding-top: 6px;
-    padding-bottom: 6px;
-    box-shadow: 0 -14px 24px rgb(6 8 11 / 0.4);
+    padding: 6px 12px 8px;
   }
-  .shop-card,
-  .shop-empty {
-    aspect-ratio: 16 / 9;
+  .shop-layout {
+    grid-template-columns: 6.75rem minmax(0, 1fr) 6rem;
+    gap: 8px;
   }
-  .dock-side {
-    gap: 6px;
+  .bar-button {
+    min-height: 0;
+    padding: 3px 4px 3px 8px;
   }
-  .dock-fight {
-    height: 2.5rem;
+  .bar-button-label {
+    font-size: 12px;
   }
-  .team-slots {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+  .bar-button-cost {
+    margin-top: 2px;
+    font-size: 11px;
   }
-  .team-slots-word {
-    display: none;
+  .bar-button-tile {
+    width: 24px;
+    height: 24px;
   }
-  /* Cards this short carry their sets as dots, as on an upright phone. */
-  .shop-sets-named {
-    display: none;
-  }
-  .shop-sets-dots {
-    display: flex;
+  .shop-fight {
+    right: 12px;
+    bottom: 8px;
+    width: 6rem;
+    height: 2.6rem;
+    font-size: 14px;
   }
   .checks {
     width: 9.5rem;
@@ -515,6 +741,17 @@ button.hud-chip:hover {
   padding: 6px 6px 10px;
   background: radial-gradient(120% 100% at 0% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
+}
+.checks-toggle {
+  width: 100%;
+  border-radius: 3px;
+  outline: none;
+}
+.checks-toggle:hover {
+  color: rgb(230 237 243 / 0.75);
+}
+.checks-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
 }
 .checks-head {
   display: flex;
@@ -675,8 +912,10 @@ button.hud-chip:hover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
-  padding: 1rem;
+  gap: clamp(0.5rem, 3dvh, 1.5rem);
+  padding: 16px;
+  /* The medallion's diameter, from the screen's short side, so three fit a phone turned wide. */
+  --coin: min(200px, 34dvh, 24vw);
   background: radial-gradient(70% 60% at 50% 48%, rgb(6 8 11 / 0.45), rgb(6 8 11 / 0.86));
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
   animation: boost-in 220ms ease-out both;
@@ -684,10 +923,38 @@ button.hud-chip:hover {
 .boost-row {
   display: flex;
   justify-content: center;
-  gap: clamp(0.75rem, 4vw, 3rem);
+  gap: clamp(0.5rem, 3vw, 3rem);
+}
+.boost-title {
+  font: 800 clamp(1.375rem, 6dvh, 2.25rem)/1.1 var(--font-display);
+  font-stretch: 112%;
+  letter-spacing: -0.02em;
+}
+.boost-subtitle {
+  margin-top: 2px;
+  font-size: 13px;
+  color: rgb(230 237 243 / 0.65);
+}
+.boost-name {
+  display: block;
+  margin-top: 6px;
+  font: 800 clamp(14px, 4.4dvh, 18px)/1.15 var(--font-display);
+  font-stretch: 110%;
+  letter-spacing: -0.01em;
+}
+.boost-text {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.3;
+  color: rgb(230 237 243 / 0.75);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 .boost-medal {
-  width: clamp(6.5rem, 26vw, 12rem);
+  width: calc(var(--coin) + min(24px, 3vw));
   text-align: center;
   outline: none;
   animation: boost-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -697,7 +964,8 @@ button.hud-chip:hover {
 .boost-coin {
   position: relative;
   display: block;
-  width: 100%;
+  width: var(--coin);
+  margin: 0 auto;
   aspect-ratio: 1;
   filter: drop-shadow(0 14px 18px rgb(0 0 0 / 0.7));
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), filter 180ms ease-out;
@@ -745,6 +1013,36 @@ button.hud-chip:hover {
   opacity: 0;
   transform: translateY(24px) scale(0.92);
 }
+@media (max-width: 559px) {
+  /* Too narrow for three across: the boosts stack as rows, the medallion left, the whole text right, never cut. */
+  .boost-row {
+    flex-direction: column;
+    gap: 12px;
+    width: min(100%, 22rem);
+  }
+  .boost-medal {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 88px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: center;
+    text-align: left;
+  }
+  .boost-coin {
+    width: 88px;
+    grid-row: span 2;
+  }
+  .boost-name {
+    margin-top: 0;
+    align-self: end;
+    font-size: 17px;
+  }
+  .boost-text {
+    display: block;
+    align-self: start;
+    font-size: 13.5px;
+  }
+}
 .boost-peek,
 .boost-return {
   display: inline-flex;
@@ -767,14 +1065,17 @@ button.hud-chip:hover {
 .boost-peek:disabled {
   opacity: 0;
 }
+/* Over the round's title while the board is looked at: the top bar holds no HP bar, so the pill never covers one. */
 .boost-return {
   position: absolute;
-  top: 3.5rem;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
   left: 50%;
   z-index: 20;
   translate: -50% 0;
+  min-width: 11rem;
+  justify-content: center;
   color: #ffe08a;
-  background: rgb(9 12 16 / 0.88);
+  background: #0e1418;
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.5);
 }
 @keyframes boost-in {
@@ -809,5 +1110,61 @@ button.hud-chip:hover {
   }
   .boost-medal .text-\[13px\] {
     font-size: 12px;
+  }
+}
+
+/* What fired over a creature (docs/GAME-UI.md §9): a small slate card, its foot above the HP bar, for about a second. */
+.ability-pop {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 5px;
+  border-radius: 3px;
+  border: 1px solid rgb(201 164 92 / 0.7);
+  background: #131b20;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.55);
+  white-space: nowrap;
+  pointer-events: none;
+  translate: -50% -100%;
+  animation: ability-pop var(--life) ease-out both;
+}
+.ability-pop-name {
+  font: 750 12px/1.1 var(--font-display);
+  font-stretch: 106%;
+  color: #fff;
+}
+.ability-pop-line {
+  font: 500 10.5px/1.1 var(--font-display);
+  color: rgb(230 237 243 / 0.7);
+}
+@keyframes ability-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  12%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ability-pop {
+    animation: ability-pop-still var(--life) linear both;
+  }
+  @keyframes ability-pop-still {
+    0%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
   }
 }

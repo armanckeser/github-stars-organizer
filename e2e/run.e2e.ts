@@ -9,7 +9,7 @@ type Spot = { clientX: number; clientY: number };
 declare global {
   interface Window {
     /** Set by the board in development builds (src/components/battle/board3d.tsx). */
-    stardBoard?: { screenOf: (x: number, y: number) => Spot; screenOfUnit: (id: string) => Spot | null };
+    stardBoard?: { screenOf: (x: number, y: number) => Spot; screenOfSlot: (slot: number) => Spot; screenOfArchive: () => Spot; screenOfUnit: (id: string) => Spot | null };
   }
 }
 /** A player's cell as column and row (row 0 in front), and the board cell it is drawn on. */
@@ -26,19 +26,26 @@ async function startRun(page: Page, search = "") {
 
 const gold = async (page: Page) => Number((await page.getByLabel(/^\d+ gold$/).first().getAttribute("aria-label"))!.split(" ")[0]);
 const cellSpot = (page: Page, col: number, row: number) => page.evaluate(({ x, y }) => window.stardBoard!.screenOf(x, y), boardCell(col, row));
+const archiveSpot = (page: Page) => page.evaluate(() => window.stardBoard!.screenOfArchive());
+const slotSpot = (page: Page, slot: number) => page.evaluate((index) => window.stardBoard!.screenOfSlot(index), slot);
 const unitSpot = (page: Page, fullName: string) => page.evaluate((id) => window.stardBoard!.screenOfUnit(id), `0:${fullName}`);
 const aceName = () => poolFor("abed").team[0].fullName;
+
+/** Waits until the camera has stopped moving: it dollies when the shop folds or opens, as after a boost pick. */
+async function settled(page: Page) {
+  await expect.poll(async () => {
+    const before = await cellSpot(page, 0, 0);
+    await page.waitForTimeout(150);
+    const after = await cellSpot(page, 0, 0);
+    return Math.hypot(after.clientX - before.clientX, after.clientY - before.clientY);
+  }).toBeLessThan(1);
+}
 
 async function drag(page: Page, from: Spot, to: Spot) {
   await page.mouse.move(from.clientX, from.clientY);
   await page.mouse.down();
   for (let i = 1; i <= 8; i++) await page.mouse.move(from.clientX + ((to.clientX - from.clientX) * i) / 8, from.clientY + ((to.clientY - from.clientY) * i) / 8);
   await page.mouse.up();
-}
-
-async function center(page: Page, testId: string): Promise<Spot> {
-  const box = (await page.getByTestId(testId).boundingBox())!;
-  return { clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 };
 }
 
 /** Buys the cheapest card the gold allows. Returns its name, or null when none fits. */
@@ -58,26 +65,33 @@ async function buyCheapest(page: Page): Promise<string | null> {
   return /^Look at (.*), \d+ gold$/.exec(cheapest.label)![1];
 }
 
+/** Waits until a creature stands in a slot of the Drafts shelf. */
+async function expectOnShelf(page: Page, fullName: string, slot: number) {
+  await expectNear(page, fullName, await slotSpot(page, slot));
+}
+
 /** Waits until a creature has walked to the cell, a drag's glide included. */
 async function expectAt(page: Page, fullName: string, col: number, row: number) {
-  const target = await cellSpot(page, col, row);
+  await expectNear(page, fullName, await cellSpot(page, col, row));
+}
+
+async function expectNear(page: Page, fullName: string, target: Spot) {
   await expect.poll(async () => {
     const at = await unitSpot(page, fullName);
     return at ? Math.hypot(at.clientX - target.clientX, at.clientY - target.clientY) : Infinity;
   }).toBeLessThan(30);
 }
 
-test("a bought card waits on the bench, then drags to a cell on the board", async ({ page }) => {
+test("a bought card waits on the Drafts shelf, then drags to a cell on the board", async ({ page }) => {
   await startRun(page);
   const name = await buyCheapest(page);
   expect(name).not.toBeNull();
-  await expect(page.getByRole("button", { name: `${name} on the bench` })).toBeVisible();
+  await expectOnShelf(page, name!, 0);
   await expect(page.getByLabel("1 of 2 cards on the board").locator("visible=true")).toBeVisible();
 
-  await drag(page, await center(page, "bench-0"), await cellSpot(page, 2, 1));
+  await drag(page, (await unitSpot(page, name!))!, await cellSpot(page, 2, 1));
 
   await expect(page.getByLabel("2 of 2 cards on the board").locator("visible=true")).toBeVisible();
-  await expect(page.getByRole("button", { name: `${name} on the bench` })).toHaveCount(0);
   await expectAt(page, name!, 2, 1);
 });
 
@@ -91,7 +105,8 @@ test("a board creature dragged to a free cell moves there", async ({ page }) => 
 test("two creatures trade cells when one is dropped on the other", async ({ page }) => {
   await startRun(page);
   const name = (await buyCheapest(page))!;
-  await drag(page, await center(page, "bench-0"), await cellSpot(page, 0, 1));
+  await expectOnShelf(page, name, 0);
+  await drag(page, (await unitSpot(page, name))!, await cellSpot(page, 0, 1));
   await expectAt(page, name, 0, 1);
 
   await drag(page, (await unitSpot(page, aceName()))!, await cellSpot(page, 0, 1));
@@ -100,15 +115,15 @@ test("two creatures trade cells when one is dropped on the other", async ({ page
   await expectAt(page, name, 1, 0);
 });
 
-test("a creature dragged onto the shop is sold for its price", async ({ page }) => {
+test("a creature dropped in the Archive is sold for its price", async ({ page }) => {
   await startRun(page);
   const before = await gold(page);
   const name = (await buyCheapest(page))!;
   const paid = before - (await gold(page));
-  await drag(page, await center(page, "bench-0"), await cellSpot(page, 2, 1));
+  await drag(page, (await unitSpot(page, name))!, await cellSpot(page, 2, 1));
   await expect(page.getByLabel("2 of 2 cards on the board").locator("visible=true")).toBeVisible();
 
-  await drag(page, (await unitSpot(page, name))!, await center(page, "shop"));
+  await drag(page, (await unitSpot(page, name))!, await archiveSpot(page));
 
   await expect(page.getByLabel("1 of 2 cards on the board").locator("visible=true")).toBeVisible();
   expect(await gold(page)).toBe(before);
@@ -119,7 +134,7 @@ test("a creature dragged onto the shop is sold for its price", async ({ page }) 
 test("the last card is not sold", async ({ page }) => {
   await startRun(page);
   const before = await gold(page);
-  await drag(page, (await unitSpot(page, aceName()))!, await center(page, "shop"));
+  await drag(page, (await unitSpot(page, aceName()))!, await archiveSpot(page));
   await expect(page.getByLabel("1 of 2 cards on the board").locator("visible=true")).toBeVisible();
   expect(await gold(page)).toBe(before);
 });
@@ -152,9 +167,12 @@ test("a whole run plays to its end, with the two boost picks", async ({ page }) 
   for (let round = 1; round <= 7; round++) {
     const limit = Number(/of (\d+) cards/.exec((await page.getByLabel(/ cards on the board$/).locator("visible=true").getAttribute("aria-label"))!)![1]);
     let onBoard = Number(/^(\d+) of/.exec((await page.getByLabel(/ cards on the board$/).locator("visible=true").getAttribute("aria-label"))!)![1]);
-    while (onBoard < limit && free.length > 0 && (await buyCheapest(page))) {
+    let bought: string | null;
+    while (onBoard < limit && free.length > 0 && (bought = await buyCheapest(page))) {
       const [col, row] = free.shift()!;
-      await drag(page, await center(page, "bench-0"), await cellSpot(page, col, row));
+      await settled(page);
+      await expectOnShelf(page, bought, 0);
+      await drag(page, (await unitSpot(page, bought))!, await cellSpot(page, col, row));
       onBoard++;
       await expect(page.getByLabel(`${onBoard} of ${limit} cards on the board`).locator("visible=true")).toBeVisible();
     }
@@ -164,7 +182,8 @@ test("a whole run plays to its end, with the two boost picks", async ({ page }) 
     const ended = page.getByText(/^Run (finished|over)$/);
     const boost = page.getByRole("dialog", { name: "Pick a boost" });
     const next = page.getByLabel(/ cards on the board$/).locator("visible=true");
-    await expect(ended.or(boost).or(next).first()).toBeVisible();
+    // The next shop's card art is drawn before the round opens, which takes seconds in software WebGL.
+    await expect(ended.or(boost).or(next).first()).toBeVisible({ timeout: 30_000 });
     if (await ended.isVisible()) break;
     if (await boost.isVisible()) {
       await boost.getByRole("button").first().click();

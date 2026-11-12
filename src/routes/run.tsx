@@ -1,15 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, Dices, Layers, Maximize, Minimize, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, RotateCw, Layers, Maximize, Minimize, Play, RotateCcw, SkipForward, Star, Swords, Sword, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
-import { InspectOverlay, repoName } from "@/components/battle/arena";
+import { InspectOverlay } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
-import { TYPE, useCreature } from "@/components/battle/repo-card";
 import type { BoardFight, BoardUnit, Spot } from "@/components/battle/three/board";
 import { FpsMeter } from "@/components/run/fps-meter";
 import { TeamSlots } from "@/components/run/team-slots";
+import { BarButton } from "@/components/run/bar-button";
 import { BoostPick } from "@/components/run/boost-pick";
 import { RunCard } from "@/components/run/run-card";
 import { Checks } from "@/components/run/checks";
@@ -37,7 +37,7 @@ const Board3D = lazy(() => import("@/components/battle/board3d"));
 const REPO_URL = "https://github.com/armanckeser/github-stars-organizer";
 const idOf = (side: Side, fighter: RunFighter) => `${side}:${fighter.fullName}`;
 /** The shop's tab, which stays on screen when the shop folds down. */
-const SHOP_TAB = 40;
+const SHOP_TAB = 34;
 const PANEL = "rounded-lg border border-white/15 bg-[#0c1014]/90 shadow-lg backdrop-blur-sm";
 
 type Round = { number: number; opponent: Player; theirs: Unit[] };
@@ -247,6 +247,8 @@ function RunPage() {
   }
 
   useEffect(() => setShopOpen(true), [round?.number]);
+  // The boost pick folds the shop away, so nothing of it shows through the medallions; looking at the board brings it back.
+  const [peeking, setPeeking] = useState(false);
 
   const boardUnits = useMemo<BoardUnit[]>(() => {
     const side = (which: Side, team: Unit[]) => team.map((unit) => ({ id: idOf(which, unit.fighter), side: which, fighter: unit.fighter, ...cellOf(which, unit), ranged: rangeOf(unit.fighter) > 1 }));
@@ -269,10 +271,12 @@ function RunPage() {
     setSelected(null);
   };
   const building = player !== null && round !== null && !finished && played === null;
+  const picking = Boolean(offer) && building && !peeking;
+  const shopShown = shopOpen && !picking;
   const viewingTeam = viewing && viewing.slot === undefined && !viewing.unit ? (round?.theirs ?? []) : units;
 
   return (
-    <div ref={arenaRef} data-full={full ? "" : undefined} className="arena relative mx-auto h-[calc(100dvh-7rem)] min-h-[540px] w-full max-w-6xl overflow-hidden rounded-xl bg-[#080b0f] text-white">
+    <div ref={arenaRef} data-full={full ? "" : undefined} className="arena relative h-dvh w-full overflow-hidden bg-[#080b0f] text-white">
       <Suspense fallback={null}>
         <Board3D
           units={boardUnits}
@@ -283,7 +287,7 @@ function RunPage() {
           speed={fast ? 2 : 1}
           skips={skips}
           room={Math.max(0, cap - units.length)}
-          inset={building ? SHOP_TAB + (shopOpen ? drawer : 0) : 0}
+          inset={building ? SHOP_TAB + (shopShown ? drawer : 0) : 0}
           onSelect={look}
           onFightEnd={(key) => setPlayed((current) => (current?.fight.key === key ? { ...current, over: true } : current))}
           onMove={move}
@@ -295,8 +299,11 @@ function RunPage() {
         />
       </Suspense>
 
+      <Link to="/" aria-label="Leave Play" className="hud-chip play-exit absolute left-2 top-2 z-30 grid size-9 place-items-center outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-3 sm:top-3">
+        <ArrowLeft className="size-4" />
+      </Link>
       {player && round && (
-        <div className="hud-top pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2 sm:p-3">
+        <div className="hud-top pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2 pl-13 sm:p-3 sm:pl-15">
           <button type="button" onClick={() => setProfile(player)} aria-label={`About ${player.login}`} className={`hud-chip pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
             {player.avatarUrl && <img src={player.avatarUrl} alt="" className="size-6 rounded-full" />}
             <span className="block space-y-1">
@@ -307,7 +314,7 @@ function RunPage() {
           <p className={`hud-chip whitespace-nowrap px-3 py-1.5 font-display text-base font-[800] tracking-tight [font-stretch:110%] sm:text-xl`}>Round {round.number}</p>
           <div className="pointer-events-auto flex items-center gap-1.5">
             <button type="button" onClick={() => setProfile(round.opponent)} aria-label={`About ${round.opponent.login}`} className={`hud-chip flex items-center gap-2 px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
-              <span className="max-w-24 truncate text-xs font-medium sm:max-w-40 sm:text-sm">@{round.opponent.login}</span>
+              <span className="hidden max-w-40 truncate text-sm font-medium sm:block">@{round.opponent.login}</span>
               {round.opponent.avatarUrl && <img src={round.opponent.avatarUrl} alt="" className="size-6 rounded-full" />}
             </button>
             {toggleFull && <button type="button" onClick={toggleFull} aria-label={full ? "Leave full screen" : "Full screen"} className="hud-chip p-2 outline-none focus-visible:ring-2 focus-visible:ring-ring">{full ? <Minimize className="size-4" /> : <Maximize className="size-4" />}</button>}
@@ -319,11 +326,11 @@ function RunPage() {
       {player && round && (
         <div className="checks-rail pointer-events-none absolute inset-x-0 top-14 z-10 flex items-start justify-between gap-2 px-1 sm:top-20 sm:px-2">
           <Checks title="Checks" cards={units.map((unit) => unit.fighter.card)} boosts={boosts} />
-          <Checks title="Theirs" cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} align="right" />
+          <Checks title="Theirs" cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} align="right" liveOnly />
         </div>
       )}
 
-      {offer && building && <BoostPick offer={offer.ids} round={offer.round} onPick={(id) => { setBoosts([...boosts, id]); setOffer(null); }} />}
+      {offer && building && <BoostPick offer={offer.ids} round={offer.round} onPeek={setPeeking} onPick={(id) => { setBoosts([...boosts, id]); setOffer(null); setPeeking(false); }} />}
 
       {!player && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 p-4">
@@ -340,30 +347,27 @@ function RunPage() {
       {player && error && <p className={`${PANEL} absolute inset-x-3 top-16 z-20 px-3 py-2 text-sm`} role="alert">{error}</p>}
 
       {building && (
-        <div className="shop-dock absolute inset-x-0 bottom-0 z-10" data-open={shopOpen ? "" : undefined} style={{ "--drawer": `${drawer}px` } as React.CSSProperties}>
-          {/* The tab: the gold, and the shop folding up or down under it, as TFT keeps the gold over the shop's middle. */}
-          <button type="button" className="shop-tab" onClick={() => setShopOpen(!shopOpen)} aria-expanded={shopOpen} aria-controls="shop-drawer" aria-label={`${gold} gold. ${shopOpen ? "Fold the shop" : "Open the shop"}`}>
-            <span className="hud-coin" />
-            <span className="font-display text-xl font-[800] tabular-nums text-[#ffe08a] [font-stretch:110%]">{gold}</span>
-            {shopOpen ? <ChevronDown className="size-4 text-white/55" /> : <ChevronUp className="size-4 text-white/55" />}
-          </button>
-          {/* With the shop folded, Fight stays in its corner. */}
-          <button type="button" className="hud-button hud-fight shop-dock-fight flex h-10 items-center gap-2 px-4 text-sm" onClick={fight} disabled={loading || units.length === 0} tabIndex={shopOpen ? -1 : 0} aria-hidden={shopOpen}><Swords className="size-4" /> Fight</button>
-          <div ref={drawerRef} id="shop-drawer" className="shop-bar px-2 pb-2 pt-2.5 sm:px-4 sm:pb-3 sm:pt-3" inert={!shopOpen}>
-            <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
-              <div className="sm:order-2 sm:flex-1"><Shop shop={shop} held={cardsOf(roster)} gold={gold} draftsFull={!bench.includes(null)} onOpen={(slot) => shop[slot] && setViewing({ fighter: shop[slot]!, slot })} /></div>
-              <div className="flex items-center justify-between gap-2 sm:order-1 sm:w-24 sm:flex-col sm:items-stretch sm:justify-center">
-                <button type="button" className="hud-button flex h-9 items-center justify-center gap-1.5 px-3 text-sm sm:h-auto sm:flex-col sm:gap-1 sm:py-2.5" disabled={gold < REROLL_COST} onClick={reroll} aria-label={`Reroll for ${REROLL_COST} gold`}><Dices className="size-4 sm:size-5" /><span className="flex items-center gap-1"><span className="shop-coin" />{REROLL_COST}</span></button>
-                <TeamSlots className="sm:hidden" count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
-                <button type="button" className="hud-button hud-fight flex h-9 items-center gap-1.5 px-4 text-sm sm:hidden" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-4" /> Fight</button>
-              </div>
-              <div className="dock-side hidden sm:order-3 sm:flex sm:w-28 sm:flex-col sm:items-stretch sm:justify-center sm:gap-2">
-                <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
-                <button type="button" className="dock-fight hud-button hud-fight flex h-12 items-center justify-center gap-2 text-base" onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
+        <>
+          <div className="shop-dock absolute inset-x-0 bottom-0 z-10" data-open={shopShown ? "" : undefined} style={{ "--drawer": `${drawer}px` } as React.CSSProperties}>
+            {/* The gold plaque on the bar's top edge, as TFT keeps the gold over the shop's middle; the shop folds down under it. */}
+            <button type="button" className="shop-plaque" onClick={() => setShopOpen(!shopShown)} aria-expanded={shopShown} aria-controls="shop-drawer" aria-label={shopShown ? "Fold the shop" : "Open the shop"}>
+              <span className="hud-coin" />
+              <span className="shop-plaque-gold" aria-label={`${gold} gold`}>{gold}</span>
+              {shopShown ? <ChevronDown className="size-3.5 text-white/45" /> : <ChevronUp className="size-3.5 text-white/45" />}
+            </button>
+            <div ref={drawerRef} id="shop-drawer" className="shop-bar" inert={!shopShown}>
+              <div className="shop-layout">
+                <div className="shop-controls">
+                  <BarButton label="Reroll" cost={REROLL_COST} icon={<RotateCw className="size-4" strokeWidth={2.6} />} disabled={gold < REROLL_COST} onClick={reroll} aria-label={`Reroll for ${REROLL_COST} gold`} />
+                  <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
+                </div>
+                <div className="shop-cards"><Shop shop={shop} held={cardsOf(roster)} gold={gold} draftsFull={!bench.includes(null)} onOpen={(slot) => shop[slot] && setViewing({ fighter: shop[slot]!, slot })} /></div>
               </div>
             </div>
           </div>
-        </div>
+          {/* Fight: the only filled button, in the bar's corner, and in the screen's corner when the bar folds. */}
+          <button type="button" className="shop-fight hud-fight" data-open={shopShown ? "" : undefined} onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
+        </>
       )}
 
       {fighting && (
@@ -404,7 +408,7 @@ function RunPage() {
             <li className="flex gap-2"><Coins className="mt-0.5 size-4 shrink-0 text-[#ffd84d]" /> Tap a shop card to see the card, then buy. Cards come from your stars. {ROUND_GOLD} gold each round, {WIN_GOLD} more for a win.</li>
             <li className="flex gap-2"><Sword className="mt-0.5 size-4 shrink-0" /> Sword cards fight up close. Put them in the front row.</li>
             <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Target cards hit from three cells away. Keep them behind.</li>
-            <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Bought cards wait on the bench. Drag between bench and board, or onto the shop to sell for the full price. Only the board counts toward the team.</li>
+            <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Bought cards wait on the Drafts shelf. Drag between the shelf and the board, or into the Archive to sell for the full price. Only the board counts toward the team.</li>
             <li className="flex gap-2"><Layers className="mt-0.5 size-4 shrink-0 text-[#35c450]" /> Two or three cards that share a language or topic give each other a bonus.</li>
             <li className="flex gap-2"><Star className="mt-0.5 size-4 shrink-0" /> Press Fight and watch. {WINS_TO_FINISH} wins finishes the run, {LOSSES_TO_END} losses ends the run.</li>
           </ul>

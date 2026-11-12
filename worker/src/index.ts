@@ -1,14 +1,16 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
-import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, poolResponse, trainerResponse } from "./battle.ts";
+import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
+import { cacheKeyFor } from "./edge-cache.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
+import { OPPONENTS_PATH, OptedOut, checkPoolRead, opponentsBody, readOptOuts, type OptOuts } from "./no-play.ts";
+import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
+import { RUN_PATH, runResponse } from "./run.ts";
 import { RUN_PICTURE_PATH, RUN_SHARE_PATH, SHARE_PATH, VERSUS_PATH, runPictureResponse, runSharePage, sharePage, versusResponse } from "./share.ts";
 
-// BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts):
+// BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts) and a run's token (worker/src/run.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string };
-
-const RESPONSE_SHAPE = "3";
 
 // GitHub's own rule for logins: alphanumerics and single inner hyphens, at most 39.
 // Anything else is rejected before it reaches GitHub, so this stays a fixed query
@@ -50,14 +52,33 @@ function githubGraphQL(token: string): GraphQL {
   return (query, variables) => request(query, variables, 1);
 }
 
-function json(body: unknown, status: number, cacheSeconds = 0): Response {
+function json(body: unknown, status: number, cacheSeconds = 0, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": cacheSeconds > 0 ? `public, max-age=${cacheSeconds}` : "no-store",
+      ...headers,
     },
   });
+}
+
+// The Play screen reads the run's GET routes from the Worker's origin, like /api/run/pool.
+const OPEN = { "Access-Control-Allow-Origin": "*" };
+
+// Who opted out of being played against, read once an hour per set of logins, so an
+// opt-out takes effect within the hour.
+function cachedOptOuts(origin: string, env: Env, context: ExecutionContext): OptOuts {
+  return async (logins) => {
+    const url = new URL("/api/run/no-play", origin);
+    url.searchParams.set("logins", [...logins].map((login) => login.toLowerCase()).sort().join(","));
+    const key = cacheKeyFor(url, true);
+    const cached = await caches.default.match(key);
+    if (cached) return ((await cached.json()) as { optedOut: string[] }).optedOut;
+    const optedOut = await readOptOuts(env.GITHUB_TOKEN, logins);
+    context.waitUntil(caches.default.put(key, json({ optedOut }, 200, CACHE_SECONDS)));
+    return optedOut;
+  };
 }
 
 async function listsResponse(login: string, env: Env): Promise<Response> {
@@ -79,7 +100,21 @@ export default {
     if (RUN_SHARE_PATH.test(url.pathname)) return request.method === "GET" ? runSharePage(request, url) : fetch(request);
     // The /run* route also catches pages such as /runs; those belong to the site.
     if (!url.pathname.startsWith("/api/")) return fetch(request);
+    const now = Date.now();
+    const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN };
+    const optOuts = cachedOptOuts(url.origin, env, context);
+    const run = RUN_PATH.exec(url.pathname);
+    if (run) return runResponse(run[1], request, { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now });
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
+
+    if (OPPONENTS_PATH.test(url.pathname)) {
+      try {
+        return json(await opponentsBody(optOuts), 200, 0, OPEN);
+      } catch (error) {
+        console.error(error);
+        return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0, OPEN);
+      }
+    }
 
     // A match changes with every comment, so its replies set their own short cache and skip this one.
     const match = GAME_PATH.exec(url.pathname);
@@ -89,23 +124,25 @@ export default {
     const fight = BATTLE_PATH.exec(url.pathname);
     const trainer = TRAINER_PATH.test(url.pathname);
     const versus = VERSUS_PATH.test(url.pathname);
-    const pool = RUN_POOL_PATH.test(url.pathname);
     const runPicture = RUN_PICTURE_PATH.test(url.pathname);
-    if (card || fight || trainer || versus || pool || runPicture) {
-      // Sorted, so one card asked for with its parameters in another order shares an entry.
-      url.searchParams.sort();
+    if (RUN_POOL_PATH.test(url.pathname)) {
+      try {
+        await checkPoolRead(url.searchParams, optOuts);
+      } catch (error) {
+        if (error instanceof OptedOut) return json({ error: error.message }, error.status, 0, OPEN);
+        console.error(error);
+        return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0, OPEN);
+      }
+      // Whose run the read is for decides only the check above; everyone shares one cached pool.
+      return poolReply(url.searchParams.get("login") ?? "", pools);
+    }
+    if (card || fight || trainer || versus || runPicture) {
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
-      // The version goes up whenever a reply's shape changes, so a deploy never serves
-      // an older shape to the newer app out of the cache.
-      const keyUrl = new URL(fight || versus || pool || runPicture ? url.toString().toLowerCase() : url.toString());
-      keyUrl.searchParams.set("_shape", RESPONSE_SHAPE);
-      const key = new Request(keyUrl.toString());
+      const key = cacheKeyFor(url, Boolean(fight || versus || runPicture));
       const cached = await caches.default.match(key);
       if (cached) return cached;
       const response = runPicture
         ? await runPictureResponse(url.searchParams, env.GITHUB_TOKEN)
-        : pool
-        ? await poolResponse(url.searchParams, env.GITHUB_TOKEN)
         : versus
         ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)
         : trainer

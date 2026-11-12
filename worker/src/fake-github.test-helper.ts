@@ -2,6 +2,8 @@
 // so a test can open a match without the network. Every login and repo here is
 // invented; nothing is read from a real account.
 
+import { OPPONENTS } from "../../server/run/rules.ts";
+
 type Repo = { language: string | null; stars: number; forks: number; topics: string[]; pushedAt: string };
 
 const REPOS: Record<string, Repo> = {
@@ -18,6 +20,9 @@ type Account = { readme: string | null; pinned: string[]; stars: string[] };
 
 export const HOST = "study-group-abed";
 export const GUEST = "study-group-annie";
+// A run's opponents are a fixed list of real logins (server/run/rules.ts). This one
+// answers with invented Greendale repos; nothing is read from the real account.
+export const RIVAL = OPPONENTS[0];
 
 const ACCOUNTS: Record<string, Account> = {
   // A trainer card and a top four in the `stard` README: a specialist, with an ace from the README.
@@ -28,6 +33,7 @@ const ACCOUNTS: Record<string, Account> = {
   },
   // No README: the default character, the ace from a pinned repo, only two stars.
   [GUEST]: { readme: null, pinned: ["greendale/paintball-assassin"], stars: ["city-college/mascot", "greendale/human-being"] },
+  [RIVAL]: { readme: null, pinned: ["city-college/mascot"], stars: ["greendale/dreamatorium", "troy-barnes/blanket-fort"] },
 };
 
 function repoNode(fullName: string) {
@@ -67,6 +73,45 @@ export async function fakeGitHub(_input: RequestInfo | URL, init?: RequestInit):
     data[found[1]] = REPOS[`${found[2]}/${found[3]}`] ? repoNode(`${found[2]}/${found[3]}`) : null;
   }
   return Response.json({ data });
+}
+
+// Any other account a run asks for (OPPONENTS are real logins) is answered with this
+// invented one, so no test depends on what a real account has starred.
+const STAND_IN: Account = { readme: null, pinned: ["greendale/human-being"], stars: ["city-college/mascot", "troy-barnes/blanket-fort", "cougar-town/kickpuncher"] };
+
+/** What a fake GitHub was asked: every account whose stars were read, in lower case. */
+export type FakeGitHub = { fetch: typeof fetch; usersRead: string[] };
+
+/**
+ * A fake GitHub where every account exists (unknown ones get a stand-in) and the
+ * accounts in `noPlay` have a `stard` repo with a `no-play` file in it.
+ */
+export function fakeGitHubWhere(options: { noPlay: readonly string[] }): FakeGitHub {
+  const usersRead: string[] = [];
+  const noPlay = new Set(options.noPlay.map((login) => login.toLowerCase()));
+  const answer = async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const { query } = JSON.parse(String(init?.body)) as { query: string };
+    const user = /user\(login: "([^"]+)"\)/.exec(query);
+    if (user) {
+      usersRead.push(user[1].toLowerCase());
+      const account = ACCOUNTS[user[1]] ?? STAND_IN;
+      return Response.json({ data: { user: { ...userNode(HOST)!, ...accountNode(account), login: user[1], avatarUrl: `https://avatars.example/${user[1]}` } } });
+    }
+    const optOuts = [...query.matchAll(/(o\d+): repository\(owner: "([^"]+)", name: "stard"\)/g)];
+    if (optOuts.length > 0) {
+      return Response.json({ data: Object.fromEntries(optOuts.map((found) => [found[1], noPlay.has(found[2].toLowerCase()) ? { noPlay: { oid: "a1b2c3" } } : null])) });
+    }
+    return fakeGitHub(_input, init);
+  };
+  return { fetch: answer as typeof fetch, usersRead };
+}
+
+function accountNode(account: Account) {
+  return {
+    stard: account.readme === null ? null : { readme: { text: account.readme } },
+    pinnedItems: { nodes: account.pinned.map(repoNode) },
+    starredRepositories: { nodes: account.stars.map((nameWithOwner) => ({ nameWithOwner, isPrivate: false })) },
+  };
 }
 
 /** A `fetch` for when GitHub can't be reached at all. */

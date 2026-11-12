@@ -2,6 +2,8 @@ import { battle, drawFromStars, fieldTeam, instantSeed, type Fighter, type RepoF
 import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
 import { characterFrom, characterIn, characterLevel, defaultCharacter, type Character } from "../../server/character.ts";
 import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
+import type { RunFighter } from "../../server/run/rules.ts";
+import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -111,8 +113,11 @@ export function topFourIn(readme: string): string[] {
 }
 
 
-async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
-  if (names.length === 0) return [];
+// GitHub answers several small queries side by side faster than one big one: a run's
+// 20 drawn repos took 7 to 8.5 s in one query and about 3 s as five queries of four.
+const FACTS_PER_QUERY = 4;
+
+async function factsQuery(token: string, names: string[]): Promise<FactsNode[]> {
   const found = await gql<Record<string, FactsNode | null>>(
     token,
     `query {${names
@@ -123,6 +128,12 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
       .join("")} }`,
   );
   return names.flatMap((_, i) => found[`r${i}`] ?? []);
+}
+
+async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < names.length; i += FACTS_PER_QUERY) chunks.push(names.slice(i, i + FACTS_PER_QUERY));
+  return (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
 }
 
 // A team is four cards: one ace the player chose and three drawn from their stars for
@@ -239,13 +250,29 @@ export async function trainerResponse(params: URLSearchParams, token: string): P
 }
 
 /** The cards a run is played with: the ace first, then the day's draws from the player's stars. */
+/** An account's cards as a run deals them: each fighter with its run card. */
+export type RunPool = Omit<Team, "team"> & { team: RunFighter[] };
+
+/**
+ * Each card gets its run card (server/run/stats.ts), and the fighter takes the card's
+ * numbers in place of the battle's, so the board's HP bars match the fight.
+ */
+function withRunCards(player: Team): RunPool {
+  const readAt = Date.parse(player.facts.readAt);
+  const team = player.team.map((fighter, i): RunFighter => {
+    const card = cardFor(player.facts.repos[i], readAt);
+    return { ...fighter, hp: card.hp, attack: card.attack, defense: card.guard, speed: card.speed, shiny: card.shiny, card };
+  });
+  return { ...player, team };
+}
+
 export async function poolResponse(params: URLSearchParams, token: string): Promise<Response> {
   const login = params.get("login") ?? "";
   if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
   try {
     const player = await teamFor(token, login, Date.now(), POOL_SIZE);
     if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
-    return json(player, 200, CACHE_SECONDS);
+    return json(withRunCards(player), 200, CACHE_SECONDS);
   } catch (error) {
     if (error instanceof NoSuchUser) return json({ error: `No GitHub user called ${error.message}.` }, 404, CACHE_SECONDS);
     console.error(error);

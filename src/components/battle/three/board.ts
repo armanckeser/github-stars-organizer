@@ -9,7 +9,7 @@ import { COLS, ROWS, TICK_MS, type FightEvent, type Side } from "../../../../ser
 import { ARCHIVE_DEPTH, ARCHIVE_WIDTH, buildArchive, type Archive } from "./archive";
 import { buildCreature, type Creature } from "./creature";
 import { playFired, SHIELD_KEY, type EffectActor, type EffectStage } from "./effects";
-import { EFFECT_COLOR } from "./effects/stage";
+import { CONDITION_COLOR, EFFECT_COLOR } from "./effects/stage";
 import { dispose, easeOut, overshoot, part, sphere, toon } from "./kit";
 import { buildTrainer, type Trainer } from "./trainer";
 
@@ -70,7 +70,8 @@ const FLOOR_CAP = new THREE.Color(MINE[1]).getHSL({ h: 0, s: 0, l: 0 }).l * 0.35
 /** How long an ability's name stays over the creature, in milliseconds. */
 const POP_LIFE = 900;
 const BAR_WIDTH = 0.84;
-const CONDITION_COLOR: Record<Condition, string> = { "merge-conflict": "#ff8f3d", "rate-limited": "#3ea6ff", deprecated: "#a47cff", flaky: "#ffd84d" };
+/** Seconds from a ranged card's ability hit to its number: when a melee lunge lands, which effects/damage.ts times its shard to. */
+const ABILITY_HIT_LANDS = 0.11;
 const HEAL = "#5be37a";
 /** Names over one creature show at least this far apart, and the same name at most this often, in fight seconds. */
 const NAME_GAP = 0.32;
@@ -147,6 +148,8 @@ export class BoardWorld {
   private speed = 1;
   private shake = 0;
   private fight: { key: string; ids: [string[], string[]]; events: FightEvent[]; next: number; time: number; done: boolean } | null = null;
+  /** The last ability fired: the hits it causes come right after it, in the same tick, from the same card. */
+  private cast: { side: Side; unit: number; t: number } | null = null;
   private drag: { id: string; startX: number; startY: number; moved: boolean; spot: Spot | null } | null = null;
   private observer: ResizeObserver;
   private raycaster = new THREE.Raycaster();
@@ -675,6 +678,7 @@ export class BoardWorld {
       if (quick) actor.grow = 0;
       else this.tween(0.12, 0.4, (k) => (actor.grow = 1 - easeOut(k)));
     } else if (event.kind === "ability") {
+      this.cast = { side: event.side, unit: event.unit, t: event.t };
       if (quick) return;
       this.name(actor, event.ability);
       const ids = fight.ids;
@@ -715,7 +719,12 @@ export class BoardWorld {
         if (event.critical) this.shake = 0.12;
         this.label(this.over(target, 0.25), String(event.damage), event.critical ? { color: "#ffd84d", size: 22 } : {});
       };
-      if (actor.unit.ranged) {
+      const cast = this.cast;
+      const fromAbility = cast !== null && cast.side === event.side && cast.unit === event.unit && cast.t === event.t;
+      // An ability's damage flies as its own shard (effects/damage.ts), so the card's ball would be a second shot.
+      if (fromAbility && actor.unit.ranged) {
+        this.after(ABILITY_HIT_LANDS, land);
+      } else if (actor.unit.ranged) {
         const shot = new THREE.Mesh(sphere(0.11, 10), new THREE.MeshBasicMaterial({ color: actor.unit.fighter.color && /^#[0-9a-f]{6}$/i.test(actor.unit.fighter.color) ? actor.unit.fighter.color : 0xffffff }));
         const from = actor.at.clone().setY(actor.creature.height * SIZE * 0.6);
         const to = target.at.clone().setY(target.creature.height * SIZE * 0.5);
@@ -839,7 +848,10 @@ export class BoardWorld {
       if (quick) for (const actor of this.actors.values()) actor.at.copy(actor.home);
     }
 
-    this.tweens = this.tweens.filter((tween) => {
+    // A tween's update or done may start another tween; those go on the fresh list, so none is dropped.
+    const running = this.tweens;
+    this.tweens = [];
+    const kept = running.filter((tween) => {
       if (this.now < tween.start) return true;
       const k = tween.end === tween.start ? 1 : Math.min(1, (this.now - tween.start) / (tween.end - tween.start));
       tween.update(k);
@@ -847,6 +859,7 @@ export class BoardWorld {
       tween.done?.();
       return false;
     });
+    this.tweens = [...kept, ...this.tweens];
 
     this.pose(seconds);
     this.renderer.render(this.scene, this.camera);

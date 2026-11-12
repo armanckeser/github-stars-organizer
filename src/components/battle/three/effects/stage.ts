@@ -1,5 +1,5 @@
 import type * as THREE from "three";
-import type { Effect } from "../../../../../server/run/hooks";
+import type { Condition, Effect } from "../../../../../server/run/hooks";
 import type { Side } from "../../../../../server/run/types";
 
 // What an ability's effect may touch when it plays on the board (board.ts gives it).
@@ -78,3 +78,6 @@ export const EFFECT_COLOR = {
   up: 0xffcf5a,
   down: 0xff6b6b,
 } as const;
+
+/** Each condition's colour: its badge, its HP-loss numbers and the orb that brings it (effects/condition.ts). */
+export const CONDITION_COLOR: Record<Condition, string> = { "merge-conflict": "#ff8f3d", "rate-limited": "#3ea6ff", deprecated: "#a47cff", flaky: "#ffd84d" };

@@ -1,17 +1,10 @@
 import * as THREE from "three";
-import type { Condition } from "../../../../../server/run/hooks";
 import { easeOut, sphere } from "../kit";
-import { CAST_LEAD, type EffectActor, type EffectPlayer, type EffectStage } from "./stage";
+import { CAST_LEAD, CONDITION_COLOR, type EffectActor, type EffectPlayer, type EffectStage } from "./stage";
 
 // An orb in the condition's own colour flies from the caster to the target and pops there.
 // The fight's own `condition` event shows the badge in the same tick, so the flight is
 // short: the orb says where the badge came from, the badge says what it is.
-
-/**
- * A copy of CONDITION_COLOR in board.ts, which is where these are decided: importing it
- * from there would loop the imports (board.ts imports this folder). Keep the two equal.
- */
-const CONDITION_COLOR: Record<Condition, number> = { "merge-conflict": 0xff8f3d, "rate-limited": 0x3ea6ff, deprecated: 0xa47cff, flaky: 0xffd84d };
 
 const TRAVEL = 0.15;
 const POP_LIFE = 0.2;
@@ -52,7 +45,7 @@ export const playCondition: EffectPlayer<"condition"> = (stage, cast) => {
   }
 };
 
-type Look = { root: THREE.Group; geometry: THREE.BufferGeometry; color: number; trail: boolean };
+type Look = { root: THREE.Group; geometry: THREE.BufferGeometry; color: string; trail: boolean };
 
 /** The core and trail are solid, so they show the badge's own colour; the halo around them adds light. */
 function orb(look: Look, opacity: number, scale: number, blending: THREE.Blending = THREE.AdditiveBlending): THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> {

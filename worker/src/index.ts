@@ -1,16 +1,16 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
-import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, poolResponse, trainerResponse, type RunPool } from "./battle.ts";
+import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
+import { cacheKeyFor } from "./edge-cache.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
 import { OPPONENTS_PATH, OptedOut, checkPoolRead, opponentsBody, readOptOuts, type OptOuts } from "./no-play.ts";
-import { RUN_PATH, RunRefused, runResponse } from "./run.ts";
+import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
+import { RUN_PATH, runResponse } from "./run.ts";
 import { SHARE_PATH, VERSUS_PATH, sharePage, versusResponse } from "./share.ts";
 
 // BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts) and a run's token (worker/src/run.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string };
-
-const RESPONSE_SHAPE = "4";
 
 // GitHub's own rule for logins: alphanumerics and single inner hyphens, at most 39.
 // Anything else is rejected before it reaches GitHub, so this stays a fixed query
@@ -66,37 +66,13 @@ function json(body: unknown, status: number, cacheSeconds = 0, headers: Record<s
 // The Play screen reads the run's GET routes from the Worker's origin, like /api/run/pool.
 const OPEN = { "Access-Control-Allow-Origin": "*" };
 
-// The cache entry for a read: sorted, so one card asked for with its parameters in
-// another order shares an entry. The version goes up whenever a reply's shape
-// changes, so a deploy never serves an older shape to the newer app out of the cache.
-function cacheKeyFor(url: URL, lowerCase: boolean): Request {
-  const keyUrl = new URL(lowerCase ? url.toString().toLowerCase() : url.toString());
-  keyUrl.searchParams.sort();
-  keyUrl.searchParams.set("_shape", RESPONSE_SHAPE);
-  return new Request(keyUrl.toString());
-}
-
-// A run reads an account's cards through the same cache entry as GET /api/run/pool,
-// so the opponents' teams cost GitHub one read an hour each.
-async function cachedPool(origin: string, login: string, env: Env, context: ExecutionContext): Promise<RunPool> {
-  const url = new URL("/api/run/pool", origin);
-  url.searchParams.set("login", login);
-  const key = cacheKeyFor(url, true);
-  let response = await caches.default.match(key);
-  if (!response) {
-    response = await poolResponse(url.searchParams, env.GITHUB_TOKEN);
-    if (response.headers.get("Cache-Control") !== "no-store") context.waitUntil(caches.default.put(key, response.clone()));
-  }
-  const body = (await response.json()) as RunPool & { error?: string };
-  if (!response.ok) throw new RunRefused(body.error ?? "GitHub didn't answer. Try again shortly.", response.status);
-  return body;
-}
-
 // Who opted out of being played against, read once an hour per set of logins, so an
 // opt-out takes effect within the hour.
 function cachedOptOuts(origin: string, env: Env, context: ExecutionContext): OptOuts {
   return async (logins) => {
-    const key = new Request(`${origin}/api/run/no-play?logins=${[...logins].map((login) => login.toLowerCase()).sort().join(",")}&_shape=${RESPONSE_SHAPE}`);
+    const url = new URL("/api/run/no-play", origin);
+    url.searchParams.set("logins", [...logins].map((login) => login.toLowerCase()).sort().join(","));
+    const key = cacheKeyFor(url, true);
     const cached = await caches.default.match(key);
     if (cached) return ((await cached.json()) as { optedOut: string[] }).optedOut;
     const optedOut = await readOptOuts(env.GITHUB_TOKEN, logins);
@@ -121,9 +97,11 @@ export default {
     const url = new URL(request.url);
     // The app's own page: anything but a plain read goes straight to the site.
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
+    const now = Date.now();
+    const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN };
     const optOuts = cachedOptOuts(url.origin, env, context);
     const run = RUN_PATH.exec(url.pathname);
-    if (run) return runResponse(run[1], request, { key: env.BATTLE_KEY, read: (login) => cachedPool(url.origin, login, env, context), optedOut: optOuts, now: Date.now() });
+    if (run) return runResponse(run[1], request, { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now });
     if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
 
     if (OPPONENTS_PATH.test(url.pathname)) {
@@ -143,8 +121,7 @@ export default {
     const fight = BATTLE_PATH.exec(url.pathname);
     const trainer = TRAINER_PATH.test(url.pathname);
     const versus = VERSUS_PATH.test(url.pathname);
-    const pool = RUN_POOL_PATH.test(url.pathname);
-    if (pool) {
+    if (RUN_POOL_PATH.test(url.pathname)) {
       try {
         await checkPoolRead(url.searchParams, optOuts);
       } catch (error) {
@@ -153,16 +130,14 @@ export default {
         return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0, OPEN);
       }
       // Whose run the read is for decides only the check above; everyone shares one cached pool.
-      url.searchParams.delete("for");
+      return poolReply(url.searchParams.get("login") ?? "", pools);
     }
-    if (card || fight || trainer || versus || pool) {
+    if (card || fight || trainer || versus) {
       // Usernames ignore case on GitHub, so a battle's two names are keyed in lower case.
-      const key = cacheKeyFor(url, Boolean(fight || versus || pool));
+      const key = cacheKeyFor(url, Boolean(fight || versus));
       const cached = await caches.default.match(key);
       if (cached) return cached;
-      const response = pool
-        ? await poolResponse(url.searchParams, env.GITHUB_TOKEN)
-        : versus
+      const response = versus
         ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)
         : trainer
         ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN)

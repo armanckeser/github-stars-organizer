@@ -81,8 +81,9 @@ describe("statPoints", () => {
 });
 
 describe("cardFor", () => {
-  it("makes a repo owned by armanckeser 5% stronger in every stat, and nobody else's", () => {
-    const plain = cardFor(repo({ fullName: "greendale/stard" }), NOW);
+  it("makes a repo owned by armanckeser 5% stronger in every stat than another legendary, and nobody else's", () => {
+    // A creator card is a legendary, so it is compared with a legendary by stars.
+    const plain = cardFor(repo({ fullName: "greendale/stard", stars: 100_000 }), NOW);
     const shiny = cardFor(repo({ fullName: "ArmancKeser/stard" }), NOW);
     expect([plain.shiny, shiny.shiny]).toEqual([false, true]);
     for (const stat of ["hp", "attack", "guard", "speed"] as const) expect(shiny[stat] / plain[stat]).toBeCloseTo(1.05, 1);
@@ -124,5 +125,19 @@ describe("roleOf", () => {
 
   it("calls a ranged card ranged whatever its stats", () => {
     expect(roleOf({ ...melee(200, 50, 200, 50), range: 3 })).toBe("ranged");
+  });
+});
+
+describe("creator cards", () => {
+  // Regression guarded: the creator's own repos were dealt by their stars, so
+  // armanckeser/github-stars-organizer (69 stars) came up as a 1-gold common on 400 points.
+  it.each(["armanckeser/github-stars-organizer", "ArmancKeser/i-have-adhd"])("deals %s as a legendary on the full 460-point budget", (fullName) => {
+    expect(cardFor(repo({ fullName, stars: 69 }), NOW).rarity).toBe(4);
+    expect(total(statPoints(repo({ fullName, stars: 69 }), NOW))).toBeCloseTo(460, 6);
+  });
+
+  it("deals another owner's repo with the same stars as a common on 400 points", () => {
+    expect(cardFor(repo({ fullName: "greendale/github-stars-organizer", stars: 69 }), NOW).rarity).toBe(0);
+    expect(total(statPoints(repo({ fullName: "greendale/github-stars-organizer", stars: 69 }), NOW))).toBeCloseTo(400, 6);
   });
 });

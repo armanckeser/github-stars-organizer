@@ -283,7 +283,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Sell every card. Only Fight needs at least one card on the board. | branch `sell-every-card` |
 | Names people know: Melee and Ranged, plus a role from stats (Tank, Bruiser, Assassin, Ranged). | branch `sell-every-card` |
 | Set lines say the effect plainly ("At 2: ...", "No bonus: mixed types"), not "Footnotes with 2". | branch `sell-every-card` |
-| Every `armanckeser` repo is a creator card: legendary, 5 gold, the 460 budget (× 1.05 shiny). "github-stars-organizer" is a 1-gold common today; creator cards are the reason to star them. | open |
+| Every `armanckeser` repo is a creator card: legendary, 5 gold, the 460 budget (× 1.05 shiny). "github-stars-organizer" is a 1-gold common today; creator cards are the reason to star them. | branch `sell-every-card` |
 | Keep the bench, even though Stard cards never combine. | built |
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |

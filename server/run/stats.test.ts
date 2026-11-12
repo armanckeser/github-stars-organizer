@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cardFor, rarityOf, statPoints, type CardFacts } from "./stats.ts";
+import { cardFor, rarityOf, roleOf, statPoints, type CardFacts } from "./stats.ts";
+import type { Card } from "./types.ts";
 
 const NOW = Date.parse("2026-11-10T00:00:00Z");
 const repo = (over: Partial<CardFacts> = {}): CardFacts => ({
@@ -100,5 +101,28 @@ describe("cardFor", () => {
   it("puts the language and up to two topics in the card's sets, lower-case", () => {
     expect(cardFor(repo({ topics: ["cli", "ai", "web"] }), NOW).sets).toEqual(["typescript", "cli", "ai"]);
     expect(cardFor(repo({ language: null }), NOW).sets).toEqual([]);
+  });
+});
+
+describe("roleOf", () => {
+  // Regression guarded: a card's role picked from the wrong stats would tell a player to
+  // put a glass cannon in the front row.
+  const melee = (hp: number, attack: number, guard: number, speed: number): Card => ({
+    fullName: "greendale/troy", type: "web", sets: [], rarity: 0, hp, attack, guard, speed, range: 1, ability: "none", shiny: false,
+  });
+
+  // HP points are (hp - 130) / 0.25, so hp 157 is 108 points.
+  it.each([
+    { role: "tank", card: melee(157, 100, 120, 105), why: "toughness 228 over damage 205 is 1.11" },
+    { role: "bruiser", card: melee(157, 116, 101, 121), why: "209 over 237 is 0.88" },
+    { role: "assassin", card: melee(155, 130, 90, 125), why: "190 over 255 is 0.75" },
+    { role: "tank", card: melee(155, 100, 84, 100), why: "184 over 200 is exactly 0.92" },
+    { role: "bruiser", card: melee(155, 100, 70, 100), why: "170 over 200 is exactly 0.85" },
+  ])("calls a melee card a $role when $why", ({ role, card }) => {
+    expect(roleOf(card)).toBe(role);
+  });
+
+  it("calls a ranged card ranged whatever its stats", () => {
+    expect(roleOf({ ...melee(200, 50, 200, 50), range: 3 })).toBe("ranged");
   });
 });

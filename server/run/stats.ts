@@ -121,6 +121,24 @@ export function statPoints(repo: CardFacts, now: number): StatPoints {
   return { hp, attack, guard, speed };
 }
 
+/** What a card does on the board, by its reach and, up close, by how its stats lean. */
+export type Role = "tank" | "bruiser" | "assassin" | "ranged";
+
+// Toughness (HP points and guard) over damage (attack and speed). Every card's stats are
+// one budget split with floors and caps, so the ratio stays near 1: on real pools melee
+// cards run 0.82 to 1.0, and these cuts give each role about a quarter, half and quarter.
+const TANK_FROM = 0.92;
+const ASSASSIN_BELOW = 0.85;
+
+export function roleOf(card: Card): Role {
+  if (card.range > 1) return "ranged";
+  const toughness = (card.hp - HP_FLOOR) / HP_PER_POINT + card.guard;
+  const lean = toughness / (card.attack + card.speed);
+  if (lean >= TANK_FROM) return "tank";
+  if (lean < ASSASSIN_BELOW) return "assassin";
+  return "bruiser";
+}
+
 export const isShiny = (fullName: string) => fullName.split("/")[0].toLowerCase() === SHINY_OWNER;
 
 /** The card a repo becomes, the same for every player. */

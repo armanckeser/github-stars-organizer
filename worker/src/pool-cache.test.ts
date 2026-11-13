@@ -100,7 +100,7 @@ describe("an opponent's pool at the edge", () => {
 
     vi.setSystemTime(START + 2 * DAY);
     const request = new Request(`${ORIGIN}/api/run/new`, { method: "POST", body: JSON.stringify({ login: RIVAL }) });
-    const response = await runResponse("new", request, { key: KEY, read: (login) => cachedPool(login, poolDeps()), optedOut: async () => [], now: Date.now() });
+    const response = await runResponse("new", request, { key: KEY, read: (login) => cachedPool(login, poolDeps()), optedOut: async () => [], now: Date.now(), newSeed: () => "greendale-run-1" });
     await settled();
 
     expect(response.status).toBe(200);

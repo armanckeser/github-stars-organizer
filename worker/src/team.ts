@@ -3,6 +3,7 @@ import { LOSSES_TO_END, OPPONENTS, ROUND_GOLD, SLOT_COST, START_GOLD, WINS_TO_FI
 import { SAVED_TEAM_VERSION, finalUnits, recordOf, type SavedRound, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Snapshot } from "../../server/run/types.ts";
 import { LOGIN } from "./cards.ts";
+import type { CountEvent } from "./events.ts";
 import type { OptOuts } from "./no-play.ts";
 import { seal } from "./sealed.ts";
 import {
@@ -11,18 +12,19 @@ import {
 
 // A finished run's team, for its share link. The Play screen plays a run in the
 // browser, so before the Worker signs a team it plays the run's fights again itself:
-// every card has to be one of the player's cards for the day (numbers from the Worker,
+// every card has to be one of the player's cards (numbers from the Worker,
 // not the browser), each round's team has to fit that round's board, and the record is
 // the one these fights give. The link then carries the team, so it never needs storing.
 // An account that opted out of being played against (worker/src/no-play.ts) gets no
 // team link, and a link to its team stops opening once it opts out.
 //
-//   POST /api/run/team {login, rounds, against?}  the team's token, and the team
+//   POST /api/run/team {login, seed, rounds, against?}  the team's token, and the team
 //   GET  /api/run/team?t=<token>                  the team, once the token checks out
-//   GET  /team?t=<token>                          the app's page, with the team's link-preview tags
+//   GET  /team?t=<token>[&to=<friend>]            the app's page, with the team's link-preview tags
 //
 // `rounds` is the team as fought at each round, round 1 first:
 // `{units: [{repo: "owner/name", col, row}], boosts: [<boost id>]}`.
+// `seed` is the run's seed (newRunSeed), which picked its opponents and seeded its fights.
 // `against` is the token of the saved team the run was played against, if it was.
 
 export const TEAM_PATH = /^\/api\/run\/team$/;
@@ -32,6 +34,8 @@ export const TEAM_PAGE_PATH = /^\/team\/?$/;
 const MAX_ROUNDS = 20;
 // A token never changes what it says, so its team can be cached as long as anything.
 const CACHE_SECONDS = 86400;
+// newRunSeed's is 32 characters; this only bounds what a request may send.
+const MAX_SEED_CHARS = 64;
 
 /**
  * The most board slots a player could have bought by a round: every gold piece a run
@@ -68,7 +72,7 @@ function checkedRound(pool: RunFighter[], login: string, round: PlayedRound, num
   const cells = new Set<string>();
   const units = round.units.map((unit) => {
     const fighter = pool.findIndex((card) => card.fullName.toLowerCase() === unit.repo.toLowerCase());
-    if (fighter === -1) throw new RunRefused(`${unit.repo} isn't one of ${login}'s cards today.`, REFUSED);
+    if (fighter === -1) throw new RunRefused(`${unit.repo} isn't one of ${login}'s cards.`, REFUSED);
     if (seen.has(fighter)) throw new RunRefused(`${unit.repo} is on the team twice in round ${number}.`, REFUSED);
     const cell = `${unit.col},${unit.row}`;
     if (!inHalf(unit.col, unit.row) || cells.has(cell)) throw new RunRefused(`Two cards share a cell, or a card is off the board, in round ${number}.`, REFUSED);
@@ -86,6 +90,8 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
   const login = typeof body.login === "string" ? body.login : "";
   if (!LOGIN.test(login)) throw new RunRefused("A team needs its player's GitHub username.", BAD_REQUEST);
   if (body.against !== undefined && typeof body.against !== "string") throw new RunRefused("A team to play against is its link's token.", BAD_REQUEST);
+  const seed = typeof body.seed === "string" ? body.seed : "";
+  if (seed.length === 0 || seed.length > MAX_SEED_CHARS) throw new RunRefused("A team needs its run's seed.", BAD_REQUEST);
   const played = roundsIn(body.rounds);
   const against = typeof body.against === "string" ? await openTeam(body.against, key) : null;
   // Nobody else may play against an opted-out account, so its team gets no link to be played from.
@@ -103,8 +109,8 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
     if (wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END) throw new RunRefused(`The run was over before round ${number}.`, REFUSED);
     const checked = checkedRound(player.team, player.login, round, number, rounds.at(-1)?.boosts ?? []);
     const mine: Snapshot = { login: player.login, round: number, units: checked.units.map((unit) => ({ card: player.team[unit.fighter].card, col: unit.col, row: unit.row })), boosts: checked.boosts };
-    const opponent = await opponentAt(player.login, number, day, against, deps.read, optedOut);
-    const winner = winnerOf(fight(mine, opponent.snapshot, fightSeed(player.login, opponent.login, number, day)));
+    const opponent = await opponentAt(player.login, number, seed, against, deps.read, optedOut);
+    const winner = winnerOf(fight(mine, opponent.snapshot, fightSeed(player.login, opponent.login, number, seed)));
     if (winner === 0) wins++;
     if (winner === 1) losses++;
     rounds.push(checked);
@@ -124,7 +130,9 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
     fighters: fielded.map((index) => player.team[index]),
     rounds: rounds.map((round) => ({ ...round, units: round.units.map((unit) => ({ ...unit, fighter: fielded.indexOf(unit.fighter) })) })),
   };
-  return { token: await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING), team: saved };
+  const token = await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING);
+  deps.count?.("team_saved");
+  return { token, team: saved };
 }
 
 export async function teamResponse(request: Request, url: URL, deps: RunDeps): Promise<Response> {
@@ -148,13 +156,14 @@ const attribute = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&
 
 /**
  * What a team link's preview says. Anyone can type any username, so it names whose
- * stars the team was drafted from, never a person who played.
+ * stars the team was drafted from, never a person who played. A challenge link names
+ * the friend it was sent to (`to`, a username once checked).
  */
-export function teamPreview(saved: SavedTeam): { title: string; description: string; alt: string } {
+export function teamPreview(saved: SavedTeam, to: string | null = null): { title: string; description: string; alt: string } {
   const record = recordOf(saved.wins, saved.losses);
   const cards = finalUnits(saved).map((unit) => unit.fighter.fullName.split("/")[1] ?? unit.fighter.fullName);
   return {
-    title: `A team from @${saved.login}'s stars · Stard`,
+    title: to ? `@${saved.login} challenges @${to} · Stard` : `A team from @${saved.login}'s stars · Stard`,
     description: `${record}, with ${cards.join(", ")}. Beat this team on Stard.`,
     alt: `A team of repo cards from @${saved.login}'s stars, ${record}`,
   };
@@ -164,7 +173,7 @@ export function teamPreview(saved: SavedTeam): { title: string; description: str
  * The app's own page for /team, with the link-preview tags of the team in its address
  * (as /battle's in worker/src/share.ts). A team whose owner opted out gets the plain page.
  */
-export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts): Promise<Response> {
+export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts, count: CountEvent): Promise<Response> {
   const page = await fetch(request);
   if (!(page.headers.get("Content-Type") ?? "").includes("text/html")) return page;
   // The static host answers a deep link with its fallback page and a 404; the page is the app, so it is a 200.
@@ -178,13 +187,16 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
   } catch {
     return new Response(page.body, { status: 200, headers });
   }
+  count("team_opened");
 
+  const to = url.searchParams.get("to") ?? "";
+  const challenged = LOGIN.test(to) ? to : null;
   const query = `t=${encodeURIComponent(token)}`;
-  const { title, description: says, alt } = teamPreview(saved);
+  const { title, description: says, alt } = teamPreview(saved, challenged);
   const picture = `${url.origin}/api/card/team.png?${query}`;
   const tags = [
     ["property", "og:type", "website"],
-    ["property", "og:url", `${url.origin}/team?${query}`],
+    ["property", "og:url", `${url.origin}/team?${query}${challenged ? `&to=${challenged}` : ""}`],
     ["property", "og:title", title],
     ["property", "og:description", says],
     ["property", "og:image", picture],

@@ -8,7 +8,7 @@ import type { RunPool } from "./battle.ts";
 import { runResponse, type RunDeps } from "./run.ts";
 import { fakeGitHubWhere } from "./fake-github.test-helper.ts";
 import { teamPreview, teamResponse } from "./team.ts";
-import { callWorker, memoryCaches } from "./worker-host.test-helper.ts";
+import { callWorker, memoryCaches, memoryDataset } from "./worker-host.test-helper.ts";
 
 // The share picture's assets are bundled by wrangler and can't load in Node; nothing here draws a picture.
 vi.mock("@resvg/resvg-wasm/index_bg.wasm", () => ({ default: new Uint8Array() }));
@@ -22,7 +22,10 @@ const KEY = "the-key-to-greendale";
 const NOW = Date.parse("2026-11-11T12:00:00Z");
 const PLAYER = "greendale";
 const CHALLENGER = "city-college";
-const POOL = 21;
+const POOL = 40;
+/** The seed a run in this file is played with, unless a test gives its own. */
+const RUN_SEED = "greendale-run-1";
+const WEEK = 7 * 86_400_000;
 
 const fighter = (fullName: string, over: Partial<Fighter>): RunFighter => {
   const base: Fighter = {
@@ -44,11 +47,16 @@ const poolOf = (login: string, over: Partial<Fighter>): RunPool => ({
 const STRONG = { hp: 1000, attack: 400, defense: 100, speed: 100 };
 const WEAK = { hp: 50, attack: 5, defense: 5, speed: 5 };
 
-/** The player's cards are `strengths[login]`, everyone else's weak; every read is noted in `reads`; `optedOut` have a `stard/no-play` file. */
-function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = [], optedOut: string[] = []): RunDeps {
+/**
+ * The player's cards are `strengths[login]`, everyone else's weak; every read is noted in `reads`;
+ * `optedOut` have a `stard/no-play` file; every counted event is noted in `counted`.
+ */
+function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = [], optedOut: string[] = [], counted: string[] = []): RunDeps {
   return {
     key: KEY,
     now: NOW,
+    newSeed: () => RUN_SEED,
+    count: (event) => void counted.push(event),
     read: async (login) => {
       reads.push(login);
       return poolOf(login, strengths[login] ?? WEAK);
@@ -62,8 +70,9 @@ type Saved = { token: string; error: string; team: { login: string; day: string;
 /** A round where the team is just the ace, up close in the front row. */
 const aceOnly = (login = PLAYER) => ({ units: [{ repo: `${login}/repo-0`, col: 1, row: 0 }], boosts: [] });
 
-async function post(body: unknown, deps: RunDeps): Promise<{ status: number; body: Saved }> {
-  const request = new Request("https://stars-demo.example/api/run/team", { method: "POST", body: JSON.stringify(body) });
+/** Saves a team; the run's seed is RUN_SEED unless `body` names its own (or `seed: undefined`, for none). */
+async function post(body: Record<string, unknown>, deps: RunDeps): Promise<{ status: number; body: Saved }> {
+  const request = new Request("https://stars-demo.example/api/run/team", { method: "POST", body: JSON.stringify({ seed: RUN_SEED, ...body }) });
   const response = await teamResponse(request, new URL(request.url), deps);
   return { status: response.status, body: (await response.json()) as Saved };
 }
@@ -110,11 +119,44 @@ describe("POST /api/run/team", () => {
     expect(body.rounds[4]).toEqual({ units: [{ fighter: 0, col: 1, row: 0 }], boosts: [] });
   });
 
-  it("freezes each card's numbers as the Worker read them for the day", async () => {
+  it("freezes each card's numbers as the Worker read them, and reads the same team back a week later", async () => {
     // Regression guarded: a team link that read the repos again would change the team when the repos change.
     const token = await savedStrongTeam();
-    const later = await read(token, depsFor({ [PLAYER]: { attack: 1 } }));
+    const now = await read(token, depsFor({}));
+    const later = await read(token, { ...depsFor({ [PLAYER]: { attack: 1 } }), now: NOW + WEEK, newSeed: () => "greendale-run-2" });
     expect(later.body.fighters[0].card.attack).toBe(400);
+    expect(later.body).toEqual(now.body);
+  });
+
+  it("replays the fights against the opponents the run's seed picked", async () => {
+    // Regression guarded: the Play screen picks a run's opponents with the run's seed; a
+    // replay that picked them with the day met other teams and gave another record.
+    const deps = depsFor({ [PLAYER]: STRONG });
+    const runOpponents: string[] = [];
+    type Played = { token: string; run: { offer: string[] }; fight: { opponent: { login: string } } };
+    let run = (await (await runResponse("new", new Request("https://stars-demo.example/api/run/new", { method: "POST", body: JSON.stringify({ login: PLAYER }) }), deps)).json()) as Played;
+    const boosts: string[] = [];
+    for (let round = 1; round <= 5; round++) {
+      const boost = run.run.offer[0];
+      if (boost) boosts.push(boost);
+      const choice = { token: run.token, fight: true, ...(boost ? { boost } : {}) };
+      const fought = (await (await runResponse("act", new Request("https://stars-demo.example/api/run/act", { method: "POST", body: JSON.stringify(choice) }), deps)).json()) as Played;
+      runOpponents.push(fought.fight.opponent.login);
+      run = fought;
+    }
+
+    const reads: string[] = [];
+    // Each round's team as the run fought it: the ace, with the boosts picked before that round.
+    const rounds = [0, 0, 1, 1, 2].map((picked) => ({ ...aceOnly(), boosts: boosts.slice(0, picked) }));
+    const { status } = await post({ login: PLAYER, rounds }, depsFor({ [PLAYER]: STRONG }, reads));
+    expect(status).toBe(200);
+    expect(reads.slice(1)).toEqual(runOpponents);
+  });
+
+  it("refuses a team without its run's seed", async () => {
+    const { status, body } = await post({ login: PLAYER, seed: undefined, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }));
+    expect(status).toBe(400);
+    expect(body.error).toBe("A team needs its run's seed.");
   });
 
   it("counts the record from the Worker's own replay of the fights", async () => {
@@ -124,12 +166,12 @@ describe("POST /api/run/team", () => {
     expect(weak.body.error).toBe("The run was over before round 4.");
   });
 
-  it("refuses a card that isn't one of the player's cards for the day", async () => {
+  it("refuses a card that isn't one of the player's cards", async () => {
     // Regression guarded: a forged legendary on a shared team.
     const rounds = [...Array.from({ length: 4 }, () => aceOnly()), { units: [{ repo: "torvalds/linux", col: 1, row: 0 }], boosts: [] }];
     const { status, body } = await post({ login: PLAYER, rounds }, depsFor({ [PLAYER]: STRONG }));
     expect(status).toBe(422);
-    expect(body.error).toBe("torvalds/linux isn't one of greendale's cards today.");
+    expect(body.error).toBe("torvalds/linux isn't one of greendale's cards.");
   });
 
   const cardsInFront = (count: number) => ({ units: Array.from({ length: count }, (_, i) => ({ repo: `${PLAYER}/repo-${i}`, col: i, row: 0 })), boosts: [] });
@@ -230,6 +272,21 @@ describe("Beat this team", () => {
     expect(reads.filter((login) => OPPONENTS.includes(login))).toEqual([]);
   });
 
+  it("meets the same saved team in round 1 whatever the run's seed", async () => {
+    // Regression guarded: a run against a team link dealing the saved team's cards with the run's seed, so two players met two different teams.
+    const token = await savedStrongTeam();
+    const firstRound = async (seed: string) => {
+      const deps = { ...depsFor({}), newSeed: () => seed };
+      const start = new Request("https://stars-demo.example/api/run/new", { method: "POST", body: JSON.stringify({ login: CHALLENGER, against: token }) });
+      const started = (await (await runResponse("new", start, deps)).json()) as { token: string };
+      const fight = new Request("https://stars-demo.example/api/run/act", { method: "POST", body: JSON.stringify({ token: started.token, fight: true }) });
+      return ((await (await runResponse("act", fight, deps)).json()) as { fight: { teams: [unknown, unknown] } }).fight.teams[1];
+    };
+
+    expect(await firstRound("city-college-run-1")).toEqual(await firstRound("city-college-run-2"));
+    expect(await firstRound("city-college-run-1")).toMatchObject({ login: PLAYER, units: [{ card: { fullName: "greendale/repo-0" }, col: 1, row: 0 }] });
+  });
+
   it("saves a run played against a saved team by replaying it against that team", async () => {
     // Against the strong saved team, a weak challenger loses three rounds straight.
     const against = await savedStrongTeam();
@@ -253,6 +310,102 @@ describe("Beat this team", () => {
     const { status, body } = await post({ login: CHALLENGER, rounds: [aceOnly(CHALLENGER)], against: "made.up" }, depsFor({}));
     expect(status).toBe(403);
     expect(body.error).toBe("This team link was changed, so the team can't be trusted.");
+  });
+});
+
+// The Workers runtime's HTMLRewriter, which Node lacks: it hands the page back as it
+// is, and notes the title it set and the tags it added to the head.
+const rewritten: { title: string[]; head: string[] } = { title: [], head: [] };
+class RecordingRewriter {
+  private readonly handlers: [string, { element: (element: { remove: () => void; setInnerContent: (text: string) => void; append: (html: string) => void }) => void }][] = [];
+  on(selector: string, handler: RecordingRewriter["handlers"][number][1]) {
+    this.handlers.push([selector, handler]);
+    return this;
+  }
+  transform(response: Response) {
+    const element = (selector: string) => ({ remove: () => {}, setInnerContent: (text: string) => void rewritten.title.push(text), append: (html: string) => void (selector === "head" && rewritten.head.push(html)) });
+    for (const [selector, handler] of this.handlers) handler.element(element(selector));
+    return response;
+  }
+}
+beforeEach(() => {
+  rewritten.title = [];
+  rewritten.head = [];
+});
+/** GitHub for the opt-out check, and the static host's page for everything else. */
+function pagesAndGitHub(): typeof fetch {
+  const github = fakeGitHubWhere({ noPlay: [] }).fetch;
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const address = input instanceof Request ? input.url : String(input);
+    if (address.startsWith("https://api.github.com/")) return github(input, init);
+    return new Response("<html><head><title>Stard</title></head></html>", { headers: { "Content-Type": "text/html" } });
+  }) as typeof fetch;
+}
+
+describe("the team counters", () => {
+  it("counts a saved team once the Worker has signed it", async () => {
+    // Regression guarded: no count of team links made, so the launch couldn't tell whether anyone shared a team.
+    const counted: string[] = [];
+    const { status } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }, [], [], counted));
+    expect(status).toBe(200);
+    expect(counted).toEqual(["team_saved"]);
+  });
+
+  it("doesn't count a team the Worker refused to save", async () => {
+    const counted: string[] = [];
+    const { status } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: WEAK }, [], [], counted));
+    expect(status).toBe(422);
+    expect(counted).toEqual([]);
+  });
+
+  it("counts a team link opened on its page", async () => {
+    const token = await savedStrongTeam();
+    vi.stubGlobal("fetch", pagesAndGitHub());
+    vi.stubGlobal("caches", memoryCaches());
+    vi.stubGlobal("HTMLRewriter", RecordingRewriter);
+    const events = memoryDataset();
+    const { status } = await callWorker(`/team?t=${encodeURIComponent(token)}`, undefined, { EVENTS: events });
+    expect(status).toBe(200);
+    expect(events.points).toEqual([{ blobs: ["team_opened", "", "stars-demo.example"], doubles: [0], indexes: ["team_opened"] }]);
+  });
+
+  it("doesn't count a link whose team can't be opened", async () => {
+    // Regression guarded: counting every /team request, made-up links included, as an opened team.
+    vi.stubGlobal("fetch", pagesAndGitHub());
+    vi.stubGlobal("caches", memoryCaches());
+    vi.stubGlobal("HTMLRewriter", RecordingRewriter);
+    const events = memoryDataset();
+    const { status } = await callWorker("/team?t=made.up", undefined, { EVENTS: events });
+    expect(status).toBe(200);
+    expect(events.points).toEqual([]);
+  });
+});
+
+async function openedPage(path: string): Promise<{ title: string[]; head: string[] }> {
+  vi.stubGlobal("fetch", pagesAndGitHub());
+  vi.stubGlobal("caches", memoryCaches());
+  vi.stubGlobal("HTMLRewriter", RecordingRewriter);
+  const { status } = await callWorker(path);
+  expect(status).toBe(200);
+  return rewritten;
+}
+
+describe("a challenge link's page", () => {
+  it("names the challenger and the friend in the title and keeps the friend on the link", async () => {
+    // Regression guarded: a challenge pasted in a chat previews as any team, so the friend can't see it's for them.
+    const token = await savedStrongTeam();
+    const page = await openedPage(`/team?t=${encodeURIComponent(token)}&to=annie`);
+    expect(page.title).toEqual(["@greendale challenges @annie · Stard"]);
+    expect(page.head[0]).toContain('<meta property="og:title" content="@greendale challenges @annie · Stard" />');
+    expect(page.head[0]).toContain(`<meta property="og:url" content="https://stars-demo.example/team?t=${encodeURIComponent(token)}&amp;to=annie" />`);
+  });
+
+  it("ignores a friend that isn't a username", async () => {
+    // Regression guarded: markup in "to" written into the page's title and tags.
+    const token = await savedStrongTeam();
+    const page = await openedPage(`/team?t=${encodeURIComponent(token)}&to=${encodeURIComponent("<script>")}`);
+    expect(page.title).toEqual(["A team from @greendale's stars · Stard"]);
+    expect(page.head[0]).toContain(`<meta property="og:url" content="https://stars-demo.example/team?t=${encodeURIComponent(token)}" />`);
   });
 });
 

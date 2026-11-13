@@ -8,6 +8,7 @@ import {
 import { SAVED_TEAM_VERSION, savedSnapshotAt, savedUnitsAt, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Card, Fight, FightEvent, Placed, Side, Snapshot } from "../../server/run/types.ts";
 import type { RunPool } from "./battle.ts";
+import type { CountEvent } from "./events.ts";
 import { LOGIN } from "./cards.ts";
 import type { OptOuts } from "./no-play.ts";
 import { BrokenSeal, seal, unseal, type Packing } from "./sealed.ts";
@@ -34,7 +35,8 @@ export const fight: Fight = runFight;
 const cardOf = (fighter: RunFighter): Card => fighter.card;
 
 
-const TOKEN_VERSION = 2;
+// 3: the run's seed took the place of its day, so a run started before can't go on.
+const TOKEN_VERSION = 3;
 // Signed with the token, so a match's signature can never pass for a run's, nor a run's for a saved team's.
 const TOKEN_PURPOSE = "stard-run";
 export const TEAM_PURPOSE = "stard-team";
@@ -57,9 +59,9 @@ type RunStatus = "playing" | "finished" | "over";
 type RunState = {
   v: typeof TOKEN_VERSION;
   login: string;
-  /** The day the run started (UTC). Seeds the shops and the opponents. */
-  day: string;
-  /** The ace first, then the day's draws, numbers frozen at the start. */
+  /** Drawn when the run starts (newRunSeed). Seeds the shops, the opponents, the boosts and the fights. */
+  seed: string;
+  /** The ace first, then the draws from the player's stars, numbers frozen at the start. */
   pool: Card[];
   round: number;
   gold: number;
@@ -77,7 +79,7 @@ type RunState = {
 
 type RunView = {
   login: string;
-  day: string;
+  seed: string;
   status: RunStatus;
   round: number;
   wins: number;
@@ -117,10 +119,12 @@ type Choice =
 const CHOICES = ["buy", "sell", "reroll", "place", "fight"] as const;
 
 /**
- * What the Worker gives a run: its key, a way to read an account's cards for the day,
- * which accounts asked not to be played against (worker/src/no-play.ts), and the time.
+ * What the Worker gives a run: its key, a way to read an account's cards, which
+ * accounts asked not to be played against (worker/src/no-play.ts), the time, where a
+ * new run's seed comes from (newRunSeed, or a fixed one in a test), and the counters
+ * (worker/src/events.ts), which a test or a Worker without the dataset leaves out.
  */
-export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; optedOut: OptOuts; now: number };
+export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; optedOut: OptOuts; now: number; newSeed: () => string; count?: CountEvent };
 
 /** A choice the rules don't allow, or a request that can't be read. The message is shown to the player. */
 export class RunRefused extends Error {
@@ -182,19 +186,19 @@ export type Opponent = { login: string; avatarUrl: string | null; character: Sav
  * The team a player meets at a round: a saved team when the run was started from a
  * share link, else a team drafted from a well-known account's stars (opponentUnits).
  */
-export async function opponentAt(login: string, round: number, day: string, against: SavedTeam | null, read: RunDeps["read"], optedOut: readonly string[]): Promise<Opponent> {
+export async function opponentAt(login: string, round: number, seed: string, against: SavedTeam | null, read: RunDeps["read"], optedOut: readonly string[]): Promise<Opponent> {
   if (against) {
     const snapshot = savedSnapshotAt(against, round);
     return { login: against.login, avatarUrl: against.avatarUrl, character: against.character, fighters: savedUnitsAt(against, round).map((unit) => unit.fighter), snapshot };
   }
-  const opponent = await read(opponentLogin(login, round, day, optedOut));
-  const units = opponentUnits(opponent, round, day);
+  const opponent = await read(opponentLogin(login, round, seed, optedOut));
+  const units = opponentUnits(opponent, round, seed);
   const snapshot: Snapshot = { login: opponent.login, round, units: units.map((unit): Placed => ({ card: cardOf(unit.fighter), col: unit.col, row: unit.row })), boosts: [] };
   return { login: opponent.login, avatarUrl: opponent.avatarUrl, character: opponent.character, fighters: units.map((unit) => unit.fighter), snapshot };
 }
 
 /** The seed a round's fight is played with, the same on the Play screen. */
-export const fightSeed = (login: string, opponent: string, round: number, day: string) => `${login}|${opponent}|${round}|${day}`;
+export const fightSeed = (login: string, opponent: string, round: number, seed: string) => `${login}|${opponent}|${round}|${seed}`;
 
 const winsOf = (state: RunState) => state.results.filter((result) => result.winner === 0).length;
 const lossesOf = (state: RunState) => state.results.filter((result) => result.winner === 1).length;
@@ -209,7 +213,7 @@ function view(state: RunState, optedOut: readonly string[]): RunView {
   const status = statusOf(state);
   return {
     login: state.login,
-    day: state.day,
+    seed: state.seed,
     status,
     round: state.round,
     wins: winsOf(state),
@@ -222,14 +226,14 @@ function view(state: RunState, optedOut: readonly string[]): RunView {
     team: state.team,
     boosts: state.boosts,
     offer: state.offer,
-    opponent: status !== "playing" ? null : (state.against?.login ?? opponentLogin(state.login, state.round, state.day, optedOut)),
+    opponent: status !== "playing" ? null : (state.against?.login ?? opponentLogin(state.login, state.round, state.seed, optedOut)),
     results: state.results,
   };
 }
 
-function shopAt(state: Pick<RunState, "login" | "day" | "pool" | "team">, round: number, rerolls: number): number[] {
+function shopAt(state: Pick<RunState, "login" | "seed" | "pool" | "team">, round: number, rerolls: number): number[] {
   const owned = state.team.map((member) => state.pool[member.card]);
-  return shopFor({ login: state.login, team: state.pool }, owned, round, rerolls, SHOP_SIZE, state.day).map((card) => state.pool.indexOf(card));
+  return shopFor({ login: state.login, team: state.pool }, owned, round, rerolls, state.seed, SHOP_SIZE).map((card) => state.pool.indexOf(card));
 }
 
 function memberOf(state: RunState, card: number): Member {
@@ -284,9 +288,9 @@ function place(state: RunState, card: number, col: number, row: number): RunStat
 
 // The opponent is picked from the accounts that haven't opted out, so an opted-out account is never read here.
 async function playRound(state: RunState, deps: RunDeps, optedOut: readonly string[]): Promise<{ state: RunState; report: FightReport }> {
-  const opponent = await opponentAt(state.login, state.round, state.day, state.against ?? null, deps.read, optedOut);
+  const opponent = await opponentAt(state.login, state.round, state.seed, state.against ?? null, deps.read, optedOut);
   const mine: Snapshot = { login: state.login, round: state.round, units: state.team.map((member): Placed => ({ card: state.pool[member.card], col: member.col, row: member.row })), boosts: state.boosts };
-  const seed = fightSeed(state.login, opponent.login, state.round, state.day);
+  const seed = fightSeed(state.login, opponent.login, state.round, state.seed);
   const events = fight(mine, opponent.snapshot, seed);
   const winner = winnerOf(events);
   const report: FightReport = {
@@ -307,7 +311,7 @@ async function playRound(state: RunState, deps: RunDeps, optedOut: readonly stri
     rerolls: 0,
     gold: state.gold + ROUND_GOLD + (winner === 0 ? WIN_GOLD : 0),
     shop: shopAt(played, round, 0),
-    offer: (BOOST_ROUNDS as readonly number[]).includes(state.round) ? boostOffer(`${state.login}|${state.day}|${state.round}`, state.boosts) : [],
+    offer: (BOOST_ROUNDS as readonly number[]).includes(state.round) ? boostOffer(`${state.login}|${state.seed}|${state.round}`, state.boosts) : [],
   };
   return { state: next, report };
 }
@@ -352,7 +356,7 @@ async function newRun(body: Record<string, unknown>, deps: RunDeps, key: string)
   const start: Omit<RunState, "shop"> = {
     v: TOKEN_VERSION,
     login: player.login,
-    day: new Date(deps.now).toISOString().slice(0, 10),
+    seed: deps.newSeed(),
     pool,
     round: 1,
     gold: START_GOLD,

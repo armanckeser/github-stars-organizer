@@ -21,3 +21,8 @@ routes = [
 ]
 # The font the share picture is drawn with.
 rules = [{ type = "Data", globs = ["**/*.ttf"], fallthrough = true }]
+# The counters behind the launch numbers (worker/src/events.ts, read by scripts/stard-counts.mjs).
+# Cloudflare creates the dataset on its first write.
+[[analytics_engine_datasets]]
+binding = "EVENTS"
+dataset = "stard_events"

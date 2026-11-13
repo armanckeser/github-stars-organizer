@@ -22,8 +22,11 @@ export const TRAINER_PATH = /^\/api\/card\/trainer\.svg$/;
 
 const CACHE_SECONDS = 3600;
 const TEAM_SIZE = 4;
-// A run draws its shops from this many of the player's stars for the day.
-const POOL_SIZE = 21;
+// A run's shops are drawn from this many cards: the ace, then the player's stars, own
+// repos and popular repos. Each run shuffles its own shops (newRunSeed), and 40 is
+// enough that a 5-card shop over a run's 7 or so rounds shows other cards run to run.
+// The pool itself is drawn once a day and cached for an hour (worker/src/pool.ts).
+const POOL_SIZE = 40;
 
 const FACTS = `nameWithOwner description stargazerCount forkCount isArchived createdAt pushedAt
   primaryLanguage { name color } owner { avatarUrl(size: 192) } repositoryTopics(first: 20) { nodes { topic { name } } }
@@ -269,8 +272,7 @@ export async function trainerResponse(params: URLSearchParams, token: string): P
   }
 }
 
-/** The cards a run is played with: the ace first, then the day's draws from the player's stars. */
-/** An account's cards as a run deals them: each fighter with its run card. */
+/** An account's cards as a run deals them, the ace first: each fighter with its run card. */
 export type RunPool = Omit<Team, "team"> & { team: RunFighter[] };
 
 /**

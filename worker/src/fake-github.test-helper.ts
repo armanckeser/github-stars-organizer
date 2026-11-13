@@ -7,10 +7,11 @@ import { OPPONENTS } from "../../server/run/rules.ts";
 type Repo = { language: string | null; stars: number; forks: number; topics: string[]; pushedAt: string };
 
 /** How many popular repos the fake search finds in each star band. */
-export const POPULAR_PER_BAND = 6;
+// Enough that a run's 40-card pool can be filled from popular repos alone (worker/src/battle.ts).
+export const POPULAR_PER_BAND = 12;
 
 /**
- * Popular repos for GitHub's search to find, six in each star band a rarity starts at
+ * Popular repos for GitHub's search to find, twelve in each star band a rarity starts at
  * (100, 1,000, 10,000 and 100,000 stars), owned by made-up Greendale sponsors.
  */
 function popularRepos(): Record<string, Repo> {

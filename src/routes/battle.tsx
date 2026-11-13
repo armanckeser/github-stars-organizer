@@ -1,16 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Layers, RotateCcw, Send, SkipForward, Star, Swords } from "lucide-react";
+import { Layers, RotateCcw, Send, SkipForward, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/copy-button";
 import { ArenaScene, ArenaStage, InspectOverlay, Nameplate, TextBox, repoName, type SideView, type Stance } from "@/components/battle/arena";
 import { Figure } from "@/components/battle/figure";
 import { MatchList } from "@/components/battle/match-list";
+import { StarStard } from "@/components/star-stard";
 import { RepoCard } from "@/components/battle/repo-card";
 import { demoUser } from "@/lib/demo";
 import { CAN_PLAY, challenge, playingAs } from "@/lib/game-api";
-import { APP_URL, CARD_ORIGIN, REPO_URL, validLogin } from "@/lib/published-list";
+import { APP_URL, CARD_ORIGIN, validLogin } from "@/lib/published-list";
 import type { BattleResult, Fighter, Side } from "../../server/battle";
 import { CLASSES, defaultCharacter, readLook, type Character } from "../../server/character";
 
@@ -25,10 +26,12 @@ type Battle = { a: Team; b: Team; seed: string; result: BattleResult };
 
 export const Route = createFileRoute("/battle")({
   component: BattlePage,
-  validateSearch: (search: Record<string, unknown>): { a?: string; b?: string; me?: string } => ({
+  // `play=1` skips the team screen: a shared link opens straight into the fight.
+  validateSearch: (search: Record<string, unknown>): { a?: string; b?: string; me?: string; play?: 1 } => ({
     a: typeof search.a === "string" ? search.a : undefined,
     b: typeof search.b === "string" ? search.b : undefined,
     me: typeof search.me === "string" ? search.me : undefined,
+    play: search.play === 1 || search.play === "1" ? 1 : undefined,
   }),
 });
 
@@ -38,6 +41,7 @@ const SOURCE = {
   pinned: "Ace from their pinned repos, the rest drawn from their stars today",
   stars: "Drawn from their stars today",
   repos: "Their top repo, the rest drawn from their stars today",
+  popular: "Popular repos on GitHub, with no stars to draw from",
 } as const;
 const NPX = "npx github-stars-organizer";
 
@@ -204,7 +208,7 @@ function BattlePage() {
         // A copy of the Worker from before the parts were separate sends the old six-number look.
         for (const team of [body.a, body.b]) team.character.look = readLook(team.character.look);
         setBattle(body);
-        setPhase("teams");
+        setPhase(search.play ? "fight" : "teams");
         setStep(0);
       })
       .catch((cause: unknown) => !stale && setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The battle couldn't start. Check the connection and try again."))
@@ -212,6 +216,8 @@ function BattlePage() {
     return () => {
       stale = true;
     };
+    // A battle that is already showing stays put when only `play` changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.a, search.b]);
 
   // The share picture is slow to draw, so the Worker draws and caches it before anyone shares the link.
@@ -238,13 +244,15 @@ function BattlePage() {
   }
 
   const query = battle ? `a=${encodeURIComponent(battle.a.login)}&b=${encodeURIComponent(battle.b.login)}` : "";
+  // What a shared link opens: the fight itself, with no team screen first.
+  const link = `${APP_URL}battle?${query}&play=1`;
   let share = "";
   if (battle && done) {
     const { winner, standing } = battle.result;
     const won = winner === "b" ? battle.b : battle.a;
     const lost = winner === "b" ? battle.a : battle.b;
     const left = standing[winner ?? "a"];
-    share = `[![${won.login} beat ${lost.login} with ${left} ${left === 1 ? "card" : "cards"} left](${CARD_ORIGIN}/api/card/battle.svg?${query})](${APP_URL}battle?${query})`;
+    share = `[![${won.login} beat ${lost.login} with ${left} ${left === 1 ? "card" : "cards"} left](${CARD_ORIGIN}/api/card/battle.svg?${query})](${link})`;
   }
 
   const sideOf = (side: Side): SideView | null => {
@@ -328,12 +336,12 @@ function BattlePage() {
               Hit {Math.min(step, total)} of {total}
             </p>
             {done && <CopyButton text={share} label="Copy the result card" />}
-            {!done && <CopyButton text={`${APP_URL}battle?${query}`} label="Copy link" />}
+            {!done && <CopyButton text={link} label="Copy link" />}
           </div>
           {done && (
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"><Star className="size-4" /> Star Stard on GitHub</a>
-              <CopyButton text={`${APP_URL}battle?${query}`} label="Share" />
+              <StarStard />
+              <CopyButton text={link} label="Share" />
             </div>
           )}
         </div>

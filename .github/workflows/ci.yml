@@ -16,10 +16,25 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      # The Worker's tests run in the root suite and import its own packages (the share pictures' resvg).
+      - run: npm ci --prefix worker
       - run: npm run lint
       - run: npm test
       - run: npm run build
       - run: npm run build:cli
+
+  # The Play screen in headless Chromium, the 3D board drawn in software WebGL (playwright.config.ts).
+  play-screen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
   # The self-host stack from this checkout's image, started with only a token: the page, the API and an
   # Electric shape answer, and a password turns sign-in on.

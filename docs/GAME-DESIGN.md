@@ -258,3 +258,81 @@ Ideas and open items from the design conversations that the sections above don't
 - **Ideas not yet tasks.** Two of the same card combine into a stronger one (needs duplicates, which stars don't give; could be "two cards by the same owner"). Item drops between rounds. A daily board everyone plays with the same shop, with a leaderboard. Spectating a friend's run from a link. Sound.
 - **Card look.** The card face (HP top right, two moves, weakness and resistance along the bottom) follows the layout of trading card games in general. Before a big push, change the face so the layout reads as Stard's own: the contribution-graph backdrop is ours, the move rows and the weakness line are the borrowed parts.
 - **Real accounts as opponents.** Names and avatars come from public profiles. Keep a visible list and a way out (Task 11).
+
+### Added 2026-11-12, the owner's feedback on the Play run
+
+Everything the owner said while the Play run was built, in one place. Status: **built** (on main), **branch** (built, not merged yet), **open** (decided, not built), **idea** (not decided).
+
+**The principle: read the creature at a glance (open)**
+
+> "If I am going for a synergy I should be able to just look at the monster and kind of understand if that's one I might want to add ... I can read further in by pressing the card."
+
+> Asked again on 2026-11-12, about combining copies: "I am still unclear on what lets me tell if a card is ranged vs not, what colors mean etc." Today range shows only as the role chip on the card face (data, docs and scripts repos are Ranged), and the creature shows the language colour and the type trim, which nothing explains.
+
+- Stard makes its own rules, so the look must follow them. Every rule a player plans around gets one visible part of the creature. The details stay in the card face.
+- Today the creature mostly shows words from the repo's name, which mean nothing in a fight. Role, sets and cost don't show at all, and type shows only through colour.
+- **Decided 2026-11-12 (build after #71, #77 and creator cards):**
+  - Body shape = role: Tank golem, Bruiser critter, Assassin bird, Ranged wisp, orb or tome.
+  - Body colour = the language's own colour, with no random shift.
+  - The emblem over the head = the topic set's icon, the same one as in the card's hex.
+  - Trim = type. Size = cost, in 5 steps. Gold foil = creator card.
+- A balance study across real repos is optional. The owner thinks it is likely not needed.
+- **2026-11-12: build it before Sunday's launch**, right after the never-empty shop.
+
+**Cards and rules**
+
+| Feedback | Status |
+|---|---|
+| Sell every card. Only Fight needs at least one card on the board. | branch `sell-every-card` |
+| Names people know: Melee and Ranged, plus a role from stats (Tank, Bruiser, Assassin, Ranged). | branch `sell-every-card` |
+| Set lines say the effect plainly ("At 2: ...", "No bonus: mixed types"), not "Footnotes with 2". | branch `sell-every-card` |
+| Every `armanckeser` repo is a creator card: legendary, 5 gold, the 460 budget (× 1.05 shiny). "github-stars-organizer" is a 1-gold common today; creator cards are the reason to star them. | branch `sell-every-card` |
+| Hovering a check (yours or theirs) names the board's cards in that set, beside the bonus. | branch `sell-every-card` |
+| Keep the bench, even though Stard cards never combine. | built |
+| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | branch `shop-never-empty`: a few from each star band (2 to 5 gold), chosen 2026-11-12 |
+| A friend's idea: buying the same repo three times combines it into a stronger one, as in TFT. Today each repo is in the pool once, so copies never meet. | idea |
+| Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
+| A round's fight runs 18 to 29 s. Keep it. | built |
+| A resent run token can retry a round. Accepted for now. | built |
+
+**Look**
+
+| Feedback | Status |
+|---|---|
+| TFT is the reference. Copy the simplicity of the lightning demos (TFT, Super Auto Pets, Balatro, Backpack Battles). Look at how the popular games solve a screen before designing it. | rule (`docs/GAME-UI.md`) |
+| The first shop, bench and boost pick "look AI designed". Pills are tasteless. GitHub as a place (checks, Drafts, Archive) is the world, done with restraint. | built |
+| Rules must lead to a nice-looking game: change the rule, not just the screen. | rule (`docs/GAME-UI.md`) |
+| Shop cards: no borders inside, no gradient background, attributes shown as TFT shows them. | built |
+| Trainers stand next to their own Drafts shelf. | built |
+| "Play a run" sounds meh: say "Play Stard" everywhere (share pictures, README badge, team page button, team preview). | built (#77) |
+| Share pictures show creatures (flat stickers), fill the set hexes, title only. README GIF ends on the new end screen. | built (#71, #77) |
+| Front page: a normal-size Play button beside the title, no sample-account button. | built |
+
+**Demo and speed**
+
+| Feedback | Status |
+|---|---|
+| Opponents take too long to load: a longer edge cache. | built (#80) |
+| The deployed app broke after a merge. Every change is checked on the live site, not only locally. | built (process) |
+
+**The journey after the first run**
+
+> "Let's say people play against these creators, what do we tell them, just share? What about the next, how do they versus other people, how is our funnel shaped such that after that first they get to create their character and start playing people they know."
+
+| Feedback | Status |
+|---|---|
+| Think through the whole journey, not one screen: arrive, first run against the 12 well-known accounts, then what? A copy-link button alone is not the answer. | open |
+| **Decided 2026-11-12, build before the launch, in order:** (1) counters per day: runs started, reached round 2, team links made, links opened, challenges played; (2) the end screen leads with who you beat ("You beat @antfu and @simonw"), its main button is Challenge a friend (type their username; their public stars become the opponent; the `no-play` opt-out still applies), share text is prefilled; (3) the friend's end screen offers Send your result back, a reply link carrying both results; (4) after the first run, Make your trainer links to `/compose` and a README card with Beat my team. | open |
+| After the numbers: a board for a group of friends, "fight @x's latest team" (needs storage), and a link from the run to the manager. | idea |
+| After the first run a player makes their own character and starts playing people they know. | open (item 4 above) |
+| Launch, rename, positioning: the README leads with "A card battle built from your GitHub stars" (#87). `stard.armanckeser.com` becomes the main address before the launch; `stars-demo.armanckeser.com` keeps serving forever (trainer cards in READMEs and battle threads point at it). The repo and npm renames wait for the 7-day launch numbers. GitHub About matches the headline (topics keep `portfolio` and `bookmark-manager`). Launch posts and strategy stay out of this repo. | built (#87, About), decided |
+
+**Abilities in a fight**
+
+> "I hate that the abilities are just text popups instead of animations and stylized."
+
+| Feedback | Status |
+|---|---|
+| An ability firing shows as a slate text card over the creature (GAME-UI §9). It should be an animation on the board, stylized, readable without reading words. One look per effect kind (damage, shield, heal, stat, condition), so 23 abilities, the set bonuses and the boosts all share it. | built: a gold name under 1 s, a gold cast ring, and one look per kind in `src/components/battle/three/effects/` (GAME-UI §9). Shields also show on the HP bar. Owner approved from the before/after videos. |
+
+The owner played a whole run on 2026-11-12: "it was actually fun".

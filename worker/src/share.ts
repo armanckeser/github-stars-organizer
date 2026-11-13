@@ -1,8 +1,10 @@
 import { Resvg, initWasm } from "@resvg/resvg-wasm";
 import wasm from "@resvg/resvg-wasm/index_bg.wasm";
-import { TYPE_COLOR, versusCard, type VersusSide } from "../../server/cards.ts";
-import { CLASSES } from "../../server/character.ts";
-import { NoSuchUser, evened, teamFor, type Team } from "./battle.ts";
+import { TYPE_COLOR, runPreviewCard, versusCard, type ShareCard, type ShelfPlayer, type VersusSide } from "../../server/cards.ts";
+import { CLASSES, type Character } from "../../server/character.ts";
+import { creatureRecipe } from "../../server/creature-recipe.ts";
+import { priceOf, type RunFighter } from "../../server/run/rules.ts";
+import { NoSuchUser, evened, teamFor, withRunCards, type Team } from "./battle.ts";
 import { LOGIN, avatarData } from "./cards.ts";
 import font from "./SpaceGrotesk-Bold.ttf";
 
@@ -12,7 +14,7 @@ import font from "./SpaceGrotesk-Bold.ttf";
 // in the address. The picture they point at is drawn here too: link previews don't
 // take SVG, so the card is turned into a PNG.
 //
-//   /battle?a=<login>&b=<login>               the app's page, with this battle's tags
+//   /battle?a=<login>&b=<login>[&play=1]      the app's page, with this battle's tags
 //   /api/card/versus.png?a=<login>&b=<login>  the picture
 
 export const VERSUS_PATH = /^\/api\/card\/versus\.png$/;
@@ -23,7 +25,7 @@ const FONT_FAMILY = "Space Grotesk";
 
 let ready: Promise<void> | undefined;
 
-async function png(svg: string): Promise<Uint8Array> {
+export async function png(svg: string): Promise<Uint8Array> {
   await (ready ??= initWasm(wasm));
   const drawn = new Resvg(svg, { font: { fontBuffers: [new Uint8Array(font)], loadSystemFonts: false, defaultFontFamily: FONT_FAMILY } }).render();
   const bytes = drawn.asPng();
@@ -92,7 +94,8 @@ export async function sharePage(request: Request, url: URL): Promise<Response> {
   const picture = `${url.origin}/api/card/versus.png?${query}`;
   const tags = [
     ["property", "og:type", "website"],
-    ["property", "og:url", `${url.origin}/battle?${query}`],
+    // A preview opens the fight itself (play=1), with no team screen first.
+    ["property", "og:url", `${url.origin}/battle?${query}&play=1`],
     ["property", "og:title", title],
     ["property", "og:description", says],
     ["property", "og:image", picture],
@@ -112,4 +115,83 @@ export async function sharePage(request: Request, url: URL): Promise<Response> {
     .on("head", { element: (element) => void element.append(tags, { html: true }) })
     .transform(new Response(page.body, { status: 200, headers }));
   return rewritten;
+}
+
+// A run link is shared the same way: the Worker stands in front of /run too.
+//
+//   /run?me=<login>              the app's page, with tags for a run with that player's stars
+//   /run                         the app's page, with tags for a run with anyone's stars
+//   /api/card/run.png?me=<login> the picture (no `me`: the picture for anyone)
+
+export const RUN_PICTURE_PATH = /^\/api\/card\/run\.png$/;
+export const RUN_SHARE_PATH = /^\/run\/?$/;
+
+/** A run's cards as a share picture draws them, each with its creature. */
+export function shareCards(fighters: RunFighter[]): ShareCard[] {
+  return fighters.map((fighter) => ({
+    name: fighter.fullName.split("/")[1] ?? fighter.fullName,
+    cost: priceOf(fighter.card.rarity),
+    sets: fighter.card.sets,
+    language: fighter.language?.toLowerCase() ?? null,
+    creature: creatureRecipe(fighter),
+  }));
+}
+
+/** A player as a share picture draws them: their trainer, avatar and cards. */
+export async function shelfPlayer(login: string, avatarUrl: string | null, character: Character, fighters: RunFighter[]): Promise<ShelfPlayer> {
+  // GitHub serves avatars at any size; the picture shows this one large.
+  const avatar = avatarUrl ? await avatarData(avatarUrl.replace(/([?&]s=)\d+/, "$1240")) : null;
+  return { login, name: character.name, klass: CLASSES[character.klass].label, look: character.look, avatar, cards: shareCards(fighters) };
+}
+
+export async function runPictureResponse(params: URLSearchParams, token: string): Promise<Response> {
+  const login = params.get("me");
+  if (login === null) return image(await png(runPreviewCard(null, FONT_FAMILY)), 200, CACHE_SECONDS);
+  if (!LOGIN.test(login)) return new Response("A run needs a GitHub username.", { status: 400 });
+  try {
+    const player = withRunCards(await teamFor(token, login, Date.now()));
+    return image(await png(runPreviewCard(await shelfPlayer(player.login, player.avatarUrl, player.character, player.team.slice(0, 4)), FONT_FAMILY)), 200, CACHE_SECONDS);
+  } catch (error) {
+    if (error instanceof NoSuchUser) return new Response(`No GitHub user called ${error.message}.`, { status: 404 });
+    console.error(error);
+    return new Response("The picture couldn't be drawn.", { status: 502 });
+  }
+}
+
+/** The app's own page for /run, with the link-preview tags of a run with the player in its address. */
+export async function runSharePage(request: Request, url: URL): Promise<Response> {
+  const page = await fetch(request);
+  if (!(page.headers.get("Content-Type") ?? "").includes("text/html")) return page;
+  const headers = new Headers(page.headers);
+  const me = url.searchParams.get("me") ?? "";
+  const named = LOGIN.test(me);
+
+  const query = named ? `?me=${encodeURIComponent(me)}` : "";
+  const title = named ? `Play Stard with ${me}'s stars` : "Play Stard with your GitHub stars";
+  const says = named
+    ? `Build a team from ${me}'s GitHub stars and fight other teams. 5 wins finishes a run, 3 losses ends one. No sign-in.`
+    : "Build a team from your GitHub stars and fight other teams. 5 wins finishes a run, 3 losses ends one. No sign-in.";
+  const picture = `${url.origin}/api/card/run.png${query}`;
+  const tags = [
+    ["property", "og:type", "website"],
+    ["property", "og:url", `${url.origin}/run${query}`],
+    ["property", "og:title", title],
+    ["property", "og:description", says],
+    ["property", "og:image", picture],
+    ["property", "og:image:width", "1200"],
+    ["property", "og:image:height", "630"],
+    ["property", "og:image:alt", named ? `${me}'s trainer beside four of their repos as cards, under the words Play Stard` : "A blank card of each cost, 1 to 5 gold, under the words Play Stard"],
+    ["name", "twitter:card", "summary_large_image"],
+    ["name", "twitter:title", title],
+    ["name", "twitter:description", says],
+    ["name", "twitter:image", picture],
+  ].map(([kind, key, value]) => `<meta ${kind}="${key}" content="${attribute(value)}" />`).join("");
+
+  // The static host answers a deep link with its fallback page and a 404; the page is the app, so it is a 200.
+  headers.set("Cache-Control", "public, max-age=300");
+  return new HTMLRewriter()
+    .on('meta[property^="og:"], meta[name^="twitter:"]', { element: (element) => void element.remove() })
+    .on("title", { element: (element) => void element.setInnerContent(title) })
+    .on("head", { element: (element) => void element.append(tags, { html: true }) })
+    .transform(new Response(page.body, { status: 200, headers }));
 }

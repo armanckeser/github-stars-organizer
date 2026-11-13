@@ -1,115 +1,60 @@
-import { seededRandom, type Fighter } from "../../server/battle";
 import { readLook, type Character } from "../../server/character";
-import { COLS, ROWS, type Card, type FightEvent, type Side, type Snapshot } from "../../server/run/types";
+import { RESPONSE_SHAPE } from "../../server/response-shape";
+import { opponentLogin, today, type RunFighter } from "../../server/run/rules";
 import { CARD_ORIGIN } from "./published-list";
 
-// A run: buy cards from a shop drawn from your stars, place them on your half of the
-// board, and watch the team fight another account's team. Five wins or three losses
-// ends the run. The fight needs no input; every choice is made before it.
+// The Play screen's side of a run. The rules live in server/run/rules.ts, which the
+// Worker that referees a run (worker/src/run.ts) shares.
 
-export const WINS_TO_FINISH = 5;
-export const LOSSES_TO_END = 3;
-export const TEAM_MAX = 5;
-export const SHOP_SIZE = 5;
-export const START_GOLD = 4;
-export const ROUND_GOLD = 5;
-export const WIN_GOLD = 1;
-export const REROLL_COST = 1;
+export * from "../../server/run/rules";
 
-/** Accounts whose teams a run is played against until players' own saved teams exist. */
-export const OPPONENTS = ["sindresorhus", "t3dotgg", "antfu", "gaearon", "yyx990803", "kentcdodds", "tj", "mitchellh", "simonw", "rauchg", "addyosmani", "torvalds"];
+export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: RunFighter[] };
 
-export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: Fighter[] };
-/** A card on a player's half of the board. Row 0 is the front. */
-export type Unit = { fighter: Fighter; col: number; row: number };
+// One read per account, run and day for the page, so the first opponent can be read
+// while the player's own cards are (a cold read is several seconds each).
+const reads = new Map<string, Promise<Player>>();
 
-const RARITY_STARS = [100, 1000, 10000, 50000];
-const rarityOf = (fighter: Fighter) => RARITY_STARS.filter((stars) => fighter.stars >= stars).length as Card["rarity"];
-/** Cards that work on text and numbers hit from behind; the rest fight up close. */
-export const rangeOf = (fighter: Fighter): Card["range"] => (fighter.type === "data" || fighter.type === "docs" || fighter.type === "scripts" ? 3 : 1);
-export const costOf = (fighter: Fighter) => rarityOf(fighter) + 1;
-
-export function toCard(fighter: Fighter): Card {
-  return {
-    fullName: fighter.fullName,
-    type: fighter.type,
-    sets: [fighter.language?.toLowerCase(), fighter.type].filter((set): set is string => Boolean(set)),
-    rarity: rarityOf(fighter),
-    hp: fighter.hp,
-    attack: fighter.attack,
-    guard: fighter.defense,
-    speed: fighter.speed,
-    range: rangeOf(fighter),
-    ability: "none",
-    shiny: fighter.shiny,
-  };
+/** An account's cards for the day. `forRun` names whose run reads them, when that is someone else's. */
+export function fetchPlayer(login: string, forRun?: string): Promise<Player> {
+  const key = `${login.toLowerCase()}|${forRun?.toLowerCase() ?? ""}|${today()}`;
+  const known = reads.get(key);
+  if (known) return known;
+  const read = readPlayer(login, forRun);
+  reads.set(key, read);
+  read.catch(() => reads.delete(key));
+  return read;
 }
 
-export const snapshot = (login: string, round: number, units: Unit[]): Snapshot => ({ login, round, units: units.map((unit) => ({ card: toCard(unit.fighter), col: unit.col, row: unit.row })), boosts: [] });
-
-export async function fetchPlayer(login: string): Promise<Player> {
-  const response = await fetch(`${CARD_ORIGIN}/api/run/pool?login=${encodeURIComponent(login)}`);
+async function readPlayer(login: string, forRun?: string): Promise<Player> {
+  const url = new URL("/api/run/pool", CARD_ORIGIN);
+  url.searchParams.set("login", login);
+  if (forRun) url.searchParams.set("for", forRun);
+  url.searchParams.set("_shape", RESPONSE_SHAPE);
+  const response = await fetch(url);
   const body = (await response.json()) as Player & { error?: string };
   if (!response.ok) throw new Error(body.error ?? "The cards couldn't be read.");
   // A copy of the Worker from before the parts were separate sends the old six-number look.
   return { ...body, character: { ...body.character, look: readLook(body.character.look) } };
 }
 
-function shuffled<T>(items: T[], seed: string): T[] {
-  const random = seededRandom(seed);
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
+let optedOut: Promise<string[]> | null = null;
+
+// Read once per page: the Worker caches the answer for an hour anyway.
+function opponentsOptedOut(): Promise<string[]> {
+  optedOut ??= fetch(`${CARD_ORIGIN}/api/run/opponents`)
+    .then(async (response) => {
+      const body = (await response.json()) as { optedOut?: string[]; error?: string };
+      if (!response.ok || !body.optedOut) throw new Error(body.error ?? "The opponents couldn't be read.");
+      return body.optedOut;
+    })
+    .catch((cause: unknown) => {
+      optedOut = null;
+      throw cause;
+    });
+  return optedOut;
 }
 
-export const today = () => new Date().toISOString().slice(0, 10);
-
-/** Cards from the player's stars that are not on the team. The same round and reroll show the same cards. */
-export function shopFor(player: Player, owned: Fighter[], round: number, rerolls: number, size = SHOP_SIZE): Fighter[] {
-  const onTeam = new Set(owned.map((fighter) => fighter.fullName));
-  const rest = player.team.slice(1).filter((fighter) => !onTeam.has(fighter.fullName));
-  return shuffled(rest, `${player.login}|${today()}|shop|${round}|${rerolls}`).slice(0, size);
-}
-
-/** How many cards a team may hold in a round. */
-export const teamSizeAt = (round: number) => Math.min(TEAM_MAX, round + 1);
-
-/** The first free cell for a new card: up close in front, cards with reach behind. */
-export function freeCell(units: Unit[], fighter: Fighter): { col: number; row: number } | null {
-  const rows = rangeOf(fighter) > 1 ? [1, 0] : [0, 1];
-  for (const row of rows) {
-    for (const col of [1, 2, 0, 3]) if (!units.some((unit) => unit.col === col && unit.row === row)) return { col, row };
-  }
-  return null;
-}
-
-export function opponentLogin(login: string, round: number): string {
-  const others = OPPONENTS.filter((name) => name !== login.toLowerCase());
-  return shuffled(others, `${login.toLowerCase()}|${today()}|opponents`)[(round - 1) % others.length];
-}
-
-/** The other account's team at this round, built the way a player builds one: each round a shop from its stars, one card taken. */
-export function opponentUnits(opponent: Player, round: number): Unit[] {
-  const team = opponent.team.slice(0, 1);
-  for (let r = 1; team.length > 0 && team.length < teamSizeAt(round); r++) {
-    const [pick] = shopFor(opponent, team, r, 0, 1);
-    if (!pick) break;
-    team.push(pick);
-  }
-  const units: Unit[] = [];
-  for (const fighter of [...team].sort((x, y) => y.defense - x.defense)) {
-    const cell = freeCell(units, fighter);
-    if (cell) units.push({ fighter, ...cell });
-  }
-  return units;
-}
-
-export const inHalf = (col: number, row: number) => col >= 0 && col < COLS && row >= 0 && row < ROWS;
-
-export function winnerOf(events: FightEvent[]): Side | null {
-  const end = events.find((event) => event.kind === "end");
-  return end?.kind === "end" ? end.winner : null;
+/** The team `me` plays in a round: an account from OPPONENTS that hasn't asked to be left out (OPPONENTS.md). */
+export async function fetchOpponent(me: string, round: number): Promise<Player> {
+  return fetchPlayer(opponentLogin(me, round, today(), await opponentsOptedOut()), me);
 }

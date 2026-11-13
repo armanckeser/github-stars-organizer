@@ -25,7 +25,7 @@ describe("a player's character in a run", () => {
 
   test("poolResponse_draws_the_players_own_character_md_when_both_files_exist", async () => {
     const { character } = await poolOf(OWN_FILE);
-    expect([character.name, character.look.hair, character.look.glasses, character.look.hat]).toEqual(["Britta", "medium", "square", "beanie"]);
+    expect([character.name, character.look.hair, character.look.glasses, character.look.hat]).toEqual(["Shirley", "medium", "square", "beanie"]);
   });
 
   test("poolResponse_keeps_the_trainer_card_when_the_readme_has_one_and_no_file_exists", async () => {

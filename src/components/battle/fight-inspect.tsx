@@ -4,7 +4,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { abilityById } from "../../../server/run/abilities";
 import { conditionLine, setName } from "../../../server/run/names";
 import type { RunFighter } from "../../../server/run/rules";
-import { teamSets } from "../../../server/run/sets";
+import { setsOf, teamSets, TIERS } from "../../../server/run/sets";
 import type { Side } from "../../../server/run/types";
 import { useFightTick, type FightClock } from "./fight-clock";
 import { momentAt, type CreatureMoment } from "./fight-moment";
@@ -79,8 +79,8 @@ function Panel({ creature, team, opponent, onClose, onCover }: { creature: Creat
   );
   const { fighter, moment } = creature;
   const ability = abilityById(fighter.card.ability);
-  const live = teamSets({ units: team.map((member) => ({ card: member.card, col: 0, row: 0 })) }).flatMap(({ set, members, bonus, tier }) =>
-    bonus && tier && fighter.card.sets.includes(set) ? [{ set, count: Math.min(members.length, 3), name: bonus.name, text: tier.text }] : [],
+  const live = teamSets({ units: team.map((member) => ({ card: member.card, col: 0, row: 0 })) }).flatMap(({ set, members, bonus, tier, next }) =>
+    tier && setsOf(fighter.card).includes(set) ? [{ set, count: members.length, of: next?.at ?? TIERS[TIERS.length - 1], does: bonus.does, text: tier.text }] : [],
   );
   return (
     <aside ref={measure} className="fight-inspect" aria-label={`${titleOf(fighter)}, ${ownerOf(creature.side, opponent)}`} data-testid="fight-inspect">
@@ -129,10 +129,10 @@ function Panel({ creature, team, opponent, onClose, onCover }: { creature: Creat
           <p className="text-sm text-white/60">None live</p>
         ) : (
           <ul className="space-y-0.5">
-            {live.map(({ set, count, name, text }) => (
+            {live.map(({ set, count, of, does, text }) => (
               <li key={set} className="text-sm">
-                <span className="font-display font-semibold tabular-nums">{setName(set)} {count}</span>{" "}
-                <span className="text-white/75">{name}: {text}</span>
+                <span className="font-display font-semibold">{setName(set)}: {does} <span className="tabular-nums">{count}/{of}</span></span>{" "}
+                <span className="text-white/75">{text}</span>
               </li>
             ))}
           </ul>

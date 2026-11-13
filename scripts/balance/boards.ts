@@ -1,7 +1,7 @@
 import { seededRandom } from "../../server/battle.ts";
 import { fight } from "../../server/run/fight.ts";
 import { ROUND_GOLD, START_GOLD, WIN_GOLD, BENCH_SIZE, boardLimit, costOf, freeCell, opponentLogin, opponentUnits, shopFor, snapshot, winnerOf, type RunFighter, type Unit } from "../../server/run/rules.ts";
-import { teamSets } from "../../server/run/sets.ts";
+import { checksOf, teamSets } from "../../server/run/sets.ts";
 import type { Card, Snapshot } from "../../server/run/types.ts";
 import { poolsFromArguments } from "./pools.ts";
 
@@ -21,10 +21,8 @@ const { player, opponents } = pools;
 
 const units = (cards: Card[]) => ({ units: cards.map((card) => ({ card, col: 0, row: 0 })) });
 
-/** The checks list's rows, as src/components/run/checks.tsx picks them. */
-function checkRows(cards: Card[]) {
-  return teamSets(units(cards)).filter((entry) => entry.bonus && (entry.tier || entry.members.length < 2));
-}
+/** The checks list's rows: src/components/run/checks.tsx shows checksOf. */
+const checkRows = (cards: Card[]) => checksOf(units(cards));
 
 const liveChecks = (cards: Card[]) => teamSets(units(cards)).filter((entry) => entry.tier).length;
 const percent = (share: number) => `${(share * 100).toFixed(1)}%`;

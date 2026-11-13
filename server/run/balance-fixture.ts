@@ -14,8 +14,14 @@ export const FIXTURE_NOW = Date.parse("2026-11-10T00:00:00Z");
 const DAY = 86_400_000;
 const LANGUAGES = ["TypeScript", "JavaScript", "Python", "Rust", "Go", "C++", "Shell", "Ruby", "Java", "Kotlin", "Swift", "C#", "PHP", "Jupyter Notebook", "HTML", null];
 const REPOS = 200;
-/** Both teams in a strength fight hold this many cards: a mid-run board. */
-export const STRENGTH_TEAM = 4;
+/** The fewest cards each team holds in a strength fight: a mid-run board. */
+const STRENGTH_TEAM = 4;
+/**
+ * Cards on each team in a strength fight: four, or one more than the bonus's members,
+ * so the set's cards always stand beside one outside it, as on a real board (four of a
+ * family first show up on 5-card boards). A ranged family alone has no front line.
+ */
+export const strengthTeamOf = (members: number) => Math.max(STRENGTH_TEAM, members + 1);
 
 /**
  * 200 repos spread over the whole range, from a weekend project to a 200k-star giant.
@@ -88,7 +94,7 @@ function draw(from: Card[], count: number, taken: Set<string>, random: () => num
 }
 
 /**
- * Win-rate points the bonus adds: side 0 wins `fights` fights 4 against 4 with it, less
+ * Win-rate points the bonus adds: side 0 wins `fights` fights (strengthTeamOf cards a side) with it, less
  * the same fights (same cards, cells and seeds) without it. Abilities stay on, so it is
  * measured as it plays. Side 0's other cards are drawn from `others`, so a family's
  * trial holds exactly `members` cards of the family; side 1's from every card.
@@ -97,14 +103,15 @@ export function strengthOf(trial: Trial, fights: number, seed: string): number {
   const random = seededRandom(`strength|${seed}`);
   const on = fightWith(rulesOf(trial, true));
   const off = fightWith(rulesOf(trial, false));
+  const size = strengthTeamOf(trial.members);
   const everyone = [...new Map([...trial.carriers, ...trial.others].map((card) => [card.fullName, card])).values()];
   let gained = 0;
   for (let i = 0; i < fights; i++) {
     const taken = new Set<string>();
-    const mine = [...draw(trial.carriers, trial.members, taken, random), ...draw(trial.others, STRENGTH_TEAM - trial.members, taken, random)];
-    const theirs = draw(everyone, STRENGTH_TEAM, taken, random);
-    const a: Snapshot = { login: "a", round: STRENGTH_TEAM, units: placed(mine, random), boosts: [] };
-    const b: Snapshot = { login: "b", round: STRENGTH_TEAM, units: placed(theirs, random), boosts: [] };
+    const mine = [...draw(trial.carriers, trial.members, taken, random), ...draw(trial.others, size - trial.members, taken, random)];
+    const theirs = draw(everyone, size, taken, random);
+    const a: Snapshot = { login: "a", round: size, units: placed(mine, random), boosts: [] };
+    const b: Snapshot = { login: "b", round: size, units: placed(theirs, random), boosts: [] };
     const fightSeed = `${seed}|${i}`;
     gained += Number(winnerOf(on(a, b, fightSeed)) === 0) - Number(winnerOf(off(a, b, fightSeed)) === 0);
   }

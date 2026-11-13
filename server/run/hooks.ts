@@ -30,9 +30,11 @@ export type Aim = "self" | "foe" | "weakest-foe" | "foes" | "weakest-ally" | "al
  * A number a `stat` effect changes. `attack`, `guard` and `speed` change by a share
  * of the card's own number (0.3 is 30% more). `critical` is what a critical hit
  * multiplies damage by (1.5 to start) and `luck` the odds of one (0.0625 to start):
- * those two change by the amount itself.
+ * those two change by the amount itself. `haste` cuts the wait between actions
+ * directly (0.1 acts 10% more often), where `speed` is softened like the card's own
+ * speed, so a set's "acts 10% faster" is what it says.
  */
-export type Stat = "attack" | "guard" | "speed" | "critical" | "luck";
+export type Stat = "attack" | "guard" | "speed" | "critical" | "luck" | "haste";
 
 /**
  * One at a time per card, for CONDITION_TICKS (3 seconds):

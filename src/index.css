@@ -362,13 +362,6 @@ input[type="search"]::-webkit-search-cancel-button {
   background: #1c242b;
   color: #fff;
 }
-.set-initials {
-  font: 700 7px/1 var(--font-display);
-  letter-spacing: -0.02em;
-}
-.set-initials[data-long] {
-  font-size: 5.5px;
-}
 .shop-reach {
   flex: none;
   font: 700 10.5px/1 var(--font-display);
@@ -721,11 +714,13 @@ input[type="search"]::-webkit-search-cancel-button {
     height: calc((var(--drawer) - 15px) * 0.6);
   }
   .checks {
-    width: 9.5rem;
+    width: 11.5rem;
     padding: 4px;
   }
   .check-row {
     height: 22px;
+    gap: 6px;
+    padding: 0 5px;
     font-size: 12px;
   }
 }
@@ -746,7 +741,7 @@ button.hud-chip:hover {
 
 /* The Play set tracker (src/components/run/checks.tsx): a pull request's checks. */
 .checks {
-  width: 11.5rem;
+  width: 13rem;
   padding: 6px 6px 10px;
   background: radial-gradient(120% 100% at 0% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
@@ -826,6 +821,13 @@ button.hud-chip:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* What the set does, in a word, beside its name: quieter, and the first to be cut short. */
+.check-does {
+  color: rgb(230 237 243 / 0.5);
+}
+.check-row[data-live] .check-does {
+  color: rgb(230 237 243 / 0.62);
+}
 .check-count {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -904,8 +906,9 @@ button.hud-chip:hover {
   }
 }
 @media (max-width: 639px) {
+  /* Wide enough for "Systems Extra hit 2/4"; both sides' lists still leave the middle of a 390px phone free. */
   .checks {
-    width: 8.6rem;
+    width: 10.5rem;
     padding: 4px;
   }
   .check-row {

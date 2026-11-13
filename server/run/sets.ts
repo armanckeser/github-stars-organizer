@@ -1,100 +1,113 @@
-import type { CardType } from "../battle.ts";
-import type { Aim, Effect, Hook, Stat, Trigger } from "./hooks.ts";
+import { CARD_TYPES, LANGUAGE_NAMES, typeOf, type CardType } from "../battle.ts";
+import type { Effect, Hook, Trigger } from "./hooks.ts";
 import type { Card, Snapshot } from "./types.ts";
 
-// Cards that share a set (a language or a topic) give each other a bonus: a small one
-// with two, a bigger one with three or more. Nothing forbids a mix; a mixed team just
-// has no bonus. A language with no bonus of its own gives its type's bonus.
+// Cards that share a set give each other a bonus: at 2 cards, and a bigger one at 4.
+// A card's sets are its family (from its language: Systems, Scripts, Web, Apps, Data,
+// Docs, the card's type) and up to two of its repo's topics. Each family does one thing
+// of its own; every topic does the same plain thing, so a topic is never a hidden
+// rule. Nothing forbids a mix. The design and its numbers: docs/GAME-DESIGN.md,
+// "The sets", held to a strength band by set-strength.test.ts.
 
-export const COMMON_TOPICS = ["cli", "ai", "web", "database", "security", "game"] as const;
+/** Topics a card keeps first when its repo has more than two: the ones most often shared. */
+export const COMMON_TOPICS = ["cli", "ai", "database", "security", "game"] as const;
+/** Topics a card counts, after its family. */
+const TOPICS_PER_CARD = 2;
+/** The cards a set needs for its first bonus and for its second. */
+export const TIERS = [2, 4] as const;
 
-export type Bonus = { text: string; on: Trigger; effects: Effect[] };
-export type SetBonus = { set: string; name: string; two: Bonus; three: Bonus };
+export type Tier = { at: (typeof TIERS)[number]; text: string; on: Trigger; effects: Effect[] };
+/** What a set does: `does` names it in a word or two, `tiers` are its bonus at 2 cards and at 4. */
+export type SetBonus = { kind: "family" | "topic"; does: string; tiers: readonly [Tier, Tier] };
 
 const PERCENT = 100;
+/** A share as a percent, to a tenth: 0.025 is "2.5%". */
+const percent = (share: number) => `${Number((share * PERCENT).toFixed(1))}%`;
+/** Critical odds as a whole percent: 0.1625 is "16%". */
+const wholePercent = (share: number) => `${Math.round(share * PERCENT)}%`;
+/** The odds every card has of a critical hit (fight.ts CRITICAL_ODDS), for the Data text. */
+const BASE_CRITICAL_ODDS = 0.0625;
 
-/** A bonus whose numbers double from two cards to three. */
-function tiered(set: string, name: string, on: Trigger, text: (amount: number) => string, effects: (scale: number) => Effect[], base: number): SetBonus {
-  return { set, name, two: { text: text(base), on, effects: effects(1) }, three: { text: text(base * 2), on, effects: effects(2) } };
+/** A bonus whose tiers differ only by an amount: `amounts` holds the amount at 2 cards and at 4. */
+function bonus(kind: SetBonus["kind"], does: string, on: Trigger, amounts: readonly [number, number], text: (amount: number) => string, effects: (amount: number) => Effect[]): SetBonus {
+  const tier = (at: Tier["at"], amount: number): Tier => ({ at, text: text(amount), on, effects: effects(amount) });
+  return { kind, does, tiers: [tier(TIERS[0], amounts[0]), tier(TIERS[1], amounts[1])] };
 }
-const raise = (set: string, name: string, stat: Stat, by: number) =>
-  tiered(set, name, "start", (amount) => `${Math.round(amount * PERCENT)}% more ${stat}.`, (scale) => [{ kind: "stat", aim: "self", stat, by: by * scale }], by);
-const luck = (set: string, name: string, by: number) =>
-  tiered(set, name, "start", (amount) => `${Math.round(amount * PERCENT * 10) / 10} points more critical odds.`, (scale) => [{ kind: "stat", aim: "self", stat: "luck", by: by * scale }], by);
-const shield = (set: string, name: string, on: Trigger, share: number, when: string) =>
-  tiered(set, name, on, (amount) => `${when} a shield of ${Math.round(amount * PERCENT)}% of HP.`, (scale) => [{ kind: "shield", aim: "self", share: share * scale }], share);
-const heal = (set: string, name: string, on: Trigger, share: number, when: string) =>
-  tiered(set, name, on, (amount) => `${when} heals ${Math.round(amount * PERCENT)}%.`, (scale) => [{ kind: "heal", aim: "self", share: share * scale }], share);
-const strike = (set: string, name: string, on: Trigger, aim: Aim, power: number, when: string) =>
-  tiered(set, name, on, (amount) => `${when} an extra hit of ${Math.round(amount * PERCENT)}%.`, (scale) => [{ kind: "damage", aim, power: power * scale }], power);
 
-export const SETS: SetBonus[] = [
-  raise("typescript", "Type checked", "guard", 0.08),
-  raise("javascript", "Event loop", "speed", 0.08),
-  heal("python", "Batteries included", "third", 0.04, "Every third hit"),
-  shield("rust", "Borrow checker", "start", 0.1, "Starts with"),
-  strike("go", "Goroutines", "hit", "foe", 0.1, "Each hit adds"),
-  raise("c", "Bare metal", "attack", 0.08),
-  tiered("c++", "Templates", "start", (amount) => `Critical hits deal ${1.5 + amount} times the damage.`, (scale) => [{ kind: "stat", aim: "self", stat: "critical", by: 0.25 * scale }], 0.25),
-  tiered("java", "Enterprise", "hurt", (amount) => `Each hit taken adds ${Math.round(amount * PERCENT)}% guard.`, (scale) => [{ kind: "stat", aim: "self", stat: "guard", by: 0.02 * scale }], 0.02),
-  luck("kotlin", "Coroutines", 0.03),
-  tiered("swift", "Swift", "start", (amount) => `${Math.round(amount * PERCENT)}% more attack and speed.`, (scale) => [{ kind: "stat", aim: "self", stat: "attack", by: 0.05 * scale }, { kind: "stat", aim: "self", stat: "speed", by: 0.05 * scale }], 0.05),
-  heal("c#", "Garbage collector", "ally-faint", 0.1, "When a teammate faints,"),
-  strike("ruby", "Convention", "third", "foe", 0.3, "Every third hit adds"),
-  shield("php", "Everywhere", "hurt", 0.02, "Each hit taken adds"),
-  strike("shell", "Pipes", "hit", "weakest-foe", 0.1, "Each hit adds, on the weakest enemy,"),
-  raise("cli", "Flags", "speed", 0.1),
-  strike("ai", "Inference", "third", "foes", 0.15, "Every third hit, on every enemy,"),
-  shield("web", "Edge cache", "start", 0.08, "Starts with"),
-  raise("database", "Indexes", "guard", 0.1),
-  tiered("security", "Least privilege", "start", (amount) => `${Math.round(amount * PERCENT)}% more guard and a shield of the same share of HP.`, (scale) => [{ kind: "stat", aim: "self", stat: "guard", by: 0.05 * scale }, { kind: "shield", aim: "self", share: 0.05 * scale }], 0.05),
-  luck("game", "Speedrun", 0.04),
-];
-
-/** The bonus of a language that has none of its own, by the language's type. */
-export const FAMILY_SETS: Record<CardType, SetBonus> = {
-  systems: raise("systems", "Low level", "attack", 0.06),
-  scripts: raise("scripts", "Glue code", "speed", 0.06),
-  web: raise("web-family", "Full stack", "guard", 0.06),
-  apps: shield("apps", "App store", "start", 0.06, "Starts with"),
-  data: heal("data", "Notebook", "third", 0.03, "Every third hit"),
-  docs: shield("docs", "Footnotes", "hurt", 0.02, "Each hit taken adds"),
+/** Each family's bonus: one thing per family, nothing shared. */
+export const FAMILIES: Record<CardType, SetBonus> = {
+  web: bonus("family", "Shield", "start", [0.05, 0.08], (share) => `Starts each fight with a shield of ${percent(share)} of its HP.`, (share) => [{ kind: "shield", aim: "self", share }]),
+  systems: bonus("family", "Extra hit", "third", [0.25, 0.3], (power) => `Every third hit adds another hit of ${percent(power)}.`, (power) => [{ kind: "damage", aim: "foe", power }]),
+  apps: bonus("family", "Guard", "hurt", [0.04, 0.07], (by) => `Each hit it takes adds ${percent(by)} guard.`, (by) => [{ kind: "stat", aim: "self", stat: "guard", by }]),
+  data: bonus("family", "Critical", "start", [0.1, 0.15], (by) => `Lands a critical hit on ${wholePercent(BASE_CRITICAL_ODDS + by)} of its hits, not ${wholePercent(BASE_CRITICAL_ODDS)}.`, (by) => [{ kind: "stat", aim: "self", stat: "luck", by }]),
+  scripts: bonus("family", "Opening hit", "start", [0.25, 0.28], (power) => `As the fight starts, hits every enemy for ${percent(power)} of a hit.`, (power) => [{ kind: "damage", aim: "foes", power }]),
+  docs: bonus("family", "Heal", "third", [0.025, 0.05], (share) => `Every third hit heals it ${percent(share)} of its HP.`, (share) => [{ kind: "heal", aim: "self", share }]),
 };
 
-const BY_SET = new Map(SETS.map((bonus) => [bonus.set, bonus]));
+/** Every topic's bonus. */
+export const TOPIC: SetBonus = bonus("topic", "Faster", "start", [0.07, 0.09], (by) => `Acts ${percent(by)} more often.`, (by) => [{ kind: "stat", aim: "self", stat: "haste", by }]);
 
-/** A card's sets: its language, then up to two other topics, the common ones first. Lower-case, each once. */
+const FAMILY_NAMES: ReadonlySet<string> = new Set(CARD_TYPES);
+
+const BY_FAMILY = new Map<string, SetBonus>(Object.entries(FAMILIES));
+
+/** The bonus a set gives: its family's, or the topic bonus. */
+export const bonusOf = (set: string): SetBonus => BY_FAMILY.get(set) ?? TOPIC;
+
+/** A topic is lower-case, once, and never a language or a family's name: languages count only through their family. */
+function topicsOf(topics: string[], language: string | null): string[] {
+  const own = language?.toLowerCase();
+  const kept = [...new Set(topics.map((topic) => topic.toLowerCase()))].filter((topic) => topic !== own && !LANGUAGE_NAMES.has(topic) && !FAMILY_NAMES.has(topic));
+  const common = kept.filter((topic) => (COMMON_TOPICS as readonly string[]).includes(topic));
+  return [...common, ...kept.filter((topic) => !common.includes(topic))].slice(0, TOPICS_PER_CARD);
+}
+
+/** A repo's sets, as its card keeps them: its family, then up to two topics. */
 export function setsFor(language: string | null, topics: string[]): string[] {
-  const own = language ? [language.toLowerCase()] : [];
-  const lower = [...new Set(topics.map((topic) => topic.toLowerCase()))].filter((topic) => !own.includes(topic));
-  const common = lower.filter((topic) => (COMMON_TOPICS as readonly string[]).includes(topic));
-  const rest = lower.filter((topic) => !common.includes(topic));
-  return [...own, ...[...common, ...rest].slice(0, 2)];
+  return [typeOf(language), ...topicsOf(topics, language)];
 }
 
-/** The bonus a set gives the cards that share it: its own, else their type's when they all share one. */
-export function bonusOf(set: string, members: Pick<Card, "type">[]): SetBonus | undefined {
-  const own = BY_SET.get(set);
-  if (own) return own;
-  const types = new Set(members.map((card) => card.type as CardType));
-  const [type] = types;
-  return types.size === 1 && type in FAMILY_SETS ? FAMILY_SETS[type] : undefined;
+/**
+ * A card's sets: its family (its type), then its topics. A card made before families
+ * (a saved team link, a run already going) listed its language first: it drops out
+ * here, so an old card plays as a new one. A language GitHub knows but the game doesn't
+ * stays a topic on such a card.
+ */
+export function setsOf(card: Pick<Card, "type" | "sets">): string[] {
+  return [card.type, ...topicsOf(card.sets.filter((set) => set !== card.type), null)];
 }
 
-/** A set as it stands on a team: which units share it, and the bonus they get (none below two). */
-export type TeamSet = { set: string; members: number[]; bonus: SetBonus | undefined; tier: Bonus | undefined };
+/** A set as it stands on a team: which units share it, the tier they reach (none below 2) and the count the next tier needs. */
+export type TeamSet = { set: string; bonus: SetBonus; members: number[]; tier: Tier | undefined; next: Tier | undefined };
 
 /** Every set on the team, the most shared first. */
 export function teamSets(team: Pick<Snapshot, "units">): TeamSet[] {
   const members = new Map<string, number[]>();
-  team.units.forEach((unit, index) => new Set(unit.card.sets).forEach((set) => members.set(set, [...(members.get(set) ?? []), index])));
+  team.units.forEach((unit, index) => setsOf(unit.card).forEach((set) => members.set(set, [...(members.get(set) ?? []), index])));
   return [...members]
     .map(([set, indexes]): TeamSet => {
-      const bonus = bonusOf(set, indexes.map((index) => team.units[index].card));
-      const tier = indexes.length >= 3 ? bonus?.three : indexes.length >= 2 ? bonus?.two : undefined;
-      return { set, members: indexes, bonus, tier };
+      const { tiers } = bonusOf(set);
+      const reached = tiers.filter((tier) => indexes.length >= tier.at);
+      return { set, bonus: bonusOf(set), members: indexes, tier: reached.at(-1), next: tiers.find((tier) => indexes.length < tier.at) };
     })
     .sort((a, b) => b.members.length - a.members.length);
+}
+
+/**
+ * The sets the checks list shows: every family on the team (each is live or one card
+ * from it), and the topics two or more cards share. A topic on one card is not a check.
+ * Live sets first, then the fullest.
+ */
+export function checksOf(team: Pick<Snapshot, "units">): TeamSet[] {
+  const shown = teamSets(team).filter((entry) => {
+    switch (entry.bonus.kind) {
+      case "family":
+        return true;
+      case "topic":
+        return entry.members.length >= TIERS[0];
+    }
+  });
+  return shown.sort((a, b) => Number(Boolean(b.tier)) - Number(Boolean(a.tier)) || b.members.length - a.members.length);
 }
 
 /** The set hooks each unit carries: `setHooks(team)[i]` belongs to `team.units[i]`. */

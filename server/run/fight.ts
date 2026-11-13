@@ -60,6 +60,8 @@ type Unit = {
   boost: Record<Scaled, number>;
   critical: number;
   luck: number;
+  /** How much more often the card acts than its speed alone gives: 0.1 is 10% more often. */
+  haste: number;
   hooks: Hook[];
   spent: Set<Hook>;
   /** The card's condition, who left it, when it wears off and when it next bites. */
@@ -82,7 +84,7 @@ const scaled = (unit: Unit, stat: Scaled) => unit.card[stat] * Math.max(0.1, uni
 function periodOf(unit: Unit): number {
   const limited = unit.condition?.name === "rate-limited" ? RATE_LIMITED : 1;
   const wait = limited * PERIOD * ((EVEN + CUSHION) / (scaled(unit, "speed") + CUSHION)) ** SPEED_EDGE;
-  return Math.max(MIN_PERIOD, Math.min(MAX_PERIOD, wait));
+  return Math.max(MIN_PERIOD, Math.min(MAX_PERIOD, wait / (1 + unit.haste)));
 }
 
 /** Waits a card's period after its last action was due (Unit.next). */
@@ -172,6 +174,7 @@ function affect(arena: Arena, unit: Unit, effect: Effect, target: Unit, source: 
     case "stat":
       if (effect.stat === "critical") target.critical += effect.by;
       else if (effect.stat === "luck") target.luck += effect.by;
+      else if (effect.stat === "haste") target.haste += effect.by;
       else target.boost[effect.stat] += effect.by;
       return;
     case "heal":
@@ -293,6 +296,7 @@ export function fightWith(rules: Rules): Fight {
         boost: { attack: 1, guard: 1, speed: 1 },
         critical: CRITICAL,
         luck: CRITICAL_ODDS,
+        haste: 0,
         hooks: hooks[index] ?? [],
         spent: new Set(),
         condition: null,

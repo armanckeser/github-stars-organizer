@@ -348,8 +348,8 @@ export function figureSvg(look: Look, supporter = false): string {
   out.push(`<rect x="23" y="70" width="15" height="46" rx="7.5" fill="${top}"/><rect x="82" y="70" width="15" height="46" rx="7.5" fill="${top}"/>`);
   if (look.top === "tee") out.push(`<rect x="23" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/><rect x="82" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/>`);
   out.push(`<circle cx="30.5" cy="118" r="6.5" fill="${skin}"/><circle cx="89.5" cy="118" r="6.5" fill="${skin}"/>`);
-  // Someone who starred Stard wears a gold band on the upper arm.
-  if (supporter) out.push(`<rect x="82" y="80" width="15" height="7" rx="2" fill="${GOLD}"/><rect x="82" y="81.2" width="15" height="1.6" fill="${GOLD_SHINE}"/>`);
+  // Someone who starred Stard wears a gold band on each upper arm, as the 3D figure does.
+  if (supporter) for (const x of [23, 82]) out.push(`<rect x="${x}" y="80" width="15" height="7" rx="2" fill="${GOLD}"/><rect x="${x}" y="81.2" width="15" height="1.6" fill="${GOLD_SHINE}"/>`);
   // Torso.
   out.push(`<rect x="36" y="66" width="48" height="54" rx="13" fill="${top}"/>`);
   if (look.top === "hoodie") {

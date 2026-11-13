@@ -308,6 +308,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Share pictures show creatures (flat stickers), fill the set hexes, title only. README GIF ends on the new end screen. | built (#71, #77) |
 | Front page: a normal-size Play button beside the title, no sample-account button. | built |
 | Characters for the 12 opponents: ship all 12 (and `armanckeser`), kind and plain (hair, glasses, top, colours; no beards or anything that could read as a caricature), drawn from their public avatars. Removal path in `OPPONENTS.md` and `characters/README.md`: their own `stard/character.md` wins, or ask and the file is deleted. An opted-out account (`stard/no-play` or the block list) never shows the file. One line on the privacy page, pending the owner's wording. | branch `characters` (#72) |
+| A gold band on each upper arm of the trainer (board, trainer card, Play panel) for an account that starred Stard; "Starred Stard" in plain grey words in the Play panel. Opted-out and block-listed accounts get nothing. Open: the band's gold (`#d4a017`) sits close to the legendary tier gold (`#e3b341`), which GAME-UI §3 keeps for cards. And GitHub now lists a repo's stargazers only to its admins and collaborators, so the band shows only if the Worker's `GITHUB_TOKEN` is the owner's. | branch `supporter-band` (#75), open |
 
 **Demo and speed**
 

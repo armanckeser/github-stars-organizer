@@ -155,7 +155,8 @@ export function buildTrainer(look: Look, supporter = false): Trainer {
     arm.add(part(cylinder(0.095, 0.085, sleeve), top, { at: [0, -sleeve / 2, 0] }));
     if (look.top === "tee") arm.add(part(cylinder(0.075, 0.07, 0.32), skin, { at: [0, -0.34, 0] }));
     arm.add(part(sphere(0.09, 12), skin, { at: [0, -0.56, 0] }));
-    if (supporter && side === 1) arm.add(part(cylinder(0.105, 0.105, 0.07), toon(GOLD), { at: [0, -0.14, 0] }));
+    // On both arms: the board shows the player's own trainer from behind, the other's from the front, so one arm is always hidden.
+    if (supporter) arm.add(part(cylinder(0.105, 0.105, 0.07), toon(GOLD), { at: [0, -0.14, 0] }));
     root.add(arm);
     return arm;
   }) as [THREE.Group, THREE.Group];

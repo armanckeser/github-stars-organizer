@@ -38,10 +38,11 @@ describe("the 3D figure", () => {
     expect(shapeOf(plain).join("|")).not.toContain("#123456");
   });
 
-  // Regression guarded: the arena drops the band a supporter wears on their card.
-  test("buildTrainer_adds_a_gold_band_only_when_the_player_starred_stard", () => {
+  // Regression guarded: the arena drops the band a supporter wears on their card, or
+  // wears it only on the arm the board's camera can't see.
+  test("buildTrainer_adds_a_gold_band_on_each_arm_only_when_the_player_starred_stard", () => {
     const gold = GOLD.slice(1);
-    expect(shapeOf(plain, true).filter((shape) => shape.includes(`#${gold}`))).toHaveLength(1);
+    expect(shapeOf(plain, true).filter((shape) => shape.includes(`#${gold}`))).toHaveLength(2);
     expect(shapeOf(plain).join("|")).not.toContain(gold);
   });
 

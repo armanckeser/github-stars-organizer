@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fight, fightWith, MAX_TICKS } from "./fight.ts";
 import type { Hook, Rules } from "./hooks.ts";
+import { EVEN } from "./stats.ts";
 import type { Card, FightEvent, Placed, Snapshot } from "./types.ts";
 
 const card = (fullName: string, over: Partial<Card> = {}): Card => ({ fullName, type: "web", sets: [], rarity: 0, hp: 150, attack: 100, guard: 100, speed: 100, range: 1, ability: "none", shiny: false, ...over });
@@ -57,6 +58,20 @@ describe("fight", () => {
     const events = fight(...duel(card("greendale/fast", { ...wall, speed: 400 }), card("city-college/slow", { ...wall, speed: 20 })), "seed");
     const hits = (side: 0 | 1) => of(events, "hit").filter((event) => event.side === side).length;
     expect(hits(0)).toBeGreaterThan(hits(1) * 1.2);
+  });
+
+  // Regression guarded: each wait was rounded to whole ticks, so every card with a speed
+  // of 100 to 140 (every real card) waited 10 ticks and hit 45 times in 45 s, and every
+  // speed bonus did nothing. Speed 100 waits 10.08 ticks and speed 140 waits 9.67
+  // (10 x (227.5 / (speed + 120)) ^ 0.25); from the first hit at tick 7 to tick 449
+  // that is 44 hits and 46.
+  it.each([
+    [100, 44],
+    [140, 46],
+  ])("lets a card with speed %i land %i hits in 45 seconds", (speed, landed) => {
+    const lasting = { attack: 0, hp: 1_000_000 };
+    const events = fight(...duel(card("greendale/troy", { ...lasting, speed }), card("city-college/wall", lasting)), "seed");
+    expect(of(events, "hit").filter((event) => event.side === 0)).toHaveLength(landed);
   });
 
   it("lands about one hit in sixteen as a critical, for 1.5 times the damage", () => {
@@ -189,13 +204,15 @@ describe("fightWith conditions and heals", () => {
   });
 
   it("makes a rate-limited card wait half as long again between hits", () => {
-    const limited = fightWith(start([{ kind: "condition", aim: "self", condition: "rate-limited" }]))(...duel(card("greendale/troy"), wall), "seed");
+    // At the even speed a card waits exactly 10 ticks, so both gaps are whole ticks.
+    const even = card("greendale/troy", { speed: EVEN });
+    const limited = fightWith(start([{ kind: "condition", aim: "self", condition: "rate-limited" }]))(...duel(even, wall), "seed");
     const gaps = (events: FightEvent[]) => {
       const times = of(events, "hit").filter((hit) => hit.side === 0).map((hit) => hit.t);
       return times[1] - times[0];
     };
     expect(gaps(limited)).toBe(15);
-    expect(gaps(fight(...duel(card("greendale/troy"), wall), "seed"))).toBe(10);
+    expect(gaps(fight(...duel(even, wall), "seed"))).toBe(10);
   });
 
   it("makes a flaky card miss some of its hits", () => {

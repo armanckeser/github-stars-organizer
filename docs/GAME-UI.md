@@ -40,7 +40,7 @@ Language and type colors appear only on the creature: language is its body, type
 ┌──────────────── 2px tier border ─┐
 │                                  │
 │      creature, filling the card  │  art area, about 72% of the height
-│ ⬡ TypeScript                     │  sets: hex icon + name, stacked, bottom-left over the art
+│ ⬡ Web                            │  sets: hex icon + name, stacked, bottom-left over the art
 │ ⬡ Database  2                    │  number = the count a buy would reach, only when it advances a set
 ├──────────────────────────────────┤
 │ gh-next                   ● 2    │  name strip: slate tinted 30% with the tier color; name left, coin + cost right
@@ -73,11 +73,11 @@ The bar folds down under the gold plaque. It opens at the start of each round an
 ## 7. Checks (the set tracker)
 
 - The checks sit at the left edge of the board, with no panel.
-- One row per set: a status icon, the name, and have/next (`2/3`).
-- Live sets come first. Sets at 1 show too, dimmed.
+- One row per set: a status icon, the name, what it does in a word or two (`Web Shield`, the word dimmer), and have/next (`2/4`).
+- Live sets come first. A family at 1 card shows too, dimmed: it is one card from live. A topic shows only once two cards share it.
 - The bonus text shows on hover only.
 - The opponent's checks sit on the right under the opponent's GitHub login, never a word like "Theirs".
-- A folded list shows its live sets and the one closest to going live: at least 2 rows, at most 3, then "+n more", which opens the rest. The opponent's list is always folded, so it never covers their trainer and never reads as empty. On a phone (under 640px wide, or under 540px tall) the player's own list folds too: 7 cards can make 14 sets, which would cover the board.
+- A folded list shows its live sets and the one closest to going live: at least 2 rows, at most 3, then "+n more", which opens the rest. The opponent's list is always folded, so it never covers their trainer and never reads as empty. On a phone (under 640px wide, or under 540px tall) the player's own list folds too: a full board can list more rows than fit beside it.
 
 ## 8. Boost pick
 
@@ -99,13 +99,14 @@ What fired is drawn on the board, not written. One look per effect kind, so ever
 - **Heal:** green, the green of the "+n" numbers. Light rises from the floor under the creature with a few rising plus signs.
 - **Stat:** gold chevrons rise for a stat going up, red chevrons fall for one going down, with a ring at the feet.
 - **Condition:** an orb in the condition's own colour travels to the target, which then wears the badge as before.
+- **Looking at a creature:** in a fight, a tap on a creature, or on its condition badge, opens its panel without pausing the fight, as TFT's unit panel does. It is never a modal: it docks at the right edge, or along the bottom on a phone, where the camera lifts the board clear of it. It shows the name and side, HP and shield as numbers and a bar, the condition as a sentence with the seconds left, the ability, and the creature's live set bonuses, all as the fight plays. It closes on a tap on the floor, Escape, its close button, or a moment after the creature faints. A condition's sentence comes from `conditionLine` (`server/run/names.ts`), which reads the numbers the engine uses (`server/run/hooks.ts`). From the keyboard, Tab reaches a row of the creatures' names.
 - Effects are short (under 0.6 s, a shield's bubble aside), additive light, and never cover an HP bar. With reduced motion nothing travels, spins or shakes: the result, numbers included, shows in place and fades.
 - Nothing overlaps an HP bar.
 
 ## 10. Type and words
 
 - Clash Display (the app's display face, loaded at 500 to 700) for names, numbers, titles and short labels. Space Grotesk for sentences. Nothing else. Play must not change the app's fonts: they are set in `src/index.css` for every screen.
-- On screen at rest: names, counts and costs only. Sentences live in the card face, hover text and the boost pick.
+- On screen at rest: names, counts and costs only. Sentences live in the card face, hover text, the boost pick and a fight's creature panel.
 - Motion is short and physical: a lift on pickup, a settle on drop, the lid opening. Respect `prefers-reduced-motion`.
 
 ## Changed from the first draft
@@ -124,6 +125,7 @@ Each change below is a rule that made the screen look worse as first written.
 | Boost text | one line | full text, up to 3 lines; rows under 560px | One line cut most boost texts off mid-word. A phone has no room for three medallions side by side. |
 | Medallion size | unspecified | from the short side | A landscape phone is 390px tall: medallions sized from the width pushed the text off the screen. |
 | Opponent's checks | live sets only, under "Theirs" | folded to at least 2 rows, under their login | With no live set the list was a bare "Theirs 0/6" and read as broken on a phone; "Theirs" named nobody. |
+| Check rows | the set's name; every set on the board, a topic on one card too | the name and what the set does in a word; families and the topics two cards share | Rows all read alike and a 5-card board listed 10 or more, most of them topics on one card that could never go live. |
 | Ability pop | "When hit" | "Hit", name plus a grey line | "When" adds width and no meaning on a card shown for 1 s. The ability's name tells you which unit fired. |
 | Archive, trainers on phone | the same spots as wide | 72% Archive, trainers stepped in | An upright phone's narrow view cut off the trainers and pushed the Archive over the shelf. |
 | Card rim light | a light from behind right | the same light, plus a blue outline on the rim side | Toon bands rounded the back light down to nothing, and a box's edges have no surface turned toward it. The outline shows the rim without lighting the body. |

@@ -362,13 +362,6 @@ input[type="search"]::-webkit-search-cancel-button {
   background: #1c242b;
   color: #fff;
 }
-.set-initials {
-  font: 700 7px/1 var(--font-display);
-  letter-spacing: -0.02em;
-}
-.set-initials[data-long] {
-  font-size: 5.5px;
-}
 .shop-reach {
   flex: none;
   font: 700 10.5px/1 var(--font-display);
@@ -721,11 +714,13 @@ input[type="search"]::-webkit-search-cancel-button {
     height: calc((var(--drawer) - 15px) * 0.6);
   }
   .checks {
-    width: 9.5rem;
+    width: 11.5rem;
     padding: 4px;
   }
   .check-row {
     height: 22px;
+    gap: 6px;
+    padding: 0 5px;
     font-size: 12px;
   }
 }
@@ -746,7 +741,7 @@ button.hud-chip:hover {
 
 /* The Play set tracker (src/components/run/checks.tsx): a pull request's checks. */
 .checks {
-  width: 11.5rem;
+  width: 13rem;
   padding: 6px 6px 10px;
   background: radial-gradient(120% 100% at 0% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
@@ -826,6 +821,13 @@ button.hud-chip:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* What the set does, in a word, beside its name: quieter, and the first to be cut short. */
+.check-does {
+  color: rgb(230 237 243 / 0.5);
+}
+.check-row[data-live] .check-does {
+  color: rgb(230 237 243 / 0.62);
+}
 .check-count {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -904,8 +906,9 @@ button.hud-chip:hover {
   }
 }
 @media (max-width: 639px) {
+  /* Wide enough for "Systems Extra hit 2/4"; both sides' lists still leave the middle of a 390px phone free. */
   .checks {
-    width: 8.6rem;
+    width: 10.5rem;
     padding: 4px;
   }
   .check-row {
@@ -1310,5 +1313,99 @@ button.hud-chip:hover {
 @media (prefers-reduced-motion: reduce) {
   .run-panel {
     animation: none;
+  }
+}
+
+/* The creature panel in a fight (src/components/battle/fight-inspect.tsx): slate, gold on its outer edge only (docs/GAME-UI.md §2), docked at the side, at the bottom on a phone, clear of the board's middle. */
+.fight-inspect {
+  position: absolute;
+  z-index: 20;
+  right: 12px;
+  bottom: 56px;
+  display: flex;
+  width: 19.5rem;
+  max-height: calc(100dvh - 220px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid rgb(201 164 92 / 0.7);
+  border-radius: 6px;
+  background: #0e1418;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+  animation: fight-inspect-in 160ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@media (max-width: 639px) {
+  .fight-inspect {
+    left: 8px;
+    right: 8px;
+    bottom: 52px;
+    width: auto;
+    max-height: 38dvh;
+  }
+}
+@keyframes fight-inspect-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fight-inspect {
+    animation: none;
+  }
+}
+.fight-inspect-bar {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.12);
+}
+.fight-inspect-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  color: rgb(230 237 243 / 0.75);
+  outline: none;
+}
+.fight-inspect-close:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+.fight-inspect-close:focus-visible,
+.fight-pick button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+/* The keyboard's way to pick a creature: shown only while one of its buttons has focus. */
+.fight-pick:focus-within {
+  position: absolute;
+  z-index: 20;
+  left: 12px;
+  bottom: 56px;
+  display: flex;
+  max-width: min(36rem, calc(100% - 24px));
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid rgb(201 164 92 / 0.7);
+  border-radius: 6px;
+  background: #0e1418;
+}
+.fight-pick button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font: 600 13px/1.2 var(--font-display);
+  outline: none;
+}
+.fight-pick button[aria-pressed="true"] {
+  background: rgb(255 255 255 / 0.12);
+}
+@media (max-width: 639px) {
+  .fight-pick:focus-within {
+    top: 96px;
+    bottom: auto;
   }
 }

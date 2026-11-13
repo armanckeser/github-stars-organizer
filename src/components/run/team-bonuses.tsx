@@ -8,7 +8,7 @@ import type { Card } from "../../../server/run/types";
 /** The team's set bonuses and boosts, beside the board. Tap to read what each does. */
 export function TeamBonuses({ cards, boosts, className = "" }: { cards: Card[]; boosts: string[]; className?: string }) {
   const [open, setOpen] = useState(false);
-  const sets = teamSets({ units: cards.map((card) => ({ card, col: 0, row: 0 })) }).filter((entry) => entry.tier && entry.bonus);
+  const sets = teamSets({ units: cards.map((card) => ({ card, col: 0, row: 0 })) }).flatMap((entry) => (entry.tier ? [{ ...entry, tier: entry.tier }] : []));
   const held = boosts.flatMap((id) => boostById(id) ?? []);
   if (sets.length === 0 && held.length === 0) return null;
   return (
@@ -23,10 +23,10 @@ export function TeamBonuses({ cards, boosts, className = "" }: { cards: Card[]; 
         <span key={set} className="block" data-testid="set-bonus">
           <span className="flex items-center gap-1.5">
             <Layers className="size-3.5 shrink-0 text-[#35c450]" aria-hidden />
-            <span className="font-semibold tabular-nums">{setName(set)} {Math.min(members.length, 3)}</span>
-            <span className="truncate text-white/70">{bonus!.name}</span>
+            <span className="font-semibold tabular-nums">{setName(set)} {members.length}</span>
+            <span className="truncate text-white/70">{bonus.does}</span>
           </span>
-          {open && <span className="block pl-5 text-white/70">{tier!.text}</span>}
+          {open && <span className="block pl-5 text-white/70">{tier.text}</span>}
         </span>
       ))}
       {held.map((boost) => (

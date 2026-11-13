@@ -2,17 +2,16 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { boostById } from "../../../server/run/boosts";
 import { setName } from "../../../server/run/names";
-import { teamSets, type TeamSet } from "../../../server/run/sets";
+import { checksOf, TIERS, type TeamSet } from "../../../server/run/sets";
 import type { Card } from "../../../server/run/types";
 import { foldedCount } from "./checks-fold";
 
 // The team's sets as a pull request's checks: a green check is a set whose bonus is
-// live, an amber ring is one still waiting for another card. Each row says how many
-// cards share the set of how many the next bonus needs. The bonus text shows on hover.
+// live, an amber ring is one still waiting for another card. Each row names the set and
+// what it does in a word, then how many cards share it of how many the next bonus
+// needs. The bonus text and the cards in the set show on hover.
 // A folded list holds the live sets and the one closest to going live, at most three
 // rows, so it never covers a phone's board or the other side's character (docs/GAME-UI.md §7).
-
-const TIERS = [2, 3] as const;
 
 const repoName = (fullName: string) => fullName.split("/")[1] ?? fullName;
 
@@ -20,15 +19,11 @@ const repoName = (fullName: string) => fullName.split("/")[1] ?? fullName;
 type Row = { set: string; have: number; next: number; live: boolean; entry: TeamSet; repos: string[] };
 
 function rowsOf(cards: Card[]): Row[] {
-  return teamSets({ units: cards.map((card) => ({ card, col: 0, row: 0 })) })
-    // A set two cards share with no bonus between them can never give one: it is not a check.
-    .filter((entry) => entry.bonus && (entry.tier || entry.members.length < 2))
-    .map((entry) => {
-      const have = entry.members.length;
-      const repos = entry.members.map((index) => repoName(cards[index].fullName));
-      return { set: entry.set, have, next: TIERS.find((tier) => tier > have) ?? TIERS[TIERS.length - 1], live: Boolean(entry.tier), entry, repos };
-    })
-    .sort((a, b) => Number(b.live) - Number(a.live) || b.have - a.have);
+  return checksOf({ units: cards.map((card) => ({ card, col: 0, row: 0 })) }).map((entry) => {
+    const have = entry.members.length;
+    const repos = entry.members.map((index) => repoName(cards[index].fullName));
+    return { set: entry.set, have, next: entry.next?.at ?? TIERS[TIERS.length - 1], live: Boolean(entry.tier), entry, repos };
+  });
 }
 
 type Props = { title: string; cards: Card[]; boosts: string[]; align?: "left" | "right"; /** Fold the list to its live sets and the closest one until it is opened. */ folds?: boolean };
@@ -55,14 +50,14 @@ export function Checks({ title, cards, boosts, align = "left", folds = false }: 
         {shown.map((row) => (
           <li key={row.set} tabIndex={0} className="check-row group" data-live={row.live ? "" : undefined} data-testid="set-bonus">
             <span className="check-mark" aria-hidden />
-            <span className="check-name">{setName(row.set)}</span>
+            <span className="check-name">{setName(row.set)} <span className="check-does">{row.entry.bonus.does}</span></span>
             <span className="check-count">{row.have}<span className="text-white/35">/{row.next}</span></span>
             <span className="check-detail" role="tooltip">
-              <span className="block font-display text-[13px] font-bold">{row.entry.bonus!.name}</span>
-              {TIERS.map((tier) => (
-                <span key={tier} className="mt-1 flex gap-2 text-[12px] leading-snug" data-on={row.have >= tier ? "" : undefined}>
-                  <span className="check-tier">{tier}</span>
-                  <span>{(tier === 2 ? row.entry.bonus!.two : row.entry.bonus!.three).text}</span>
+              <span className="block font-display text-[13px] font-bold">{setName(row.set)}: {row.entry.bonus.does}</span>
+              {row.entry.bonus.tiers.map((tier) => (
+                <span key={tier.at} className="mt-1 flex gap-2 text-[12px] leading-snug" data-on={row.have >= tier.at ? "" : undefined}>
+                  <span className="check-tier">{tier.at}</span>
+                  <span>{tier.text}</span>
                 </span>
               ))}
               <span className="check-repos mt-1.5 block text-[11px] leading-snug">{row.repos.join(", ")}</span>

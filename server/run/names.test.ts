@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { effectsOf, popOf, setName, sourceOf } from "./names.ts";
+import { conditionLine, effectsOf, popOf, setName, sourceOf } from "./names.ts";
 
 // Regression guarded: the board names whatever fired over a creature from the event's
-// id; a raw id ("boost:head-start", "set:typescript") on screen means the lookup broke.
+// id; a raw id ("boost:head-start", "set:web") on screen means the lookup broke.
 describe("sourceOf", () => {
   it.each([
     ["hotfix", { kind: "ability", name: "Hotfix" }],
-    ["set:typescript", { kind: "set", name: "Type checked" }],
-    ["set:html", { kind: "set", name: "HTML" }],
+    ["set:web", { kind: "set", name: "Web" }],
+    ["set:cli", { kind: "set", name: "CLI" }],
     ["boost:head-start", { kind: "boost", name: "Head start" }],
     ["merge-conflict", { kind: "condition", name: "Merge conflict" }],
   ])("names %s", (id, source) => {
@@ -21,7 +21,7 @@ describe("sourceOf", () => {
 });
 
 describe("setName", () => {
-  it.each([["typescript", "TypeScript"], ["c++", "C++"], ["game", "Game"], ["rust", "Rust"]])("writes %s as %s", (set, name) => {
+  it.each([["systems", "Systems"], ["cli", "CLI"], ["game", "Game"], ["ai", "AI"]])("writes %s as %s", (set, name) => {
     expect(setName(set)).toBe(name);
   });
 });
@@ -33,8 +33,9 @@ describe("popOf", () => {
   it.each([
     ["fork-bomb", { kind: "ability", name: "Fork bomb", line: "Start → Hit all" }],
     ["hotfix", { kind: "ability", name: "Hotfix", line: "Low HP → Heal" }],
-    ["set:typescript", { kind: "set", name: "Type checked", line: "Start → Guard up" }],
-    ["set:go", { kind: "set", name: "Goroutines", line: "Hit → Extra hit" }],
+    ["set:web", { kind: "set", name: "Web", line: "Start → Shield" }],
+    ["set:systems", { kind: "set", name: "Systems", line: "3rd hit → Extra hit" }],
+    ["set:paintball", { kind: "set", name: "Paintball", line: "Start → Speed up" }],
     ["boost:tar-pit", { kind: "boost", name: "Tar pit", line: "3rd hit → Foe speed down" }],
     ["boost:last-stand", { kind: "boost", name: "Last stand", line: "Alone → Attack up" }],
     ["boost:throttle", { kind: "boost", name: "Throttle", line: "Start → Rate limited" }],
@@ -45,7 +46,6 @@ describe("popOf", () => {
   it.each([
     ["merge-conflict", { kind: "condition", name: "Merge conflict", line: null }],
     ["paintball", { kind: "ability", name: "paintball", line: null }],
-    ["set:nope", { kind: "set", name: "Nope", line: null }],
     ["boost:pop-pop", { kind: "boost", name: "pop-pop", line: null }],
   ])("has no line for %s, which has no hook of its own", (id, pop) => {
     expect(popOf(id)).toEqual(pop);
@@ -64,11 +64,37 @@ describe("effectsOf", () => {
   });
 
   it("gives a set its two-card bonus", () => {
-    expect(effectsOf("set:typescript").length).toBeGreaterThan(0);
+    expect(effectsOf("set:web")).toEqual([{ kind: "shield", aim: "self", share: 0.05 }]);
   });
 
   it("gives nothing for an unknown id", () => {
     expect(effectsOf("paintball")).toEqual([]);
     expect(effectsOf("boost:pop-pop")).toEqual([]);
+  });
+});
+
+// Regression guarded: the fight's creature panel tells a player what a condition does
+// and how long it has left; a sentence that drifts from the engine's numbers (1.5× slower,
+// 1 hit in 3) or reads "0 s left" while the badge still shows teaches the wrong rule.
+describe("conditionLine", () => {
+  it.each([
+    ["merge-conflict", 20, 120, "Merge conflict: 1 hit in 3 lands on itself, 2 s left"],
+    ["rate-limited", 20, 120, "Rate limited: acts 1.5× slower, 2 s left"],
+    ["deprecated", 30, 120, "Deprecated: loses 4 HP each second, 3 s left"],
+    ["flaky", 10, 120, "Flaky: 1 hit in 4 misses, 1 s left"],
+  ] as const)("says what %s does, with %i ticks left", (condition, ticksLeft, fullHp, line) => {
+    expect(conditionLine(condition, ticksLeft, fullHp)).toBe(line);
+  });
+
+  it.each([
+    [11, "Rate limited: acts 1.5× slower, 2 s left"],
+    [1, "Rate limited: acts 1.5× slower, 1 s left"],
+    [0, "Rate limited: acts 1.5× slower, 1 s left"],
+  ])("rounds %i ticks left up, never to 0 s", (ticksLeft, line) => {
+    expect(conditionLine("rate-limited", ticksLeft, 120)).toBe(line);
+  });
+
+  it("never says a deprecated card loses 0 HP, however small its HP", () => {
+    expect(conditionLine("deprecated", 30, 10)).toBe("Deprecated: loses 1 HP each second, 3 s left");
   });
 });

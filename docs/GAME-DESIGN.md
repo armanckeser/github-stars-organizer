@@ -275,6 +275,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
   - The emblem over the head = the topic set's icon, the same one as in the card's hex.
   - Trim = type. Gold foil = creator card.
   - Cost = a thin ring at the creature's feet in the tier colour (grey to gold), the card border's colour. Changed 2026-11-12 from "size = cost": every creature keeps one size, so size stays free for star levels if copies ever combine (TFT grows a unit when it stars up).
+- Owner, 2026-11-12: the cost mark should feel "more GitHub" than a ring, sash or tattoo. And the creatures are "cute but maybe a bit repetitive". Measured on the 12 opponents' live pools: 236 cards, 6 bodies, 18 body-and-top looks, golem 26%. Body = role would cut that to 4 silhouettes. Open: show the role another way (a held prop), and add bodies.
 - A balance study across real repos is optional. The owner thinks it is likely not needed.
 
 **Cards and rules**

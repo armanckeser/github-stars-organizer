@@ -273,7 +273,8 @@ Everything the owner said while the Play run was built, in one place. Status: **
   - Body shape = role: Tank golem, Bruiser critter, Assassin bird, Ranged wisp, orb or tome.
   - Body colour = the language's own colour, with no random shift.
   - The emblem over the head = the topic set's icon, the same one as in the card's hex.
-  - Trim = type. Size = cost, in 5 steps. Gold foil = creator card.
+  - Trim = type. Gold foil = creator card.
+  - Cost = a thin ring at the creature's feet in the tier colour (grey to gold), the card border's colour. Changed 2026-11-12 from "size = cost": every creature keeps one size, so size stays free for star levels if copies ever combine (TFT grows a unit when it stars up).
 - A balance study across real repos is optional. The owner thinks it is likely not needed.
 
 **Cards and rules**

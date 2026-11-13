@@ -5,8 +5,8 @@ import { BoardWorld, type BoardFight, type BoardUnit, type Spot } from "./three/
 
 declare global {
   interface Window {
-    /** The board, for the browser tests (e2e/), in development builds only. */
-    stardBoard?: Pick<BoardWorld, "screenOf" | "screenOfSlot" | "screenOfUnit" | "screenOfArchive">;
+    /** The board, for the browser tests (e2e/), in development builds and the perf harness's build only. */
+    stardBoard?: Pick<BoardWorld, "screenOf" | "screenOfSlot" | "screenOfUnit" | "screenOfArchive" | "renderInfo">;
   }
 }
 
@@ -35,6 +35,9 @@ export type BoardProps = {
   /** One of the player's creatures is being carried (its id), or was put down (null). */
   onDrag: (id: string | null) => void;
 };
+
+/** The browser tests and the perf harness reach the board; a shipped build leaves it out. */
+const EXPOSED = import.meta.env.DEV || import.meta.env.VITE_PERF === "1";
 
 // Started in full, then once more with the extras off after the browser drops the WebGL context.
 const STARTS = 2;
@@ -66,7 +69,7 @@ export default function Board3D(props: BoardProps) {
         onMove: (id, spot) => latest.current.onMove(id, spot),
         sellPrice: (id) => latest.current.sellPrice(id),
       });
-      if (import.meta.env.DEV) window.stardBoard = world.current;
+      if (EXPOSED) window.stardBoard = world.current;
     } catch {
       return;
     }
@@ -74,7 +77,7 @@ export default function Board3D(props: BoardProps) {
       clearTimeout(retry);
       world.current?.dispose();
       world.current = null;
-      if (import.meta.env.DEV) delete window.stardBoard;
+      if (EXPOSED) delete window.stardBoard;
     };
   }, [start]);
 

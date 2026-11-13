@@ -53,10 +53,3 @@ export function poolFor(login: string): Player {
   });
   return { login, avatarUrl: null, character: { ...defaultCharacter(login), level: 3 }, team };
 }
-
-/** A made-up account's pool with 1 HP and 1 attack on every card: a team any player beats, for a run that has to reach its end. */
-export function weakPoolFor(login: string): Player {
-  const pool = poolFor(login);
-  const team = pool.team.map((fighter): RunFighter => ({ ...fighter, hp: 1, attack: 1, card: { ...fighter.card, hp: 1, attack: 1 } }));
-  return { ...pool, team };
-}

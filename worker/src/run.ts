@@ -8,6 +8,7 @@ import {
 import { SAVED_TEAM_VERSION, savedSnapshotAt, savedUnitsAt, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Card, Fight, FightEvent, Placed, Side, Snapshot } from "../../server/run/types.ts";
 import type { RunPool } from "./battle.ts";
+import type { CountEvent } from "./events.ts";
 import { LOGIN } from "./cards.ts";
 import type { OptOuts } from "./no-play.ts";
 import { BrokenSeal, seal, unseal, type Packing } from "./sealed.ts";
@@ -119,10 +120,11 @@ const CHOICES = ["buy", "sell", "reroll", "place", "fight"] as const;
 
 /**
  * What the Worker gives a run: its key, a way to read an account's cards, which
- * accounts asked not to be played against (worker/src/no-play.ts), the time, and where
- * a new run's seed comes from (newRunSeed, or a fixed one in a test).
+ * accounts asked not to be played against (worker/src/no-play.ts), the time, where a
+ * new run's seed comes from (newRunSeed, or a fixed one in a test), and the counters
+ * (worker/src/events.ts), which a test or a Worker without the dataset leaves out.
  */
-export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; optedOut: OptOuts; now: number; newSeed: () => string };
+export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; optedOut: OptOuts; now: number; newSeed: () => string; count?: CountEvent };
 
 /** A choice the rules don't allow, or a request that can't be read. The message is shown to the player. */
 export class RunRefused extends Error {

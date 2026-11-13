@@ -5,6 +5,7 @@ import { StarStard } from "@/components/star-stard";
 import { NotAffiliated } from "@/components/not-affiliated";
 import { TeamTiles } from "@/components/run/team-tiles";
 import type { BoardUnit } from "@/components/battle/three/board";
+import { validLogin } from "@/lib/published-list";
 import { rangeOf } from "@/lib/run";
 import { finalUnits, openTeam, recordOf, type SavedTeam } from "@/lib/saved-team";
 import { cellOf } from "../../server/run/types";
@@ -16,7 +17,11 @@ import { cellOf } from "../../server/run/types";
 
 export const Route = createFileRoute("/team")({
   component: TeamPage,
-  validateSearch: (search: Record<string, unknown>): { t?: string } => ({ t: typeof search.t === "string" ? search.t : undefined }),
+  validateSearch: (search: Record<string, unknown>): { t?: string; to?: string } => ({
+    t: typeof search.t === "string" ? search.t : undefined,
+    // The friend a challenge names (src/lib/challenge.ts); anything that isn't a username is ignored.
+    to: typeof search.to === "string" && validLogin(search.to) ? search.to.trim() : undefined,
+  }),
 });
 
 const Board3D = lazy(() => import("@/components/battle/board3d"));
@@ -28,7 +33,7 @@ const PANEL_GAP = 24;
 type Loaded = { state: "loading" } | { state: "ready"; team: SavedTeam } | { state: "failed"; message: string };
 
 function TeamPage() {
-  const { t } = Route.useSearch();
+  const { t, to } = Route.useSearch();
   const [loaded, setLoaded] = useState<Loaded>({ state: "loading" });
   useEffect(() => {
     let live = true;
@@ -78,16 +83,17 @@ function TeamPage() {
               <Link to="/run" className="hud-button hud-fight run-panel-primary"><Swords className="size-4" /> Play Stard</Link>
             </div>
           )}
-          {team && <SavedTeamPanel team={team} token={t!} />}
+          {team && <SavedTeamPanel team={team} token={t!} to={to} />}
         </div>
       </div>
     </div>
   );
 }
 
-function SavedTeamPanel({ team, token }: { team: SavedTeam; token: string }) {
+function SavedTeamPanel({ team, token, to }: { team: SavedTeam; token: string; to?: string }) {
   return (
     <section className="run-panel" aria-labelledby="team-title">
+      {to && <p className="run-panel-beat mt-0 text-center">@{team.login} challenges you</p>}
       <header className="flex items-center gap-3">
         {team.avatarUrl && <img src={team.avatarUrl} alt="" className="size-10 shrink-0 rounded-full" />}
         <div className="min-w-0">
@@ -96,7 +102,7 @@ function SavedTeamPanel({ team, token }: { team: SavedTeam; token: string }) {
         </div>
       </header>
       <TeamTiles units={finalUnits(team)} />
-      <Link to="/run" search={{ against: token }} title="A run with your stars, every round against this team as it stood that round" className="hud-button hud-fight run-panel-primary"><Swords className="size-4" /> Beat this team</Link>
+      <Link to="/run" search={{ against: token, name: to }} title="A run with your stars, every round against this team as it stood that round" className="hud-button hud-fight run-panel-primary"><Swords className="size-4" /> Beat this team</Link>
       <div className="run-panel-quiet">
         <StarStard className="text-white/55 hover:text-white" />
         <NotAffiliated />

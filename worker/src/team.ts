@@ -3,6 +3,7 @@ import { LOSSES_TO_END, OPPONENTS, ROUND_GOLD, SLOT_COST, START_GOLD, WINS_TO_FI
 import { SAVED_TEAM_VERSION, finalUnits, recordOf, type SavedRound, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Snapshot } from "../../server/run/types.ts";
 import { LOGIN } from "./cards.ts";
+import type { CountEvent } from "./events.ts";
 import type { OptOuts } from "./no-play.ts";
 import { seal } from "./sealed.ts";
 import {
@@ -19,7 +20,7 @@ import {
 //
 //   POST /api/run/team {login, seed, rounds, against?}  the team's token, and the team
 //   GET  /api/run/team?t=<token>                  the team, once the token checks out
-//   GET  /team?t=<token>                          the app's page, with the team's link-preview tags
+//   GET  /team?t=<token>[&to=<friend>]            the app's page, with the team's link-preview tags
 //
 // `rounds` is the team as fought at each round, round 1 first:
 // `{units: [{repo: "owner/name", col, row}], boosts: [<boost id>]}`.
@@ -129,7 +130,9 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
     fighters: fielded.map((index) => player.team[index]),
     rounds: rounds.map((round) => ({ ...round, units: round.units.map((unit) => ({ ...unit, fighter: fielded.indexOf(unit.fighter) })) })),
   };
-  return { token: await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING), team: saved };
+  const token = await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING);
+  deps.count?.("team_saved");
+  return { token, team: saved };
 }
 
 export async function teamResponse(request: Request, url: URL, deps: RunDeps): Promise<Response> {
@@ -153,13 +156,14 @@ const attribute = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&
 
 /**
  * What a team link's preview says. Anyone can type any username, so it names whose
- * stars the team was drafted from, never a person who played.
+ * stars the team was drafted from, never a person who played. A challenge link names
+ * the friend it was sent to (`to`, a username once checked).
  */
-export function teamPreview(saved: SavedTeam): { title: string; description: string; alt: string } {
+export function teamPreview(saved: SavedTeam, to: string | null = null): { title: string; description: string; alt: string } {
   const record = recordOf(saved.wins, saved.losses);
   const cards = finalUnits(saved).map((unit) => unit.fighter.fullName.split("/")[1] ?? unit.fighter.fullName);
   return {
-    title: `A team from @${saved.login}'s stars · Stard`,
+    title: to ? `@${saved.login} challenges @${to} · Stard` : `A team from @${saved.login}'s stars · Stard`,
     description: `${record}, with ${cards.join(", ")}. Beat this team on Stard.`,
     alt: `A team of repo cards from @${saved.login}'s stars, ${record}`,
   };
@@ -169,7 +173,7 @@ export function teamPreview(saved: SavedTeam): { title: string; description: str
  * The app's own page for /team, with the link-preview tags of the team in its address
  * (as /battle's in worker/src/share.ts). A team whose owner opted out gets the plain page.
  */
-export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts): Promise<Response> {
+export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts, count: CountEvent): Promise<Response> {
   const page = await fetch(request);
   if (!(page.headers.get("Content-Type") ?? "").includes("text/html")) return page;
   // The static host answers a deep link with its fallback page and a 404; the page is the app, so it is a 200.
@@ -183,13 +187,16 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
   } catch {
     return new Response(page.body, { status: 200, headers });
   }
+  count("team_opened");
 
+  const to = url.searchParams.get("to") ?? "";
+  const challenged = LOGIN.test(to) ? to : null;
   const query = `t=${encodeURIComponent(token)}`;
-  const { title, description: says, alt } = teamPreview(saved);
+  const { title, description: says, alt } = teamPreview(saved, challenged);
   const picture = `${url.origin}/api/card/team.png?${query}`;
   const tags = [
     ["property", "og:type", "website"],
-    ["property", "og:url", `${url.origin}/team?${query}`],
+    ["property", "og:url", `${url.origin}/team?${query}${challenged ? `&to=${challenged}` : ""}`],
     ["property", "og:title", title],
     ["property", "og:description", says],
     ["property", "og:image", picture],

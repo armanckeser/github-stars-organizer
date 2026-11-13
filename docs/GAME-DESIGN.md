@@ -301,6 +301,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |
 | A resent run token can retry a round. Accepted for now. | built |
+| "Beating the first guy is pretty hard right now." A player's ace and one bought card met the opponent's ace and a free pick, which often cost more than the 4 starting gold buys: a greedy player won round 1 about 40% of the time (15% against torvalds). Round 1's opponent fields only its ace, the player still fields 2; rounds 2 on are unchanged. | branch `round1-ace-only` (#98) |
 
 **Look**
 

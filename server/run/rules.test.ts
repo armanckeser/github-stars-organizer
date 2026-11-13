@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fight } from "./fight.ts";
-import { NEW_TALLY, boardLimit, costOf, countRound, newRunSeed, shopFor, snapshot, type RunFighter, type Unit } from "./rules.ts";
+import { NEW_TALLY, boardLimit, costOf, countRound, newRunSeed, opponentUnits, shopFor, snapshot, type RunFighter, type Unit } from "./rules.ts";
 import { card, cityCollege } from "./testbed.ts";
 
 const unit = (name: string, col: number): Unit => ({ fighter: { fullName: `greendale/${name}`, card: card(`greendale/${name}`, { hp: 600 }) } as RunFighter, col, row: 0 });
@@ -35,6 +35,32 @@ describe("shopFor", () => {
     expect(names("greendale-run-1")).toEqual(names("greendale-run-1"));
     expect(names("greendale-run-1")).toHaveLength(5);
     expect(names("greendale-run-1")).not.toContain("greendale/dreamatorium");
+  });
+});
+
+describe("opponentUnits", () => {
+  const fighter = (name: string): RunFighter => ({ fullName: `greendale/${name}`, defense: 100, card: card(`greendale/${name}`) }) as RunFighter;
+  const pool = { login: "greendale", team: ["dreamatorium", ...Array.from({ length: 39 }, (_, i) => `study-room-${i}`)].map(fighter) };
+  const fielded = (round: number) => opponentUnits(pool, round, "greendale-run-1").map((unit) => unit.fighter.fullName);
+
+  // Regression guarded: round 1's opponent fielded its ace and a free card from its shop,
+  // so a player's ace and one bought card lost round 1 more often than not.
+  it("fields only the ace in round 1", () => {
+    expect(fielded(1)).toEqual(["greendale/dreamatorium"]);
+  });
+
+  it.each([
+    [2, 3],
+    [3, 4],
+    [4, 5],
+    [7, 5],
+  ])("fields a full team of round %i: %i cards, the ace among them", (round, size) => {
+    expect(fielded(round)).toHaveLength(size);
+    expect(fielded(round)).toContain("greendale/dreamatorium");
+  });
+
+  it("fields the ace alone in a later round when the account has no other card", () => {
+    expect(opponentUnits({ login: "greendale", team: [fighter("dreamatorium")] }, 3, "greendale-run-1").map((unit) => unit.fighter.fullName)).toEqual(["greendale/dreamatorium"]);
   });
 });
 

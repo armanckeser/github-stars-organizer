@@ -76,6 +76,16 @@ export function shopFor<T extends { fullName: string }>(player: Pool<T>, owned: 
 /** How many cards a team may hold in a round. */
 export const teamSizeAt = (round: number) => Math.min(TEAM_MAX, round + 1);
 
+const FIRST_ROUND = 1;
+/**
+ * Cards the other account fields in round 1: its ace alone, against the player's two.
+ * With two cards each, a greedy player won round 1 about 40% of the time, as the
+ * opponent's free pick often cost more than the 4 starting gold buys.
+ */
+export const OPENING_OPPONENT_SIZE = 1;
+/** How many cards the other account fields in a round: its ace alone in round 1, a full team after. */
+export const opponentSizeAt = (round: number) => (round === FIRST_ROUND ? OPENING_OPPONENT_SIZE : teamSizeAt(round));
+
 /** Cards bought wait on the bench until placed. Only cards on the board count toward the team limit. */
 export const BENCH_SIZE = 5;
 /** Gold for one more board slot than the round allows, and the most a board can hold with bought slots. */
@@ -100,10 +110,14 @@ export function opponentLogin(login: string, round: number, seed: string, optedO
   return shuffled(others, `${login.toLowerCase()}|${seed}|opponents`)[(round - 1) % others.length];
 }
 
-/** The other account's team at this round, built the way a player builds one: each round a shop from its stars, one card taken. */
+/**
+ * The other account's team at this round, built the way a player builds one: each round
+ * a shop from its stars, one card taken. Round 1 takes none (opponentSizeAt), and round 2
+ * still takes round 1's pick, so every later round's team is the one it always was.
+ */
 export function opponentUnits(opponent: Pool<RunFighter>, round: number, seed: string): Unit[] {
   const team = opponent.team.slice(0, 1);
-  for (let r = 1; team.length > 0 && team.length < teamSizeAt(round); r++) {
+  for (let r = 1; team.length > 0 && team.length < opponentSizeAt(round); r++) {
     const [pick] = shopFor(opponent, team, r, 0, seed, 1);
     if (!pick) break;
     team.push(pick);

@@ -30,7 +30,7 @@ Decided 2026-11-11: the run. A friend's point: picking a move each turn is an ol
 5. After rounds 2 and 4, pick one of three boosts.
 6. The run ends at 5 wins or 3 losses. About five minutes.
 
-- **Sets.** Cards that share a language or a topic give a bonus at 2 and at 3 (three TypeScript cards, two `cli` cards). Types become sets. No rule ever forbids a mix.
+- **Sets.** Cards of one family (Systems, Scripts, Web, Apps, Data, Docs, from the language) or that share a topic give a bonus at 2 and a bigger one at 4. No rule ever forbids a mix. See "The sets" below.
 - **Saved teams.** A finished round is saved as a signed snapshot: the cards with their numbers frozen, the order, the boosts. A fight is worked out from two snapshots and a seed, so anyone can replay a fight and get the same result even after the repos change.
 - **Challenge a person.** A challenge link fights that person's latest saved team. No waiting for a reply.
 - **Demo.** Playable with no login: type a username, draft from that account's public stars, fight saved teams. Well-known accounts are seeded so the first visitor has opponents.
@@ -175,7 +175,7 @@ Taking turns with public dice leaves nothing to guess. In each turn both players
 Built:
 
 - A floor of contribution-graph tiles that ripples when a hit lands.
-- Each repo is a creature: its name picks one of six bodies and the details, its language picks the colour, its type picks the trim. Bigger repos are bigger. Shiny ones sparkle.
+- Each repo is a creature: in a run, its role picks one of four body families (three bodies each) and words in its name pick one body of that family; outside a run (the one-on-one battle) its words pick from all twelve. Its language picks the colour, its type the trim, its cost the lit squares of its sash. Bigger repos are bigger. Shiny ones sparkle.
 - Each player's character stands behind their creature, built from the same choices as the README trainer card. The character throws a card and the creature comes out of it.
 - Attacks lunge, specials charge and fire, a critical holds the frame and shakes the camera, a knocked-out creature falls and bursts.
 
@@ -196,6 +196,30 @@ Next, in order of what a viewer notices:
 5. Sealed simultaneous moves and paste-to-play, in the chosen arena repo.
 6. Record, ladder, upset line.
 
+## The sets
+
+A card has one family, from its language (its type), and up to two of its repo's topics. Each family does one thing no other set does. Every topic does the same plain thing, so a topic never hides a rule. A set gives its bonus to the cards that share it, at 2 cards and, bigger, at 4. Code: `server/run/sets.ts`. Held to its band by `server/run/set-strength.test.ts`.
+
+| Set | Languages | Name | At 2 cards, each of them | At 4 cards, each of them | Wins gained at 2 / 4 |
+|---|---|---|---|---|---|
+| Systems | Rust, C, C++, Go, Zig, Haskell, Elixir ... | Extra hit | Every third hit adds another hit of 25%. | ... of 30%. | +10.5 / +19.9 |
+| Scripts | Shell, Ruby, PHP, Lua, Perl, Nix ... | Opening hit | As the fight starts, hits every enemy for 25% of a hit. | ... for 28%. | +12.5 / +22.9 |
+| Web | TypeScript, JavaScript, HTML, CSS, Vue ... | Shield | Starts each fight with a shield of 5% of its HP. | ... of 8%. | +12.1 / +20.6 |
+| Apps | Swift, Kotlin, Java, C#, Dart ... | Guard | Each hit it takes adds 4% guard. | ... 7%. | +10.0 / +23.4 |
+| Data | Python, Jupyter Notebook, R, Julia ... | Critical | Lands a critical hit on 16% of its hits, not 6%. | ... on 21%. | +10.7 / +24.5 |
+| Docs | no language, or one the game doesn't know | Heal | Every third hit heals it 2.5% of its HP. | ... 5%. | +12.0 / +22.9 |
+| Any topic two cards share | | Faster | Acts 7% more often. | ... 9%. | +11.0 / +22.1 |
+
+"Wins gained" is win-rate points, the same fights with and without the bonus, on the test fixture's 200 repos: 4 cards a side for the 2-card bonus, 5 for the 4-card one. The band is +8 to +14 at 2 and +18 to +26 at 4. Fights are close, so about 2 HP is one point: the amounts look small and still count. On the 12 opponents' and the owner's real pools (297 cards) every cell is in the band but Docs at 4 (+12.5): real Docs repos are weak cards, and no heal tried lifted four of them past +17. Re-measure: `node scripts/balance/strength.ts`.
+
+**Why these rules (measured 2026-11-13 on the real pools)**
+
+- **Six families, no language sets.** The 20 language sets and 6 type sets gave bonuses from 0 points (JavaScript's speed, CLI's speed, the Scripts type) to +38 (PHP) at 2 cards, and many said the same thing (three were "more guard", three "more speed").
+- **One topic bonus.** Topics are long-tail: the 276 different repos in those pools carry 292 topics, 233 of them different, and the 6 common ones are 7% of them. 128 repos have no topic. On the owner's 5-card boards a shared topic is live 0.21 times, a common one 0.04 times, so named topic bonuses would almost never be seen. A topic on one card is not a check and is not listed.
+- **Tiers 2 and 4.** On the owner's 5-card boards, 47% have 3 cards of one family and 9% have 4 (21% at 6 cards). On the opponents' boards it is 81% and 48%. At 2 and 3 nearly every board reaches the top tier, so it is no goal; at 4 it is one to build toward.
+
+**Checks list:** every family on the board (each is live or one card from live) and every topic two cards share; live ones first. Owner boards show 1.8 rows at 2 cards, 3.2 at 5 and 3.6 at 6 (10.6 at 5 before).
+
 ## Everything else that came up
 
 Ideas and open items from the design conversations that the sections above don't cover. None of these is scheduled.
@@ -204,7 +228,7 @@ Ideas and open items from the design conversations that the sections above don't
 
 - Take the creature's colours, or a picture it carries, from the image at the top of the repo's README. Needs the Worker to fetch the README and the image.
 - A flat SVG drawing of each creature, so the cards served for READMEs (top four, list, battle result) show creatures too.
-- More bodies than six, and more things to carry than nine. Each new word list makes more repos look like themselves.
+- More things to carry than nine. Twelve bodies now (branch `creature-look-bodies`); each new word list makes more repos look like themselves.
 - Creatures that change with level: a small, a middle and a large form at star milestones.
 - A card back and a pack-opening moment for the daily pull.
 
@@ -263,7 +287,7 @@ Ideas and open items from the design conversations that the sections above don't
 
 Everything the owner said while the Play run was built, in one place. Status: **built** (on main), **branch** (built, not merged yet), **open** (decided, not built), **idea** (not decided).
 
-**The principle: read the creature at a glance (open)**
+**The principle: read the creature at a glance (role and cost: branch `creature-look-bodies`; sets: open)**
 
 > "If I am going for a synergy I should be able to just look at the monster and kind of understand if that's one I might want to add ... I can read further in by pressing the card."
 
@@ -275,7 +299,12 @@ Everything the owner said while the Play run was built, in one place. Status: **
   - Body shape = role: Tank golem, Bruiser critter, Assassin bird, Ranged wisp, orb or tome.
   - Body colour = the language's own colour, with no random shift.
   - The emblem over the head = the topic set's icon, the same one as in the card's hex.
-  - Trim = type. Size = cost, in 5 steps. Gold foil = creator card.
+  - Trim = type. Gold foil = creator card.
+  - Cost = a thin ring at the creature's feet in the tier colour (grey to gold), the card border's colour. Changed 2026-11-12 from "size = cost": every creature keeps one size, so size stays free for star levels if copies ever combine (TFT grows a unit when it stars up).
+- Owner, 2026-11-12: the cost mark should feel "more GitHub" than a ring, sash or tattoo. And the creatures are "cute but maybe a bit repetitive". Measured on the 12 opponents' live pools: 236 cards, 6 bodies, 18 body-and-top looks, golem 26%. Body = role would cut that to 4 silhouettes. Open: show the role another way (a held prop), and add bodies.
+- **Decided 2026-11-12 (supersedes body = role and the cost ring):**
+  - Body family per role: each role gets its own 2 to 3 bodies (8 to 12 in all), so the silhouette says the role and the creatures stop repeating. **Branch `creature-look-bodies`:** 12 bodies, 3 per role. Tank (wide and low): golem, turtle, warden. Bruiser (upright, with fists): critter, brawler, rhino. Assassin (small and sharp): bird, fox, imp. Ranged (floating): wisp, orb, tome. Words in the name pick one within the role, else a seeded draw.
+  - Cost = a contribution sash: a sash with 5 commit-graph squares, as many lit as the card costs, in the tier colour. Reads by count and by colour. **Branch `creature-look-bodies`:** on the 3D model and the flat sticker, both drawn from one list of parts (`server/creature-parts.ts`). White band, GitHub's empty square `#ebedf0` for the unlit ones (GAME-UI §3).
 - A balance study across real repos is optional. The owner thinks it is likely not needed.
 - **2026-11-12: build it before Sunday's launch**, right after the never-empty shop.
 
@@ -289,11 +318,18 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Every `armanckeser` repo is a creator card: legendary, 5 gold, the 460 budget (× 1.05 shiny). "github-stars-organizer" is a 1-gold common today; creator cards are the reason to star them. | branch `sell-every-card` |
 | Hovering a check (yours or theirs) names the board's cards in that set, beside the bonus. | branch `sell-every-card` |
 | Keep the bench, even though Stard cards never combine. | built |
-| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | branch `shop-never-empty`: a few from each star band (2 to 5 gold), chosen 2026-11-12 |
+| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | built (#92): a few from each star band (2 to 5 gold) |
 | A friend's idea: buying the same repo three times combines it into a stronger one, as in TFT. Today each repo is in the pool once, so copies never meet. | idea |
+| Every run on one day dealt the same shops, rerolls and opponents (the seed was username + date). Free play: a new seed every run, and a pool of about 40 stars. | open, decided 2026-11-12 |
+| A daily mode next to free play: everyone gets the same deck (the day's popular repos), the same shops and opponents, and a result line to share. "Daily only means something if everyone gets the same draw." | idea, after the launch numbers |
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |
+| "Do they even matter then?" about the checks. Measured: speed did nothing at all. Each wait between hits was rounded to whole ticks, so every real card (speed 100 to 138) waited 10 ticks, and the speed stat and the three speed bonuses changed no fight. Waits now keep their fractions. | branch `sets-speed-fix` (#100) |
+| "The checks are very meh, they all have the same bonuses almost? ... there are soooo many types." 20 language sets and 6 type sets, several saying the same thing, from 0 to +38 win points. Now six families from the language, each with one thing it does, and one plain bonus for any topic two cards share, at 2 and 4 cards, each worth +8 to +14 points at 2 and +18 to +26 at 4. See "The sets". | branch `sets-redesign` (#104) |
+| "Claude-code: No bonus: mixed types. I have no idea what types are, what mixing them means, what the bonuses would be." The line is gone: a shared topic always gives its bonus, and each set line names the family or topic, what it does and the count ("Web: Shield 2/4"). The checks list shows what each row does, and only families and the topics two cards share (3.2 rows on a 5-card board, 10.6 before). | branch `sets-redesign` (#104) |
+| Owner on 2026-11-13, shown the sets before and after: merge both and deploy. Docs at 4 cards measures +12.5 on real pools against about +20 for the other families; the owner chose to ship it as it is and look again after playing. | approved, `sets-redesign` (#104) |
 | A resent run token can retry a round. Accepted for now. | built |
+| "Beating the first guy is pretty hard right now." A player's ace and one bought card met the opponent's ace and a free pick, which often cost more than the 4 starting gold buys: a greedy player won round 1 about 40% of the time (15% against torvalds). First built as the ace alone: two cards against one won 100%, and the owner asked for "winnable, still a fight", about 70%, no opponent under about 50% or over about 90%. Now round 1's opponent fields its ace and free pick with 385 stat points each (`OPENING_STAT_POINTS`; a common has 400), HP above the floor shrunk with the rest and guard nudged after rounding, so every card keeps its role and body. With the six-family sets (#104), over 2,000 round 1s of armanckeser's live pool (`scripts/balance/boards.ts`'s two buyers): buying the priciest card 43% on main, 67% now (48% kentcdodds to 85% sindresorhus); buying for live checks 55% on main, 75% now (57% kentcdodds to 90% rauchg). The 7 other pools tried as the player: 44% (sindresorhus) to 94% (torvalds). No rule tried met both bounds: what is left of the spread is the aces' roles and abilities. A run against a saved team link keeps round 1 at full strength, so the board matches what that team fought. Owner on 2026-11-13, shown the card and the numbers: yes to 385, and yes to full strength on team links. | approved, `round1-ace-only` (#98) |
 
 **Look**
 
@@ -307,6 +343,9 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | "Play a run" sounds meh: say "Play Stard" everywhere (share pictures, README badge, team page button, team preview). | built (#77) |
 | Share pictures show creatures (flat stickers), fill the set hexes, title only. README GIF ends on the new end screen. | built (#71, #77) |
 | Front page: a normal-size Play button beside the title, no sample-account button. | built |
+| Characters for the 12 opponents: ship all 12 (and `armanckeser`), kind and plain (hair, glasses, top, colours; no beards or anything that could read as a caricature), drawn from their public avatars. Removal path in `OPPONENTS.md` and `characters/README.md`: their own `stard/character.md` wins, or ask and the file is deleted. An opted-out account (`stard/no-play` or the block list) never shows the file. One line on the privacy page, pending the owner's wording. | branch `characters` (#72) |
+| "My character is supposed to have a bun." And the owner's near-black jacket (`#1f2328`) sat close to the Rookie panel (`#3a4049`) on the trainer card and vanished into the board's floor. `characters/armanckeser.md`: hair `bun`, jacket denim `#2f5a94`, which stands apart from all 7 class panels and the board. Oxblood `#7a2e3b` and olive `#556b2f` were the other two shown; the owner chose denim on 2026-11-13. The bun reads as a small bump from the board's camera; the owner left its size as is. | branch `owner-bun` (#101) |
+| A white star patch on each upper arm of the trainer (board, trainer card, Play panel) for an account that starred Stard; "Starred Stard" in plain grey words in the Play panel. Opted-out and block-listed accounts get nothing. Chosen 2026-11-13 over a gold arm band, whose gold (`#d4a017`) sat close to the legendary tier gold (`#e3b341`) that GAME-UI §3 keeps for cards. GitHub lists a repo's stargazers only to its admins and collaborators, so the patch shows only if the Worker's `GITHUB_TOKEN` is the owner's. | built (#75) |
 
 **Demo and speed**
 
@@ -314,6 +353,8 @@ Everything the owner said while the Play run was built, in one place. Status: **
 |---|---|
 | Opponents take too long to load: a longer edge cache. | built (#80) |
 | The deployed app broke after a merge. Every change is checked on the live site, not only locally. | built (process) |
+| "Reading the next team takes some time": each round's opponent was read only when Continue was pressed. The next opponent follows from the name, the seed and the round alone, so it is now read while the round is played. | branch `run-prefetch-opponent` (#99) |
+| "I pressed New run after finishing, but that had the old characters on the screen for a while and then they switched." New run kept the last round's opponent, their creatures, the "Round N" HUD and the old shop (still buyable) until the new run's first opponent was read. The run is now one state machine (`src/lib/run-state.ts`): New run clears the board to the player's trainer at once, a read for an older run is dropped, and a failed read shows Try again instead of a Fight against the last opponent. | branch `run-phases` (#103) |
 
 **The journey after the first run**
 
@@ -334,5 +375,6 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Feedback | Status |
 |---|---|
 | An ability firing shows as a slate text card over the creature (GAME-UI §9). It should be an animation on the board, stylized, readable without reading words. One look per effect kind (damage, shield, heal, stat, condition), so 23 abilities, the set bonuses and the boosts all share it. | built: a gold name under 1 s, a gold cast ring, and one look per kind in `src/components/battle/three/effects/` (GAME-UI §9). Shields also show on the HP bar. Owner approved from the before/after videos. |
+| "When I see something like rate limited, I want to press the character and see what rate limited means." In a fight, a tap on any creature (or on its condition badge) opens a panel beside the board, as TFT's unit panel does, and the fight plays on: live HP and shield, the condition as a sentence with the seconds left ("Rate limited: acts 1.5× slower, 2 s left"), the ability, and live set bonuses (GAME-UI §9). | branch `fight-inspect` (#102) |
 
 The owner played a whole run on 2026-11-12: "it was actually fun".

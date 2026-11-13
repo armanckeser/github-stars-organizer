@@ -13,8 +13,9 @@ function recipeOf(fullName: string, description: string | null) {
   return creatureRecipe(fighterFor(facts, "greendale", NOW));
 }
 
-// Every body under every emblem, through names that pick them.
-const BODY_WORDS = ["bot", "cli", "web", "data", "docs", "app"];
+// Every body under every emblem, through names that pick them. A repo outside a run has no
+// role, so its words choose among all twelve bodies.
+const BODY_WORDS = ["bot", "archive", "vault", "game", "debug", "server", "data", "quick", "prank", "cli", "web", "docs"];
 const EMBLEM_WORDS = ["stars", "budget", "photo", "auth", "fast", "love", "map", "cloud", "tool"];
 const RECIPES = BODY_WORDS.flatMap((body) => EMBLEM_WORDS.map((emblem) => recipeOf(`greendale/${body}-x`, `A ${emblem} thing`)));
 

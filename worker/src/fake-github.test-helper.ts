@@ -41,10 +41,23 @@ const REPOS: Record<string, Repo> = {
   ...POPULAR_REPOS,
 };
 
-type Account = { readme: string | null; pinned: string[]; stars: string[] };
+type Account = { readme: string | null; pinned: string[]; stars: string[]; characterFile?: string; noPlay?: true };
 
 export const HOST = "study-group-abed";
 export const GUEST = "study-group-annie";
+/** Has a character file kept in this repo, and nothing of their own. */
+export const LISTED = "study-group-troy";
+/** Has their own `stard/character.md` as well as a file kept in this repo. */
+export const OWN_FILE = "study-group-shirley";
+/** Has a character file kept in this repo, and a `stard/no-play` file: opted out of being played. */
+export const LISTED_LEFT_OUT = "study-group-dean";
+
+// `characters/<login>.md` in this repo.
+const LISTED_FILES: Record<string, string> = {
+  [LISTED]: "name: Troy\nhair: buzz\nhair-color: black\nbeard: stubble\ntop: tee\ntop-color: blue",
+  [OWN_FILE]: "name: Shirley (kept here)\nhair: long",
+  [LISTED_LEFT_OUT]: "name: Dean (kept here)\nhair: bald\nglasses: shades",
+};
 /** No stars, no pinned repos and no repos of their own. */
 export const NEWCOMER = "study-group-pierce";
 /** Enough stars to fill a run's pool without any popular repos. */
@@ -62,6 +75,9 @@ const ACCOUNTS: Record<string, Account> = {
   },
   // No README: the default character, the ace from a pinned repo, only two stars.
   [GUEST]: { readme: null, pinned: ["greendale/paintball-assassin"], stars: ["city-college/mascot", "greendale/human-being"] },
+  [LISTED]: { readme: null, pinned: ["troy-barnes/blanket-fort"], stars: [] },
+  [LISTED_LEFT_OUT]: { readme: "# Dean", pinned: ["greendale/human-being"], stars: [], noPlay: true },
+  [OWN_FILE]: { readme: "# Shirley", pinned: ["greendale/human-being"], stars: [], characterFile: "name: Shirley\nhair: medium\nglasses: square\nhat: beanie" },
   [NEWCOMER]: { readme: null, pinned: [], stars: [] },
   [COLLECTOR]: { readme: null, pinned: ["greendale/dreamatorium"], stars: [...POPULAR, "city-college/mascot"] },
   [RIVAL]: { readme: null, pinned: ["city-college/mascot"], stars: ["greendale/dreamatorium", "troy-barnes/blanket-fort"] },
@@ -87,7 +103,9 @@ function userNode(login: string) {
     login, avatarUrl: `https://avatars.example/${login}`, createdAt: "2015-08-01T00:00:00Z",
     followers: { totalCount: 30 }, owned: { nodes: [] },
     profile: null,
-    stard: account.readme === null ? null : { readme: { text: account.readme } },
+    stard: account.readme === null
+      ? null
+      : { readme: { text: account.readme }, character: account.characterFile === undefined ? null : { text: account.characterFile }, noPlay: account.noPlay ? { oid: "d3a9e1" } : null },
     pinnedItems: { nodes: account.pinned.map(repoNode) },
     repositories: { nodes: [] },
     starredRepositories: { nodes: account.stars.map((nameWithOwner) => ({ nameWithOwner, isPrivate: false })) },
@@ -104,11 +122,31 @@ function foundBy(search: string): string[] {
     .sort((a, b) => REPOS[b].stars - REPOS[a].stars);
 }
 
-/** A stand-in for `fetch` that answers GitHub's GraphQL endpoint and nothing else. */
-export async function fakeGitHub(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+// Who starred this repo: 150 made-up students, then the host and the Dean (who opted
+// out of being played), so the list takes two pages of 100.
+const STARGAZERS = [...Array.from({ length: 150 }, (_, i) => `greendale-student-${i + 1}`), "Study-Group-Abed", "Study-Group-Dean"];
+
+/** The REST calls made for this repo's stargazers, one per page asked for. */
+export const stargazerCalls: string[] = [];
+
+function stargazers(url: URL): Response {
+  stargazerCalls.push(url.search);
+  const perPage = Number(url.searchParams.get("per_page") ?? 30);
+  const page = Number(url.searchParams.get("page") ?? 1);
+  return Response.json(STARGAZERS.slice((page - 1) * perPage, page * perPage).map((login) => ({ login })));
+}
+
+/** A stand-in for `fetch` that answers GitHub's GraphQL endpoint and this repo's stargazers. */
+export async function fakeGitHub(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  if (url.pathname === "/repos/armanckeser/github-stars-organizer/stargazers") return stargazers(url);
   const { query } = JSON.parse(String(init?.body)) as { query: string };
   const user = /user\(login: "([^"]+)"\)/.exec(query);
-  if (user) return Response.json({ data: { user: userNode(user[1]) } });
+  if (user) {
+    const listed = /HEAD:characters\/([^"]+)\.md/.exec(query);
+    const file = listed ? LISTED_FILES[listed[1]] : undefined;
+    return Response.json({ data: { user: userNode(user[1]), here: { character: file === undefined ? null : { text: file } } } });
+  }
   const data: Record<string, unknown> = {};
   for (const found of query.matchAll(/(b\d+): search\(query: "([^"]+)", type: REPOSITORY, first: (\d+)\)/g)) {
     data[found[1]] = { nodes: foundBy(found[2]).slice(0, Number(found[3])).map((nameWithOwner) => ({ nameWithOwner })) };
@@ -134,6 +172,7 @@ export function fakeGitHubWhere(options: { noPlay: readonly string[] }): FakeGit
   const usersRead: string[] = [];
   const noPlay = new Set(options.noPlay.map((login) => login.toLowerCase()));
   const answer = async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (init?.body === undefined) return fakeGitHub(_input, init);
     const { query } = JSON.parse(String(init?.body)) as { query: string };
     const user = /user\(login: "([^"]+)"\)/.exec(query);
     if (user) {

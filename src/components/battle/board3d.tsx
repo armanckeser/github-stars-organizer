@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { Look } from "../../../server/character";
+import type { Wearer } from "../../../server/character";
+import type { FightClock } from "./fight-clock";
 import { BoardWorld, type BoardFight, type BoardUnit, type Spot } from "./three/board";
 
 declare global {
@@ -11,12 +12,14 @@ declare global {
 
 export type BoardProps = {
   units: BoardUnit[];
-  near: Look | null;
-  far: Look | null;
+  near: Wearer | null;
+  far: Wearer | null;
   selected: string | null;
   /** The fight to play, or null between fights. */
   fight: BoardFight | null;
   speed: number;
+  /** Set to the tick the fight has reached as it plays. */
+  clock?: FightClock;
   /** Goes up by one to jump to the end of the fight. */
   skips: number;
   /** Free board cells a creature from the Drafts may take. */
@@ -58,6 +61,7 @@ export default function Board3D(props: BoardProps) {
         onLost: () => (retry = setTimeout(() => setStart((count) => count + 1), 400)),
         onSelect: (id) => latest.current.onSelect(id),
         onFightEnd: (key) => latest.current.onFightEnd(key),
+        onTick: (tick) => latest.current.clock?.set(tick),
         onDrag: (id) => latest.current.onDrag(id),
         onMove: (id, spot) => latest.current.onMove(id, spot),
         sellPrice: (id) => latest.current.sellPrice(id),

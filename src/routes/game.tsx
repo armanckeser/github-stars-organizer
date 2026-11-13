@@ -187,6 +187,7 @@ function GamePage() {
     return {
       fighter: state.teams[side][state.sides[side].active],
       look: state.players[side].look,
+      supporter: state.players[side].supporter === true,
       stance: stanceOf(side),
       hit,
       special: lastEvent?.side === side && lastEvent.action === "special",

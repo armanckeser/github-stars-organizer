@@ -69,7 +69,7 @@ function TeamPage() {
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-[#080b0f] text-white">
       <Suspense fallback={null}>
-        <Board3D units={units} near={null} far={team?.character.look ?? null} selected={null} fight={null} speed={1} skips={0} room={0} inset={inset} onSelect={() => {}} onFightEnd={() => {}} onMove={() => {}} sellPrice={() => null} onDrag={() => {}} />
+        <Board3D units={units} near={null} far={team ? { look: team.character.look, supporter: false } : null} selected={null} fight={null} speed={1} skips={0} room={0} inset={inset} onSelect={() => {}} onFightEnd={() => {}} onMove={() => {}} sellPrice={() => null} onDrag={() => {}} />
       </Suspense>
       <Link to="/" aria-label="Leave" className="hud-chip absolute left-2 top-2 z-30 grid size-9 place-items-center outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-3 sm:top-3">
         <ArrowLeft className="size-4" />

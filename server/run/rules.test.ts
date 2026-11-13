@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { fight } from "./fight.ts";
-import { NEW_TALLY, boardLimit, costOf, countRound, newRunSeed, shopFor, snapshot, type RunFighter, type Unit } from "./rules.ts";
+import { NEW_TALLY, boardLimit, costOf, countRound, newRunSeed, opponentUnits, shopFor, snapshot, type RunFighter, type Unit } from "./rules.ts";
 import { card, cityCollege } from "./testbed.ts";
+import { roleOf } from "./stats.ts";
+import type { Card } from "./types.ts";
 
 const unit = (name: string, col: number): Unit => ({ fighter: { fullName: `greendale/${name}`, card: card(`greendale/${name}`, { hp: 600 }) } as RunFighter, col, row: 0 });
 
@@ -35,6 +37,54 @@ describe("shopFor", () => {
     expect(names("greendale-run-1")).toEqual(names("greendale-run-1"));
     expect(names("greendale-run-1")).toHaveLength(5);
     expect(names("greendale-run-1")).not.toContain("greendale/dreamatorium");
+  });
+});
+
+describe("opponentUnits", () => {
+  const fighter = (name: string, over: Partial<Card> = {}): RunFighter => ({ fullName: `greendale/${name}`, defense: over.guard ?? 100, card: card(`greendale/${name}`, over) }) as RunFighter;
+  // A legendary ace with 460 points, as BUDGET gives one, and 39 commons at the common's 400.
+  const legendary = { rarity: 4, hp: 230, attack: 115, guard: 115, speed: 115 } as const;
+  const teamWith = (ace: Partial<Card>) => ({ login: "greendale", team: [fighter("dreamatorium", ace), ...Array.from({ length: 39 }, (_, i) => fighter(`study-room-${i}`))] });
+  const unitsAt = (round: number, ace: Partial<Card> = legendary) => opponentUnits(teamWith(ace), round, "greendale-run-1");
+  const numbers = (round: number) => unitsAt(round).map(({ fighter: { card: { fullName, hp, attack, guard, speed } } }) => ({ fullName, hp, attack, guard, speed }));
+  const aceRole = (round: number, ace: Partial<Card>) => roleOf(unitsAt(round, ace).find((unit) => unit.fighter.fullName === "greendale/dreamatorium")!.fighter.card);
+
+  // Regression guarded: round 1's opponent fielded its ace and free pick at full strength,
+  // so a player's ace and one card bought with the starting gold lost round 1 more often than not.
+  it("fields the ace and one card in round 1, the ace with 385 stat points", () => {
+    expect(numbers(1)).toHaveLength(2);
+    expect(numbers(1)).toContainEqual({ fullName: "greendale/dreamatorium", hp: 214, attack: 96, guard: 96, speed: 96 });
+  });
+
+  it("shrinks a common's 400 points to 385 in round 1, its HP above the floor only", () => {
+    expect(numbers(1).find((unit) => unit.fullName !== "greendale/dreamatorium")).toMatchObject({ hp: 149, attack: 96, guard: 96, speed: 96 });
+  });
+
+  // Regression guarded: shrinking all of a card's HP turned a bruiser ace into an assassin in
+  // round 1, so it wore another body on the board and another role on its card face; and
+  // rounding the shrunk stats tipped a card sitting on a role's cut into the next role.
+  it.each([
+    ["kentcdodds' rare ace", { rarity: 2, hp: 155, attack: 120, guard: 101, speed: 110 }, "bruiser"],
+    // Three real cards whose shrunk and rounded stats land on a role's cut at 385 points.
+    ["a rare tank on the tank cut", { rarity: 2, hp: 156, attack: 106, guard: 102, speed: 117 }, "tank"],
+    ["a rare bruiser on the assassin cut", { rarity: 2, hp: 154, attack: 113, guard: 101, speed: 118 }, "bruiser"],
+    ["a common bruiser on the assassin cut", { rarity: 0, hp: 150, attack: 101, guard: 103, speed: 114 }, "bruiser"],
+  ] as const)("keeps %s in its role in round 1", (_, ace, role) => {
+    expect(aceRole(2, ace)).toBe(role);
+    expect(aceRole(1, ace)).toBe(role);
+  });
+
+  it.each([2, 3, 7])("fields the ace at its own numbers in round %i", (round) => {
+    expect(numbers(round)).toContainEqual({ fullName: "greendale/dreamatorium", hp: 230, attack: 115, guard: 115, speed: 115 });
+  });
+
+  it.each([
+    [2, 3],
+    [3, 4],
+    [4, 5],
+    [7, 5],
+  ])("fields a full team in round %i: %i cards", (round, size) => {
+    expect(numbers(round)).toHaveLength(size);
   });
 });
 

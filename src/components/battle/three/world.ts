@@ -17,6 +17,8 @@ export type Stance = "enter" | "lunge" | "hit" | "ko" | "idle";
 export type SideView = {
   fighter: Fighter;
   look: Look;
+  /** The player starred Stard, so the character wears the star patch. */
+  supporter?: boolean;
   stance: Stance;
   /** The damage this side's card just took. */
   hit?: { damage: number; critical: boolean };
@@ -143,7 +145,7 @@ export class ArenaWorld {
     this.speed = view.speed ?? 1;
     const sides = [[this.near, view.near], [this.far, view.far]] as const;
     for (const [slot, side] of sides) {
-      this.dress(slot, side.look);
+      this.dress(slot, side.look, side.supporter ?? false);
       slot.guarding = side.guarding ?? false;
       slot.won = side.won ?? false;
     }
@@ -269,12 +271,12 @@ export class ArenaWorld {
     return { where, home, post, facing: 0, trainer: null, look: "", throwing: 0, fighter: null, creature: null, sparkles: null, offset: new THREE.Vector3(), lean: 0, squash: 0, grow: 1, ring, shield, guarding: false, won: false };
   }
 
-  private dress(slot: Slot, look: Look) {
-    const key = encodeLook(look);
+  private dress(slot: Slot, look: Look, supporter: boolean) {
+    const key = `${encodeLook(look)}|${supporter}`;
     if (slot.look === key) return;
     if (slot.trainer) dispose(slot.trainer.root);
     slot.look = key;
-    slot.trainer = buildTrainer(look);
+    slot.trainer = buildTrainer(look, supporter);
     slot.trainer.root.position.copy(slot.post);
     slot.trainer.root.rotation.y = slot.facing;
     this.scene.add(slot.trainer.root);

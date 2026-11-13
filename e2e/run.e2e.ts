@@ -247,6 +247,26 @@ test("a bought slot lets one more card on the board", async ({ page }) => {
   await expect(page.getByRole("button", { name: "One more board slot for 4 gold" }).locator("visible=true")).toBeDisabled();
 });
 
+test("round 2's opponent is read while round 1 is played, so Continue opens round 2 with no read", async ({ page }) => {
+  // Regression guarded: the next opponent was read only once Continue was pressed, so every
+  // round opened on "Reading the next team..." for as long as a cold read takes.
+  const read: string[] = [];
+  await startRun(page, "", (login) => {
+    read.push(login);
+    return poolFor(login);
+  });
+  // abed's own cards, round 1's opponent and round 2's.
+  await expect.poll(() => new Set(read).size, { message: "round 2's opponent is read before Continue" }).toBe(3);
+  await page.route("**/api/run/pool?*", (route) => route.abort());
+
+  await page.getByRole("button", { name: "Fight" }).locator("visible=true").click();
+  await page.getByRole("button", { name: "Skip" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByText("Round 2", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
 test("a whole run plays to its end, with the two boost picks", async ({ page, worker }) => {
   // Seven rounds of software WebGL: about 40 s on a laptop and over 120 s on CI's runner.
   test.setTimeout(360_000);
@@ -414,4 +434,77 @@ test("a challenge goes from one run's end to the friend's own run against that t
   expect(mine.against).toBeUndefined();
   expect(friends).toMatchObject({ login: "annie", against: TOKEN, seed: expect.stringMatching(/^[0-9a-f]{32}$/) });
   expect(friends.seed).not.toBe(mine.seed);
+});
+
+// Every card a hundred times as tough but no stronger, so a fight runs long enough to look at it.
+const toughAbed = (login: string): Player => {
+  const pool = poolFor(login);
+  if (login !== "abed") return pool;
+  return { ...pool, team: pool.team.map((fighter) => ({ ...fighter, hp: fighter.hp * STRENGTH, card: { ...fighter.card, hp: fighter.card.hp * STRENGTH } })) };
+};
+
+test("a creature tapped in a fight opens its panel, and the fight plays on", async ({ page }) => {
+  // Regression guarded: taps were switched off in a fight, so a player who saw a badge
+  // like "Rate limited" had no way to read what it meant. The shop's card face is a
+  // modal; in a fight the panel must leave the fight running.
+  await page.route("**/api/run/opponents", (route) => route.fulfill({ json: { optedOut: [] } }));
+  await startRun(page, "", toughAbed);
+  await page.getByRole("button", { name: "Fight" }).locator("visible=true").click();
+  // A tap before the board starts the fight picks as the shop does; wait past the fight's 0.6 s lead-in.
+  await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
+  await page.waitForTimeout(1_000);
+  const panel = page.getByTestId("fight-inspect");
+  await expect(async () => {
+    const at = (await unitSpot(page, aceName()))!;
+    await page.mouse.click(at.clientX, at.clientY);
+    await expect(panel).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+
+  await expect(panel).toContainText(aceName().split("/")[1]);
+  await expect(panel).toContainText("Your team");
+  const hp = panel.getByTestId("fight-inspect-hp");
+  await expect(hp).toHaveText(/^\d+ \/ \d+$/);
+  const first = await hp.textContent();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect.poll(() => hp.textContent(), { timeout: 20_000 }).not.toBe(first);
+  await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+
+  // From the keyboard: the creatures' row of names opens the same panel.
+  await page.getByRole("group", { name: "Look at a creature" }).getByRole("button", { name: new RegExp(`^${aceName().split("/")[1]}, Your team, \\d+ of \\d+ HP`) }).focus();
+  await page.keyboard.press("Enter");
+  await expect(panel).toContainText(aceName().split("/")[1]);
+});
+
+test("New run clears the last run's opponent, round and shop before the new run is read", async ({ page }) => {
+  // Regression guarded: New run left the last opponent, their creatures, the "Round N" HUD and the
+  // old shop on screen, with its Buy buttons live, until the new run's first opponent was read.
+  test.setTimeout(360_000);
+  await startRun(page);
+  await fightToEnd(page);
+  const logins = await page.getByRole("button", { name: /^About / }).evaluateAll((all) => all.map((button) => button.getAttribute("aria-label")!.slice("About ".length)));
+  const lastOpponent = logins.find((login) => login !== "abed")!;
+  await expect(page.getByText(/^Round \d+$/)).toBeVisible();
+
+  // A day later, so the new run's reads miss the page's one-read-per-day cache (src/lib/run.ts) and wait here.
+  await page.clock.setFixedTime(Date.now() + 86_400_000);
+  let release = () => {};
+  const held = new Promise<void>((done) => (release = done));
+  await page.route("**/api/run/pool?*", async (route) => {
+    await held;
+    await route.fulfill({ json: poolFor(new URL(route.request().url()).searchParams.get("login") ?? "abed") });
+  });
+  await page.getByRole("button", { name: "New run" }).click();
+
+  await expect(page.getByRole("button", { name: `About ${lastOpponent}` })).toHaveCount(0);
+  await expect(page.getByText(/^Round \d+$/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Look at / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Fight" })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Dealing a new run..." })).toBeVisible();
+
+  release();
+  await expect(page.getByText("Round 1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Dealing a new run..." })).toHaveCount(0);
 });

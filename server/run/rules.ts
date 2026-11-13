@@ -1,4 +1,5 @@
 import { seededRandom, type Fighter } from "../battle.ts";
+import { BUDGET, HP_FLOOR, roleOf } from "./stats.ts";
 import { COLS, ROWS, type Card, type FightEvent, type Side, type Snapshot } from "./types.ts";
 
 // A run's rules, shared by the Play screen and the Worker that referees a run
@@ -100,14 +101,49 @@ export function opponentLogin(login: string, round: number, seed: string, optedO
   return shuffled(others, `${login.toLowerCase()}|${seed}|opponents`)[(round - 1) % others.length];
 }
 
-/** The other account's team at this round, built the way a player builds one: each round a shop from its stars, one card taken. */
+const FIRST_ROUND = 1;
+/**
+ * The stat points each of the other account's cards fights with in round 1 (BUDGET gives a
+ * common 400). Over 2,000 simulated round 1s, armanckeser's ace and the starting gold's buy
+ * won 43% against the full-strength ace and free pick buying the priciest card, 55% buying
+ * for live checks; at 385, 67% and 75% (scripts/balance/boards.ts's two buyers).
+ */
+export const OPENING_STAT_POINTS = 385;
+
+// Rounding four stats moves the lean roleOf reads by about 0.01, which tips a card sitting on
+// a role's cut into the next role (3 of 297 cards in the pools tried). Guard counts on the
+// toughness side only, so moving it by up to this many points puts the card back.
+const GUARD_NUDGE = 5;
+const NUDGES = Array.from({ length: 2 * GUARD_NUDGE + 1 }, (_, i) => (i % 2 === 0 ? 1 : -1) * Math.ceil(i / 2));
+
+/**
+ * A card with its stat points shrunk to OPENING_STAT_POINTS. Its cost and everything else
+ * stay. Only the HP above HP_FLOOR shrinks: that part is the points' share, and shrinking it
+ * with the other three keeps the lean roleOf reads, so the card keeps its role and its body.
+ */
+export function atOpeningStrength(fighter: RunFighter): RunFighter {
+  const scale = OPENING_STAT_POINTS / BUDGET[fighter.card.rarity];
+  const shrunk = (stat: number) => Math.round(stat * scale);
+  const hp = HP_FLOOR + shrunk(fighter.card.hp - HP_FLOOR);
+  const rounded = { ...fighter.card, hp, attack: shrunk(fighter.card.attack), guard: shrunk(fighter.card.guard), speed: shrunk(fighter.card.speed) };
+  const role = roleOf(fighter.card);
+  const card = NUDGES.map((nudge) => ({ ...rounded, guard: rounded.guard + nudge })).find((candidate) => roleOf(candidate) === role) ?? rounded;
+  return { ...fighter, hp: card.hp, attack: card.attack, defense: card.guard, speed: card.speed, card };
+}
+
+/**
+ * The other account's team at this round, built the way a player builds one: each round
+ * a shop from its stars, one card taken. In round 1 the two cards fight with
+ * OPENING_STAT_POINTS each (atOpeningStrength); from round 2 on at their own.
+ */
 export function opponentUnits(opponent: Pool<RunFighter>, round: number, seed: string): Unit[] {
-  const team = opponent.team.slice(0, 1);
-  for (let r = 1; team.length > 0 && team.length < teamSizeAt(round); r++) {
-    const [pick] = shopFor(opponent, team, r, 0, seed, 1);
+  const drafted = opponent.team.slice(0, 1);
+  for (let r = 1; drafted.length > 0 && drafted.length < teamSizeAt(round); r++) {
+    const [pick] = shopFor(opponent, drafted, r, 0, seed, 1);
     if (!pick) break;
-    team.push(pick);
+    drafted.push(pick);
   }
+  const team = round === FIRST_ROUND ? drafted.map(atOpeningStrength) : drafted;
   const units: Unit[] = [];
   for (const fighter of [...team].sort((x, y) => y.defense - x.defense)) {
     const cell = freeCell(units, fighter);

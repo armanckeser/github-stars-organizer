@@ -4,7 +4,7 @@ Rules for every Play screen: the shop, Drafts, Archive, the checks, the boost pi
 
 ## 0. Read the creature at a glance
 
-A player picks cards for a synergy or a need by looking at the creature, and opens the card face for the details. So every rule a player plans around (role, sets, type, cost) gets one visible part of the creature, the same part on every creature. The mapping is in `docs/GAME-DESIGN.md`, "Added 2026-11-12".
+A player picks cards for a synergy or a need by looking at the creature, and opens the card face for the details. So every rule a player plans around (role, sets, type, cost) gets one visible part of the creature, the same part on every creature. The mapping is in `docs/GAME-DESIGN.md`, "Added 2026-11-12". Built so far: the body's silhouette is the role (each role has its own three bodies), and the sash across the body is the cost.
 
 ## 1. The game owns the screen
 
@@ -22,12 +22,17 @@ A player picks cards for a synergy or a need by looking at the creature, and ope
 
 | Color | Means | Used on |
 |---|---|---|
-| Tier: grey `#8b949e`, green `#3fb950`, blue `#4a90d9`, purple `#a371f7`, gold `#e3b341` | The card's cost, which is its rarity (1 to 5 gold) | The card's 2px border, a tint on its name strip, the cost gem. Nowhere else. |
+| Tier: grey `#8b949e`, green `#3fb950`, blue `#4a90d9`, purple `#a371f7`, gold `#e3b341` | The card's cost, which is its rarity (1 to 5 gold) | The card's 2px border, a tint on its name strip, the cost gem, and the lit squares of the creature's sash. Nowhere else. |
+| Empty square `#ebedf0` | A cost the card doesn't reach | The sash's unlit squares, GitHub's empty contribution square |
+| The language's own color | The repo's language | The creature's body |
+| Type color | The card's type | The creature's trim |
 | Coin gold `#f2c94c` | Gold you own or spend | The coin icon and gold numbers |
 | Green / red | Your side / their side | Board halves, HP bars |
 | Check green / amber ring | A set is live / pending | The checks list only |
 
-Language colors, type colors and set colors are not used in the game UI. A set is shown by its icon and its name.
+Language and type colors appear only on the creature: language is its body, type its trim, tier its sash. No panel, text or chip uses them. Set colors are not used in the game UI: a set is shown by its icon and its name.
+
+**The sash** is a white band across the creature with five squares in the GitHub contribution graph's style, as many lit as the card costs. A flat-fronted body (a block or a book) wears its five on its front and again on its back. A round body wears two rows on the flank its sash rises to, one 45° round from the front and one 45° from the back, smaller on a small body so the two don't meet: the board's camera sees the other team's front row and your own team's back row, and a card's three-quarter view sees the front row whole. Its band sits as high under the face as the face allows, so the ball over it hides as little as it can from the camera over the Drafts shelf. The wisp's face fills its head's middle, so it wears its band round its brow, lying back on the head. The flat sticker draws the squares that face its viewer, and leaves out one turned nearly edge-on.
 
 ## 4. The shop card (the TFT anatomy)
 
@@ -35,7 +40,7 @@ Language colors, type colors and set colors are not used in the game UI. A set i
 ┌──────────────── 2px tier border ─┐
 │                                  │
 │      creature, filling the card  │  art area, about 72% of the height
-│ ⬡ TypeScript                     │  sets: hex icon + name, stacked, bottom-left over the art
+│ ⬡ Web                            │  sets: hex icon + name, stacked, bottom-left over the art
 │ ⬡ Database  2                    │  number = the count a buy would reach, only when it advances a set
 ├──────────────────────────────────┤
 │ gh-next                   ● 2    │  name strip: slate tinted 30% with the tier color; name left, coin + cost right
@@ -68,11 +73,11 @@ The bar folds down under the gold plaque. It opens at the start of each round an
 ## 7. Checks (the set tracker)
 
 - The checks sit at the left edge of the board, with no panel.
-- One row per set: a status icon, the name, and have/next (`2/3`).
-- Live sets come first. Sets at 1 show too, dimmed.
+- One row per set: a status icon, the name, what it does in a word or two (`Web Shield`, the word dimmer), and have/next (`2/4`).
+- Live sets come first. A family at 1 card shows too, dimmed: it is one card from live. A topic shows only once two cards share it.
 - The bonus text shows on hover only.
 - The opponent's checks sit on the right under the opponent's GitHub login, never a word like "Theirs".
-- A folded list shows its live sets and the one closest to going live: at least 2 rows, at most 3, then "+n more", which opens the rest. The opponent's list is always folded, so it never covers their trainer and never reads as empty. On a phone (under 640px wide, or under 540px tall) the player's own list folds too: 7 cards can make 14 sets, which would cover the board.
+- A folded list shows its live sets and the one closest to going live: at least 2 rows, at most 3, then "+n more", which opens the rest. The opponent's list is always folded, so it never covers their trainer and never reads as empty. On a phone (under 640px wide, or under 540px tall) the player's own list folds too: a full board can list more rows than fit beside it.
 
 ## 8. Boost pick
 
@@ -94,13 +99,14 @@ What fired is drawn on the board, not written. One look per effect kind, so ever
 - **Heal:** green, the green of the "+n" numbers. Light rises from the floor under the creature with a few rising plus signs.
 - **Stat:** gold chevrons rise for a stat going up, red chevrons fall for one going down, with a ring at the feet.
 - **Condition:** an orb in the condition's own colour travels to the target, which then wears the badge as before.
+- **Looking at a creature:** in a fight, a tap on a creature, or on its condition badge, opens its panel without pausing the fight, as TFT's unit panel does. It is never a modal: it docks at the right edge, or along the bottom on a phone, where the camera lifts the board clear of it. It shows the name and side, HP and shield as numbers and a bar, the condition as a sentence with the seconds left, the ability, and the creature's live set bonuses, all as the fight plays. It closes on a tap on the floor, Escape, its close button, or a moment after the creature faints. A condition's sentence comes from `conditionLine` (`server/run/names.ts`), which reads the numbers the engine uses (`server/run/hooks.ts`). From the keyboard, Tab reaches a row of the creatures' names.
 - Effects are short (under 0.6 s, a shield's bubble aside), additive light, and never cover an HP bar. With reduced motion nothing travels, spins or shakes: the result, numbers included, shows in place and fades.
 - Nothing overlaps an HP bar.
 
 ## 10. Type and words
 
 - Clash Display (the app's display face, loaded at 500 to 700) for names, numbers, titles and short labels. Space Grotesk for sentences. Nothing else. Play must not change the app's fonts: they are set in `src/index.css` for every screen.
-- On screen at rest: names, counts and costs only. Sentences live in the card face, hover text and the boost pick.
+- On screen at rest: names, counts and costs only. Sentences live in the card face, hover text, the boost pick and a fight's creature panel.
 - Motion is short and physical: a lift on pickup, a settle on drop, the lid opening. Respect `prefers-reduced-motion`.
 
 ## Changed from the first draft
@@ -119,7 +125,12 @@ Each change below is a rule that made the screen look worse as first written.
 | Boost text | one line | full text, up to 3 lines; rows under 560px | One line cut most boost texts off mid-word. A phone has no room for three medallions side by side. |
 | Medallion size | unspecified | from the short side | A landscape phone is 390px tall: medallions sized from the width pushed the text off the screen. |
 | Opponent's checks | live sets only, under "Theirs" | folded to at least 2 rows, under their login | With no live set the list was a bare "Theirs 0/6" and read as broken on a phone; "Theirs" named nobody. |
+| Check rows | the set's name; every set on the board, a topic on one card too | the name and what the set does in a word; families and the topics two cards share | Rows all read alike and a 5-card board listed 10 or more, most of them topics on one card that could never go live. |
 | Ability pop | "When hit" | "Hit", name plus a grey line | "When" adds width and no meaning on a card shown for 1 s. The ability's name tells you which unit fired. |
 | Archive, trainers on phone | the same spots as wide | 72% Archive, trainers stepped in | An upright phone's narrow view cut off the trainers and pushed the Archive over the shelf. |
 | Card rim light | a light from behind right | the same light, plus a blue outline on the rim side | Toon bands rounded the back light down to nothing, and a box's edges have no surface turned toward it. The outline shows the rim without lighting the body. |
 | Card wall pool | faint, narrow | brighter and wider, to about 45% behind the head | The cards averaged 83 against TFT's 90. A brighter wall closes the gap without changing the creature's colors. |
+| Tier color | the card's border, name strip and cost gem | also the creature's sash | On the board a card is only its creature, so its cost didn't show anywhere a player looks while placing. |
+| Language and type colors | not used in the game UI | the creature's body and trim | They were already the creature's colors; the rule now says so and keeps them off the panels. |
+| Sash squares on a round body | front and back, low on the waist | two rows on the raised flank, 45° off the front and the back | The bulge of a round body hid a low row from the board's camera. One row on the flank showed only to the other team's side: from behind your own creatures it was a sliver or nothing. |
+| The wisp's sash | round its neck, under its head | round its brow | Its head hid a band under it from every camera above, and its face, on the head's middle, leaves no room for one across it. |

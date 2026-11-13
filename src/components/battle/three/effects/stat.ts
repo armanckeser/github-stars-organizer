@@ -24,11 +24,14 @@ type Motion = {
 };
 
 const ATTACK: Motion = { travel: 0.36, stagger: 0.05, stretch: 1, ringWidth: 0.035, ringLife: 0.4, lag: 0 };
+/** Haste is speed by another road, so it moves the same. */
+const SPEED: Motion = { travel: 0.24, stagger: 0.03, stretch: 1.6, ringWidth: 0.03, ringLife: 0.32, lag: 0.07 };
 const MOTIONS: Record<Stat, Motion> = {
   attack: ATTACK,
   critical: { ...ATTACK, lag: 0.03 },
   luck: { ...ATTACK, lag: 0.05 },
-  speed: { travel: 0.24, stagger: 0.03, stretch: 1.6, ringWidth: 0.03, ringLife: 0.32, lag: 0.07 },
+  speed: SPEED,
+  haste: SPEED,
   guard: { travel: 0.4, stagger: 0.06, stretch: 0.85, ringWidth: 0.08, ringLife: 0.46, lag: 0.04 },
 };
 

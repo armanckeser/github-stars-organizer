@@ -4,6 +4,7 @@ import { TYPE_COLOR, runPreviewCard, versusCard, type ShareCard, type ShelfPlaye
 import { CLASSES, type Character } from "../../server/character.ts";
 import { creatureRecipe } from "../../server/creature-recipe.ts";
 import { priceOf, type RunFighter } from "../../server/run/rules.ts";
+import { setsOf } from "../../server/run/sets.ts";
 import { NoSuchUser, evened, teamFor, withRunCards, type Team } from "./battle.ts";
 import { LOGIN, avatarData } from "./cards.ts";
 import font from "./SpaceGrotesk-Bold.ttf";
@@ -131,8 +132,7 @@ export function shareCards(fighters: RunFighter[]): ShareCard[] {
   return fighters.map((fighter) => ({
     name: fighter.fullName.split("/")[1] ?? fighter.fullName,
     cost: priceOf(fighter.card.rarity),
-    sets: fighter.card.sets,
-    language: fighter.language?.toLowerCase() ?? null,
+    sets: setsOf(fighter.card),
     creature: creatureRecipe(fighter),
   }));
 }

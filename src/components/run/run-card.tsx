@@ -5,7 +5,7 @@ import { abilityById } from "../../../server/run/abilities";
 import { RARITY_NAMES, setName } from "../../../server/run/names";
 import { priceOf, type RunFighter } from "../../../server/run/rules";
 import { roleOf, type Role } from "../../../server/run/stats";
-import { teamSets } from "../../../server/run/sets";
+import { setsOf, teamSets, TIERS } from "../../../server/run/sets";
 import type { Card } from "../../../server/run/types";
 
 // A card as a run plays it: its role, its four numbers, its ability, its
@@ -31,10 +31,7 @@ const NUMBERS = [
 function setsWith(card: Card, team: Card[]) {
   const together = team.some((other) => other.fullName === card.fullName) ? team : [...team, card];
   const sets = teamSets({ units: together.map((other) => ({ card: other, col: 0, row: 0 })) });
-  return card.sets.map((set) => {
-    const found = sets.find((entry) => entry.set === set);
-    return { set, count: found?.members.length ?? 1, bonus: found?.bonus, tier: found?.tier };
-  });
+  return setsOf(card).flatMap((set) => sets.filter((entry) => entry.set === set));
 }
 
 /**
@@ -102,15 +99,10 @@ export function RunCard({ fighter, team }: { fighter: RunFighter; team: RunFight
           </div>
 
           <ul className="flex flex-col" style={{ margin: "1.2cqw 3cqw 0", gap: "0.8cqw" }}>
-            {sets.map(({ set, count, bonus, tier }) => (
-              <li key={set} className="flex items-baseline" style={{ gap: "1.6cqw", fontSize: "3cqw", lineHeight: 1.25 }}>
-                <span className={`shrink-0 rounded-full font-semibold ${tier ? "bg-[#1b1d21] text-[#f5f1e8]" : "bg-[#1b1d2114]"}`} style={{ padding: "0.3cqw 1.6cqw" }}>
-                  {setName(set)}{bonus && <> {Math.min(count, 3)}/{count >= 2 ? 3 : 2}</>}
-                </span>
-                <span className={`min-w-0 line-clamp-2 ${tier ? "" : "text-[#1b1d21]/55"}`} title={bonus ? `${bonus.name}. Two cards: ${bonus.two.text} Three: ${bonus.three.text}` : undefined}>
-                  {/* A set with no bonus of its own borrows its cards' type's, so with mixed types it has none to give. */}
-                  {!bonus ? "No bonus: mixed types" : tier ? tier.text : `At 2: ${bonus.two.text}`}
-                </span>
+            {sets.map(({ set, members, bonus, tier, next }) => (
+              <li key={set} className={`line-clamp-2 ${tier ? "" : "text-[#1b1d21]/55"}`} style={{ fontSize: "3cqw", lineHeight: 1.25 }} title={bonus.tiers.map((each) => `${each.at} cards: ${each.text}`).join(" ")}>
+                <span className="font-semibold">{setName(set)}: {bonus.does} <span className="tabular-nums">{members.length}/{next?.at ?? TIERS[TIERS.length - 1]}</span></span>{" "}
+                {tier ? tier.text : `At ${next?.at ?? TIERS[0]}: ${(next ?? bonus.tiers[0]).text}`}
               </li>
             ))}
           </ul>

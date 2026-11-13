@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { repoName } from "@/components/battle/arena";
 import { setName } from "../../../server/run/names";
 import { costOf, type RunFighter } from "../../../server/run/rules";
-import { teamSets } from "../../../server/run/sets";
+import { setsOf, teamSets } from "../../../server/run/sets";
 import { tierColor } from "../../../server/run/tiers";
 import type { Card } from "../../../server/run/types";
 import { SetGlyph } from "./set-glyph";
@@ -19,8 +19,7 @@ const CARD_SETS = 2;
 function reach(card: Card, held: Card[]): FaceSet[] {
   const owned = held.some((other) => other.fullName === card.fullName);
   const sets = teamSets({ units: (owned ? held : [...held, card]).map((other) => ({ card: other, col: 0, row: 0 })) });
-  // A language that is also a topic (Lean and lean) is one set; the card shows two, its face shows all.
-  return [...new Set(card.sets)].slice(0, CARD_SETS).map((set) => {
+  return setsOf(card).slice(0, CARD_SETS).map((set) => {
     const count = sets.find((entry) => entry.set === set)?.members.length ?? 1;
     return { set, advances: !owned && count > 1 ? count : null };
   });
@@ -88,8 +87,7 @@ type FaceSet = { set: string; advances: number | null };
  */
 export function CardFace({ fighter, sets }: { fighter: RunFighter; sets?: FaceSet[] }) {
   const art = useShopArt(fighter);
-  const language = fighter.language?.toLowerCase() ?? null;
-  const shown = sets ?? [...new Set(fighter.card.sets)].slice(0, CARD_SETS).map((set) => ({ set, advances: null }));
+  const shown = sets ?? setsOf(fighter.card).slice(0, CARD_SETS).map((set) => ({ set, advances: null }));
   return (
     <>
       <span className="shop-art">
@@ -97,7 +95,7 @@ export function CardFace({ fighter, sets }: { fighter: RunFighter; sets?: FaceSe
         <span className="shop-sets">
           {shown.map(({ set, advances }, index) => (
             <span key={`${index}-${set}`} className="shop-set">
-              <SetGlyph set={set} language={language} />
+              <SetGlyph set={set} />
               <span className="shop-set-name">{setName(set)}</span>
               {advances !== null && <span className="shop-reach">{advances}</span>}
             </span>

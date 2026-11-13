@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import { fighterFor, type Fighter, type RepoFacts } from "../../../../server/battle";
+import type { RunFighter } from "../../../../server/run/rules";
+import { card } from "../../../../server/run/testbed";
+import type { Card } from "../../../../server/run/types";
 import { buildCreature } from "./creature";
 
 // What a creature is made of, as plain numbers: every part's shape, where the
@@ -9,8 +12,11 @@ import { buildCreature } from "./creature";
 const NOW = Date.parse("2026-11-10T00:00:00Z");
 const DAY = 86_400_000;
 const PLACES = 4;
+// A quad drawn as two triangles with no shared vertices.
+const VERTICES_PER_QUAD = 6;
 
-export type PartPrint = { shape: string; size: number[]; matrix: number[]; color: string | null; outlined: boolean };
+/** A part's print; `paints` lists a vertex-coloured part's pieces (the sash), one colour per quad. */
+export type PartPrint = { shape: string; size: number[]; matrix: number[]; color: string | null; outlined: boolean; paints?: string[] };
 export type CreaturePrint = { name: string; parts: PartPrint[]; height: number; floats: boolean; shiny: boolean; phase: number };
 
 const rounded = (value: number) => Number(value.toFixed(PLACES)) + 0;
@@ -43,6 +49,33 @@ export const CREATURE_REPOS: Fighter[] = [
   ["armanckeser/github-stars-organizer", { description: "Organizes your stars" }],
 ].map(([fullName, extra]) => fighterFor(facts(fullName as string, extra as Partial<RepoFacts>), "greendale", NOW));
 
+// Stats that put a card in each role (server/run/stats.ts roleOf): toughness well over its
+// attack and speed, under them, between, or a reach over 1.
+const ROLE_STATS = {
+  tank: { hp: 300 },
+  bruiser: {},
+  assassin: { hp: 130, guard: 40, attack: 140 },
+  ranged: { range: 3 },
+} satisfies Record<string, Partial<Card>>;
+
+/** Cards in a run, one for every body, named so a word picks it, across every role and cost. */
+export const RUN_CREATURES: RunFighter[] = (
+  [
+    ["greendale/annie-bot", "tank", 0],
+    ["greendale/shirley-archive", "tank", 1],
+    ["greendale/dean-vault", "tank", 2],
+    ["greendale/pierce-game", "bruiser", 3],
+    ["greendale/troy-debug", "bruiser", 4],
+    ["greendale/chang-server", "bruiser", 0],
+    ["greendale/abed-tracker", "assassin", 1],
+    ["greendale/britta-quick", "assassin", 2],
+    ["greendale/magnitude-prank", "assassin", 3],
+    ["greendale/leonard-shell", "ranged", 4],
+    ["greendale/vicki-site", "ranged", 0],
+    ["greendale/garrett-notes", "ranged", 1],
+  ] as const
+).map(([fullName, role, rarity]) => ({ ...fighterFor(facts(fullName, {}), "greendale", NOW), card: card(fullName, { ...ROLE_STATS[role], rarity }) }));
+
 function sizeOf(geometry: THREE.BufferGeometry): number[] {
   const parameters = (geometry as THREE.BufferGeometry & { parameters?: Record<string, number | boolean> }).parameters ?? {};
   return Object.values(parameters).filter((value): value is number => typeof value === "number").map(rounded);
@@ -53,7 +86,23 @@ function colorOf(material: THREE.Material | THREE.Material[]): string | null {
   return one instanceof THREE.MeshToonMaterial || one instanceof THREE.MeshBasicMaterial ? `#${one.color.getHexString()}` : null;
 }
 
-export function printOf(fighter: Fighter): CreaturePrint {
+/** The colour of every quad of a vertex-coloured mesh, back in sRGB hex. */
+function paintsOf(geometry: THREE.BufferGeometry): string[] | undefined {
+  const colors = geometry.getAttribute("color");
+  if (!colors) return undefined;
+  const color = new THREE.Color();
+  return Array.from({ length: colors.count / VERTICES_PER_QUAD }, (_, i) => `#${color.fromBufferAttribute(colors, i * VERTICES_PER_QUAD).getHexString()}`);
+}
+
+/** A built geometry's size: its parameters, or its vertex count and spread for one built by hand. */
+function measured(geometry: THREE.BufferGeometry): number[] {
+  const parameters = sizeOf(geometry);
+  if (parameters.length > 0) return parameters;
+  const positions = geometry.getAttribute("position");
+  return [positions.count, rounded(Array.from(positions.array).reduce((sum, value) => sum + Math.abs(value), 0))];
+}
+
+export function printOf(fighter: Fighter | RunFighter): CreaturePrint {
   const creature = buildCreature(fighter);
   creature.root.updateMatrixWorld(true);
   const parts: PartPrint[] = [];
@@ -61,10 +110,11 @@ export function printOf(fighter: Fighter): CreaturePrint {
     if (!(node instanceof THREE.Mesh) || node.userData.rim) return;
     parts.push({
       shape: node.geometry.type,
-      size: sizeOf(node.geometry),
+      size: measured(node.geometry),
       matrix: node.matrixWorld.elements.map(rounded),
       color: colorOf(node.material),
       outlined: node.children.some((child) => child.userData.rim),
+      ...(paintsOf(node.geometry) ? { paints: paintsOf(node.geometry) } : {}),
     });
   });
   return { name: fighter.fullName, parts, height: rounded(creature.height), floats: creature.floats, shiny: creature.shiny, phase: rounded(creature.phase) };

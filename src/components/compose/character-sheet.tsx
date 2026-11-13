@@ -5,14 +5,28 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Figure } from "@/components/battle/figure";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { CLASSES, CLASS_IDS, HAIR, LOOK_PARTS, MAX_MOTTO, MAX_NAME, SKIN, TOP, type Character, type Look } from "../../../server/character";
+import { CLASSES, CLASS_IDS, COLOR_PARTS, MAX_MOTTO, MAX_NAME, STYLE_PARTS, partLabel, type Character, type ColorPart, type Look, type StylePart } from "../../../server/character";
 
 // The character builder. Nothing is saved from here: the choices go into the address
 // of the trainer card in the README, and the game reads them back from there.
 
-const PART_LABEL: Record<keyof Look, string> = { skin: "Skin", hair: "Hair", hairColor: "Hair colour", top: "Top", topColor: "Top colour", extra: "Extra" };
-const SWATCHES: Partial<Record<keyof Look, string[]>> = { skin: SKIN, hairColor: HAIR, topColor: TOP };
-const PARTS = Object.keys(LOOK_PARTS) as (keyof Look)[];
+// The parts in the order the builder lists them, each either a set of styles or a palette.
+type Row = { kind: "style"; key: StylePart } | { kind: "color"; key: ColorPart };
+const ROWS: Row[] = [
+  { kind: "color", key: "skin" },
+  { kind: "style", key: "hair" },
+  { kind: "color", key: "hairColor" },
+  { kind: "style", key: "beard" },
+  { kind: "style", key: "glasses" },
+  { kind: "style", key: "hat" },
+  { kind: "style", key: "headphones" },
+  { kind: "style", key: "top" },
+  { kind: "color", key: "topColor" },
+];
+const PART_LABEL: Record<keyof Look, string> = {
+  skin: "Skin", hair: "Hair", hairColor: "Hair colour", beard: "Beard", glasses: "Glasses", hat: "Hat", headphones: "Headphones", top: "Top", topColor: "Top colour",
+};
+const pick = <T,>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)];
 
 export function CharacterSheet({
   open,
@@ -29,12 +43,17 @@ export function CharacterSheet({
 }) {
   const isDesktop = useIsDesktop();
   const klass = CLASSES[character.klass];
-  const setLook = (key: keyof Look, value: number) => onChange({ ...character, look: { ...character.look, [key]: value } });
+  const setLook = (change: Partial<Look>) => onChange({ ...character, look: { ...character.look, ...change } });
 
   function shuffle() {
-    const look = {} as Look;
-    for (const key of PARTS) look[key] = Math.floor(Math.random() * LOOK_PARTS[key].length);
-    onChange({ ...character, look });
+    onChange({
+      ...character,
+      look: {
+        skin: pick(COLOR_PARTS.skin).hex, hair: pick(STYLE_PARTS.hair), hairColor: pick(COLOR_PARTS.hairColor).hex,
+        beard: pick(STYLE_PARTS.beard), glasses: pick(STYLE_PARTS.glasses), hat: pick(STYLE_PARTS.hat), headphones: pick(STYLE_PARTS.headphones),
+        top: pick(STYLE_PARTS.top), topColor: pick(COLOR_PARTS.topColor).hex,
+      },
+    });
   }
 
   return (
@@ -97,25 +116,11 @@ export function CharacterSheet({
 
           <div className="space-y-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Look</h3>
-            {PARTS.map((key) => (
-              <div key={key} className="space-y-1.5">
-                <p className="text-sm font-medium">{PART_LABEL[key]}</p>
-                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={PART_LABEL[key]}>
-                  {LOOK_PARTS[key].map((name, i) => {
-                    const on = character.look[key] === i;
-                    const swatch = SWATCHES[key]?.[i];
-                    return swatch ? (
-                      <button key={name} type="button" role="radio" aria-checked={on} aria-label={name} title={name} onClick={() => setLook(key, i)}
-                        className={`size-8 rounded-full border-2 transition-transform active:scale-95 ${on ? "border-foreground" : "border-transparent"}`}>
-                        <span className="block size-full rounded-full border border-black/20" style={{ background: swatch }} />
-                      </button>
-                    ) : (
-                      <button key={name} type="button" role="radio" aria-checked={on} onClick={() => setLook(key, i)}
-                        className={`rounded-md border px-2.5 py-1 text-sm transition-colors hover:bg-accent ${on ? "border-foreground bg-accent font-medium" : ""}`}>
-                        {name}
-                      </button>
-                    );
-                  })}
+            {ROWS.map((row) => (
+              <div key={row.key} className="space-y-1.5">
+                <p className="text-sm font-medium">{PART_LABEL[row.key]}</p>
+                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={PART_LABEL[row.key]}>
+                  {row.kind === "color" ? <Swatches part={row.key} look={character.look} onPick={setLook} /> : <Styles part={row.key} look={character.look} onPick={setLook} />}
                 </div>
               </div>
             ))}
@@ -124,4 +129,31 @@ export function CharacterSheet({
       </SheetContent>
     </Sheet>
   );
+}
+
+function Swatches({ part, look, onPick }: { part: ColorPart; look: Look; onPick: (change: Partial<Look>) => void }) {
+  const palette = COLOR_PARTS[part];
+  // A colour from a character file may be off the palette; it still shows, chosen.
+  const own = palette.some((swatch) => swatch.hex === look[part]) ? [] : [{ name: look[part], hex: look[part] }];
+  return [...palette, ...own].map((swatch) => {
+    const on = look[part] === swatch.hex;
+    return (
+      <button key={swatch.hex} type="button" role="radio" aria-checked={on} aria-label={partLabel(swatch.name)} title={partLabel(swatch.name)} onClick={() => onPick({ [part]: swatch.hex })}
+        className={`size-8 rounded-full border-2 transition-transform active:scale-95 ${on ? "border-foreground" : "border-transparent"}`}>
+        <span className="block size-full rounded-full border border-black/20" style={{ background: swatch.hex }} />
+      </button>
+    );
+  });
+}
+
+function Styles({ part, look, onPick }: { part: StylePart; look: Look; onPick: (change: Partial<Look>) => void }) {
+  return STYLE_PARTS[part].map((id) => {
+    const on = look[part] === id;
+    return (
+      <button key={id} type="button" role="radio" aria-checked={on} onClick={() => onPick({ [part]: id })}
+        className={`rounded-md border px-2.5 py-1 text-sm transition-colors hover:bg-accent ${on ? "border-foreground bg-accent font-medium" : ""}`}>
+        {partLabel(id)}
+      </button>
+    );
+  });
 }

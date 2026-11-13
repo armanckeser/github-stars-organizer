@@ -1,5 +1,5 @@
 import { seededRandom } from "../battle.ts";
-import { type Aim, type Condition, type Effect, type Gate, type Hook, type Rules, type Trigger } from "./hooks.ts";
+import { CONDITION_TICKS, DEPRECATED_EVERY, deprecatedLoss, FLAKY_ODDS, MERGE_CONFLICT_ODDS, RATE_LIMITED, type Aim, type Condition, type Effect, type Gate, type Hook, type Rules, type Trigger } from "./hooks.ts";
 import { GAME_RULES } from "./game-rules.ts";
 import { EVEN } from "./stats.ts";
 import { cellOf, COLS, ROWS, type Card, type Fight, type FightEvent, type Side } from "./types.ts";
@@ -38,13 +38,6 @@ const FIRST_ACTION_SPREAD = 8;
 /** A hit lands for 70% to 130% of its damage. */
 const VARIANCE = 0.6;
 const THIRD = 3;
-const CONDITION_TICKS = 30;
-/** A deprecated card loses this share of its full HP every DEPRECATED_EVERY ticks. */
-const DEPRECATED_SHARE = 1 / 30;
-const DEPRECATED_EVERY = 10;
-const MERGE_CONFLICT_ODDS = 1 / 3;
-const FLAKY_ODDS = 1 / 4;
-const RATE_LIMITED = 1.5;
 
 type Scaled = "attack" | "guard" | "speed";
 
@@ -57,12 +50,18 @@ type Unit = {
   hp: number;
   /** Damage the card's shield takes before its HP does. */
   shield: number;
-  /** The tick of the card's next action. */
+  /**
+   * When the card next acts, in ticks, with the fraction kept: the card acts on the
+   * first whole tick at or after it, and its following wait counts from this, not from
+   * that tick, so a wait of 9.6 ticks gives 10, 9, 10, 10, 9 ... and speed always counts.
+   */
   next: number;
   hits: number;
   boost: Record<Scaled, number>;
   critical: number;
   luck: number;
+  /** How much more often the card acts than its speed alone gives: 0.1 is 10% more often. */
+  haste: number;
   hooks: Hook[];
   spent: Set<Hook>;
   /** The card's condition, who left it, when it wears off and when it next bites. */
@@ -78,11 +77,19 @@ const apart = (a: { x: number; y: number }, b: { x: number; y: number }) => Math
 const standing = (arena: Arena, side: Side) => arena.units.filter((unit) => unit.side === side && unit.hp > 0);
 const scaled = (unit: Unit, stat: Scaled) => unit.card[stat] * Math.max(0.1, unit.boost[stat]);
 
-/** Ticks between a card's hits: a faster card waits less. */
+/**
+ * Ticks between a card's hits, a fraction kept: a faster card waits less. Rounded to
+ * whole ticks, every card with a speed of 100 to 140 waited 10, so speed did nothing.
+ */
 function periodOf(unit: Unit): number {
   const limited = unit.condition?.name === "rate-limited" ? RATE_LIMITED : 1;
   const wait = limited * PERIOD * ((EVEN + CUSHION) / (scaled(unit, "speed") + CUSHION)) ** SPEED_EDGE;
-  return Math.max(MIN_PERIOD, Math.min(MAX_PERIOD, Math.round(wait)));
+  return Math.max(MIN_PERIOD, Math.min(MAX_PERIOD, wait / (1 + unit.haste)));
+}
+
+/** Waits a card's period after its last action was due (Unit.next). */
+function rest(unit: Unit) {
+  unit.next += periodOf(unit);
 }
 
 /** A hit's damage before the critical and the dice: attack against guard. */
@@ -167,6 +174,7 @@ function affect(arena: Arena, unit: Unit, effect: Effect, target: Unit, source: 
     case "stat":
       if (effect.stat === "critical") target.critical += effect.by;
       else if (effect.stat === "luck") target.luck += effect.by;
+      else if (effect.stat === "haste") target.haste += effect.by;
       else target.boost[effect.stat] += effect.by;
       return;
     case "heal":
@@ -195,7 +203,7 @@ function wearConditions(arena: Arena) {
     if (!condition || unit.hp <= 0) continue;
     if (condition.name === "deprecated" && arena.t >= condition.bite) {
       condition.bite = arena.t + DEPRECATED_EVERY;
-      wound(arena, condition.from, unit, Math.max(1, Math.round(unit.card.hp * DEPRECATED_SHARE)), false);
+      wound(arena, condition.from, unit, deprecatedLoss(unit.card.hp), false);
     }
     if (unit.hp > 0 && arena.t >= condition.until) {
       unit.condition = null;
@@ -224,11 +232,11 @@ function fire(arena: Arena, unit: Unit, on: Trigger, foe: Unit | undefined) {
 function strike(arena: Arena, unit: Unit, target: Unit) {
   const condition = unit.condition?.name;
   if (condition === "flaky" && arena.random() < FLAKY_ODDS) {
-    unit.next = arena.t + periodOf(unit);
+    rest(unit);
     return;
   }
   if (condition === "merge-conflict" && arena.random() < MERGE_CONFLICT_ODDS) {
-    unit.next = arena.t + periodOf(unit);
+    rest(unit);
     changeHp(arena, unit, -Math.max(1, Math.round(baseHit(unit, unit))), condition);
     return;
   }
@@ -236,7 +244,7 @@ function strike(arena: Arena, unit: Unit, target: Unit) {
   const damage = Math.max(1, Math.round(baseHit(unit, target) * (critical ? unit.critical : 1) * (1 - VARIANCE / 2 + arena.random() * VARIANCE)));
   wound(arena, unit, target, damage, critical);
   unit.hits++;
-  unit.next = arena.t + periodOf(unit);
+  rest(unit);
   fire(arena, unit, "hit", target);
   if (target.hp > 0) fire(arena, target, "hurt", unit);
   if (unit.hits % THIRD === 0) fire(arena, unit, "third", target);
@@ -288,6 +296,7 @@ export function fightWith(rules: Rules): Fight {
         boost: { attack: 1, guard: 1, speed: 1 },
         critical: CRITICAL,
         luck: CRITICAL_ODDS,
+        haste: 0,
         hooks: hooks[index] ?? [],
         spent: new Set(),
         condition: null,

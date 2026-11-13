@@ -110,6 +110,9 @@ const LANGUAGE_TYPE: Record<string, CardType> = {
   Python: "data", "Jupyter Notebook": "data", R: "data", Julia: "data", MATLAB: "data", Cuda: "data",
 };
 
+/** Every language a type is known for, lower-case, as GitHub names it. */
+export const LANGUAGE_NAMES: ReadonlySet<string> = new Set(Object.keys(LANGUAGE_TYPE).map((language) => language.toLowerCase()));
+
 // Each type beats the next one round the ring. Docs sits outside: no edge either way.
 const RING: CardType[] = ["systems", "scripts", "web", "apps", "data"];
 

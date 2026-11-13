@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { seededRandom, type Fighter } from "../../../../server/battle";
-import type { Look } from "../../../../server/character";
+import type { Wearer } from "../../../../server/character";
 import type { Condition } from "../../../../server/run/hooks";
 import { CONDITION_NAMES, sourceOf } from "../../../../server/run/names";
 import { BENCH_SIZE } from "../../../../server/run/rules";
@@ -202,6 +202,8 @@ export class BoardWorld {
       onLost: () => void;
       onSelect: (id: string | null) => void;
       onFightEnd: (key: string) => void;
+      /** The tick the fight being played has reached, each frame it plays. */
+      onTick?: (tick: number) => void;
       /** A creature is being carried (its id), or was put down (null). */
       onDrag: (id: string | null) => void;
       /** A carried creature put down on a cell, a Drafts slot or the Archive. */
@@ -280,9 +282,9 @@ export class BoardWorld {
   // --- what the screen asks for ---
 
   /** The two characters standing at the ends of the board. */
-  setLooks(near: Look | null, far: Look | null) {
-    ([near, far] as const).forEach((look, side) => {
-      const key = look ? JSON.stringify(look) : "";
+  setLooks(near: Wearer | null, far: Wearer | null) {
+    ([near, far] as const).forEach((wearer, side) => {
+      const key = wearer ? JSON.stringify(wearer) : "";
       if (key === this.looks[side]) return;
       this.looks[side] = key;
       const old = this.trainers[side];
@@ -291,8 +293,8 @@ export class BoardWorld {
         dispose(old.root);
       }
       this.trainers[side] = null;
-      if (!look) return;
-      const trainer = buildTrainer(look);
+      if (!wearer) return;
+      const trainer = buildTrainer(wearer.look, wearer.supporter);
       trainer.root.scale.setScalar(0.8);
       this.scene.add(trainer.root);
       this.trainers[side] = trainer;
@@ -580,6 +582,8 @@ export class BoardWorld {
     badge.position.set(0, 0.19, 0.004);
     badge.renderOrder = 12;
     badge.visible = false;
+    // The badge picks its creature as the body does (actorUnder).
+    badge.userData.actor = unit.id;
     bar.add(back, trailFill, fill, shieldFill, badge);
     // Turn first, then tip: a faint tips the creature back the way it faces.
     creature.root.rotation.order = "YXZ";
@@ -927,6 +931,9 @@ export class BoardWorld {
       fight.time += step;
       while (!fight.done && fight.next < fight.events.length && (fight.events[fight.next].t * TICK_MS) / 1000 <= fight.time) this.apply(fight.events[fight.next++], quick);
       if (quick) for (const actor of this.actors.values()) actor.at.copy(actor.home);
+      // A skipped fight's time is Infinity: its last tick is the end event's.
+      const last = fight.events.at(-1)?.t ?? 0;
+      this.options.onTick?.(Math.min(last, Math.max(0, Math.floor((fight.time * 1000) / TICK_MS))));
     }
 
     // A tween's update or done may start another tween; those go on the fresh list, so none is dropped.
@@ -1144,7 +1151,9 @@ export class BoardWorld {
 
   private actorUnder(event: PointerEvent): string | null {
     this.ray(event);
-    const [hit] = this.raycaster.intersectObjects([...this.actors.values()].filter((actor) => !actor.out).map((actor) => actor.creature.root), true);
+    const standing = [...this.actors.values()].filter((actor) => !actor.out);
+    const badges = standing.flatMap((actor) => (actor.badge.visible && actor.bar.visible ? [actor.badge] : []));
+    const [hit] = this.raycaster.intersectObjects([...standing.map((actor) => actor.creature.root), ...badges], true);
     return (hit?.object.userData.actor as string | undefined) ?? null;
   }
 
@@ -1210,8 +1219,9 @@ export class BoardWorld {
   }
 
   private down = (event: PointerEvent) => {
-    if (this.fight && !this.fight.done) return;
     const id = this.actorUnder(event);
+    // In a fight a tap only picks a creature to look at: nothing is carried, and the fight plays on.
+    if (this.fight && !this.fight.done) return this.options.onSelect(id);
     if (!id) return this.options.onSelect(null);
     this.drag = { id, startX: event.clientX, startY: event.clientY, moved: false, spot: null };
     this.renderer.domElement.setPointerCapture(event.pointerId);
@@ -1220,7 +1230,8 @@ export class BoardWorld {
   private move = (event: PointerEvent) => {
     const drag = this.drag;
     if (!drag) {
-      this.renderer.domElement.style.cursor = (!this.fight || this.fight.done) && this.actorUnder(event) ? "grab" : "";
+      const fighting = this.fight !== null && !this.fight.done;
+      this.renderer.domElement.style.cursor = this.actorUnder(event) ? (fighting ? "pointer" : "grab") : "";
       return;
     }
     const actor = this.actors.get(drag.id);

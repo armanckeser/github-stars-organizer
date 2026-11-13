@@ -12,6 +12,7 @@ import { BarButton } from "@/components/run/bar-button";
 import { BoostPick } from "@/components/run/boost-pick";
 import { RunCard } from "@/components/run/run-card";
 import { Checks } from "@/components/run/checks";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { RunEnd } from "@/components/run/run-end";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
@@ -112,6 +113,8 @@ function RunPage() {
   const [viewing, setViewing] = useState<{ fighter: RunFighter; slot?: number; unit?: Unit; bench?: number } | null>(null);
   const [profile, setProfile] = useState<Player | null>(null);
   const [help, setHelp] = useState(false);
+  // A phone folds its own checks too: a full list covers the board (docs/GAME-UI.md §7).
+  const phone = useMediaQuery("(max-width: 639px), (max-height: 540px)");
   const [boosts, setBoosts] = useState<string[]>([]);
   // Three boosts to pick one from, after rounds 2 and 4; null the rest of the time.
   const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
@@ -347,8 +350,8 @@ function RunPage() {
 
       {player && round && (
         <div className="checks-rail pointer-events-none absolute inset-x-0 top-14 z-10 flex items-start justify-between gap-2 px-1 sm:top-20 sm:px-2">
-          <Checks title="Checks" cards={units.map((unit) => unit.fighter.card)} boosts={boosts} />
-          <Checks title="Theirs" cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} align="right" liveOnly />
+          <Checks title="Checks" cards={units.map((unit) => unit.fighter.card)} boosts={boosts} folds={phone} />
+          <Checks title={round.opponent.login} cards={round.theirs.map((unit) => unit.fighter.card)} boosts={[]} align="right" folds />
         </div>
       )}
 

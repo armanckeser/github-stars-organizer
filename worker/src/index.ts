@@ -11,13 +11,15 @@ import { RUN_PATH, runResponse, type RunDeps } from "./run.ts";
 import { RUN_PICTURE_PATH, RUN_SHARE_PATH, SHARE_PATH, VERSUS_PATH, runPictureResponse, runSharePage, sharePage, versusResponse } from "./share.ts";
 import { TEAM_PAGE_PATH, TEAM_PATH, teamPage, teamResponse } from "./team.ts";
 import { TEAM_PICTURE_PATH, teamPictureResponse } from "./team-picture.ts";
+import { d1TeamLinks } from "./team-links.ts";
 
 // BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts), a run's token (worker/src/run.ts)
 // and a finished run's team (worker/src/team.ts):
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 // NO_PLAY is the block list of accounts that asked not to be played (worker/src/no-play.ts).
 // EVENTS is the Analytics Engine dataset the counters go to (worker/src/events.ts), bound in wrangler.toml.
-type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string; NO_PLAY?: string; EVENTS?: AnalyticsEngineDataset };
+// TEAMS is the D1 database that keeps short team links (worker/src/team-links.ts), bound in wrangler.toml.
+type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string; NO_PLAY?: string; EVENTS?: AnalyticsEngineDataset; TEAMS?: D1Database };
 
 // GitHub's own rule for logins: alphanumerics and single inner hyphens, at most 39.
 // Anything else is rejected before it reaches GitHub, so this stays a fixed query
@@ -105,17 +107,18 @@ export default {
     const blocked = blockListOf(env.NO_PLAY);
     const optOuts = withBlockList(cachedOptOuts(url.origin, env, context), blocked);
     const count = counterFor(env.EVENTS, url.host);
+    const links = env.TEAMS ? d1TeamLinks(env.TEAMS) : undefined;
     // The app's own page: anything but a plain read goes straight to the site.
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
     if (RUN_SHARE_PATH.test(url.pathname)) return request.method === "GET" ? runSharePage(request, url) : fetch(request);
-    if (TEAM_PAGE_PATH.test(url.pathname)) return request.method === "GET" ? teamPage(request, url, env.BATTLE_KEY, optOuts, count) : fetch(request);
+    if (TEAM_PAGE_PATH.test(url.pathname)) return request.method === "GET" ? teamPage(request, url, env.BATTLE_KEY, optOuts, count, links) : fetch(request);
     // The /run* and /team* routes also catch pages such as /runs; those belong to the site.
     if (!url.pathname.startsWith("/api/")) return fetch(request);
     if (EVENT_ROUTE.test(url.pathname)) return eventResponse(request, count);
     const now = Date.now();
     const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN };
     const run = RUN_PATH.exec(url.pathname);
-    const runs: RunDeps = { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now, newSeed: newRunSeed, count };
+    const runs: RunDeps = { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now, newSeed: newRunSeed, count, links };
     if (run) return runResponse(run[1], request, runs);
     // A finished run's team: saved by replaying the run, and read back from its token.
     if (TEAM_PATH.test(url.pathname)) return teamResponse(request, url, runs);
@@ -141,7 +144,7 @@ export default {
     const match = GAME_PATH.exec(url.pathname);
     if (match) return gameResponse(match[1], url.searchParams, env.GITHUB_TOKEN, env.BATTLE_KEY);
 
-    if (TEAM_PICTURE_PATH.test(url.pathname)) return teamPictureResponse(url, env.BATTLE_KEY, optOuts, (work) => context.waitUntil(work));
+    if (TEAM_PICTURE_PATH.test(url.pathname)) return teamPictureResponse(url, env.BATTLE_KEY, optOuts, (work) => context.waitUntil(work), links);
 
     const card = CARD_PATH.exec(url.pathname);
     const fight = BATTLE_PATH.exec(url.pathname);

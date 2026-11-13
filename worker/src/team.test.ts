@@ -7,6 +7,7 @@ import type { Card } from "../../server/run/types.ts";
 import type { RunPool } from "./battle.ts";
 import { runResponse, type RunDeps } from "./run.ts";
 import { fakeGitHubWhere } from "./fake-github.test-helper.ts";
+import type { TeamLinks } from "./team-links.ts";
 import { teamPreview, teamResponse } from "./team.ts";
 import { callWorker, memoryCaches, memoryDataset } from "./worker-host.test-helper.ts";
 
@@ -310,6 +311,78 @@ describe("Beat this team", () => {
     const { status, body } = await post({ login: CHALLENGER, rounds: [aceOnly(CHALLENGER)], against: "made.up" }, depsFor({}));
     expect(status).toBe(403);
     expect(body.error).toBe("This team link was changed, so the team can't be trusted.");
+  });
+});
+
+/** Short links kept in a Map, as D1 keeps them; `failing` throws on every write, as D1 does past its daily cap. */
+function linksIn(table = new Map<string, string>(), failing = false): TeamLinks {
+  return {
+    find: async (id) => table.get(id) ?? null,
+    keep: async (id, token) => {
+      if (failing) throw new Error("D1_ERROR: free tier daily row write limit");
+      if (!table.has(id)) table.set(id, token);
+      return table.get(id)!;
+    },
+  };
+}
+
+const withLinks = (links: TeamLinks, deps = depsFor({ [PLAYER]: STRONG })): RunDeps => ({ ...deps, links });
+const strongRun = { login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) };
+
+describe("a short team link", () => {
+  it("gives a 10-character link that reads the same team back", async () => {
+    // Regression guarded: a challenge link over a thousand characters long in a group chat.
+    const table = new Map<string, string>();
+    const { body } = await post(strongRun, withLinks(linksIn(table)));
+    expect(body.token).toMatch(/^[A-Za-z0-9_-]{10}$/);
+    const { status, body: team } = await read(body.token, withLinks(linksIn(table), depsFor({})));
+    expect(status).toBe(200);
+    expect(team).toMatchObject({ login: PLAYER, wins: 5, losses: 0 });
+  });
+
+  it("gives the same link when the same team is saved twice", async () => {
+    const table = new Map<string, string>();
+    const first = await post(strongRun, withLinks(linksIn(table)));
+    const second = await post(strongRun, withLinks(linksIn(table)));
+    expect(second.body.token).toBe(first.body.token);
+    expect(table.size).toBe(1);
+  });
+
+  it("falls back to the long link when the table can't be written", async () => {
+    // Regression guarded: D1's daily write cap stopping players from sharing at all.
+    const { status, body } = await post(strongRun, withLinks(linksIn(new Map(), true)));
+    expect(status).toBe(200);
+    expect(body.token.length).toBeGreaterThan(100);
+    expect((await read(body.token, depsFor({}))).status).toBe(200);
+  });
+
+  it("still opens a long link once short links exist", async () => {
+    const long = await savedStrongTeam();
+    expect((await read(long, withLinks(linksIn(), depsFor({})))).status).toBe(200);
+  });
+
+  it("refuses a short id nobody saved", async () => {
+    const { status, body } = await read("AAAAAAAAAA", withLinks(linksIn(), depsFor({})));
+    expect(status).toBe(400);
+    expect(body.error).toBe("That isn't a team link.");
+  });
+
+  it("refuses a team edited in the table, since the stored token is still checked", async () => {
+    // Regression guarded: the table becoming a way around BATTLE_KEY.
+    const table = new Map<string, string>();
+    const { body } = await post(strongRun, withLinks(linksIn(table)));
+    const [payload, signature] = table.get(body.token)!.split(".");
+    const team = JSON.parse(await inflated(payload)) as { wins: number };
+    table.set(body.token, `${await deflated(JSON.stringify({ ...team, wins: 9 }))}.${signature}`);
+    expect((await read(body.token, withLinks(linksIn(table), depsFor({})))).status).toBe(403);
+  });
+
+  it("plays \"Beat this team\" from a short link", async () => {
+    const table = new Map<string, string>();
+    const { body } = await post(strongRun, withLinks(linksIn(table)));
+    const start = new Request("https://stars-demo.example/api/run/new", { method: "POST", body: JSON.stringify({ login: CHALLENGER, against: body.token }) });
+    const started = (await (await runResponse("new", start, withLinks(linksIn(table), depsFor({})))).json()) as { run: { opponent: string } };
+    expect(started.run.opponent).toBe(PLAYER);
   });
 });
 

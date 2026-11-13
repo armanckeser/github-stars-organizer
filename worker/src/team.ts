@@ -6,6 +6,7 @@ import { LOGIN } from "./cards.ts";
 import type { CountEvent } from "./events.ts";
 import type { OptOuts } from "./no-play.ts";
 import { seal } from "./sealed.ts";
+import { shortened, type TeamLinks } from "./team-links.ts";
 import {
   BAD_REQUEST, CORS, REFUSED, RunRefused, TEAM_PACKING, TEAM_PURPOSE, fight, fightSeed, integer, json, openTeam, opponentAt, playableTeam, readBody, type RunDeps,
 } from "./run.ts";
@@ -14,11 +15,12 @@ import {
 // browser, so before the Worker signs a team it plays the run's fights again itself:
 // every card has to be one of the player's cards (numbers from the Worker,
 // not the browser), each round's team has to fit that round's board, and the record is
-// the one these fights give. The link then carries the team, so it never needs storing.
+// the one these fights give. The link then carries the team, or a short id for it
+// (worker/src/team-links.ts) when the Worker could keep the team.
 // An account that opted out of being played against (worker/src/no-play.ts) gets no
 // team link, and a link to its team stops opening once it opts out.
 //
-//   POST /api/run/team {login, seed, rounds, against?}  the team's token, and the team
+//   POST /api/run/team {login, seed, rounds, against?}  the team's link token (short id or sealed), and the team
 //   GET  /api/run/team?t=<token>                  the team, once the token checks out
 //   GET  /team?t=<token>[&to=<friend>]            the app's page, with the team's link-preview tags
 //
@@ -93,7 +95,7 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
   const seed = typeof body.seed === "string" ? body.seed : "";
   if (seed.length === 0 || seed.length > MAX_SEED_CHARS) throw new RunRefused("A team needs its run's seed.", BAD_REQUEST);
   const played = roundsIn(body.rounds);
-  const against = typeof body.against === "string" ? await openTeam(body.against, key) : null;
+  const against = typeof body.against === "string" ? await openTeam(body.against, key, deps.links) : null;
   // Nobody else may play against an opted-out account, so its team gets no link to be played from.
   // Asked before the stars are read, so a blocked account's are never read.
   const ownOptOut = await deps.optedOut([login]);
@@ -130,7 +132,7 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
     fighters: fielded.map((index) => player.team[index]),
     rounds: rounds.map((round) => ({ ...round, units: round.units.map((unit) => ({ ...unit, fighter: fielded.indexOf(unit.fighter) })) })),
   };
-  const token = await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING);
+  const token = await shortened(await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING), player.login, deps.links);
   deps.count?.("team_saved");
   return { token, team: saved };
 }
@@ -141,7 +143,7 @@ export async function teamResponse(request: Request, url: URL, deps: RunDeps): P
   if (!deps.key) return json({ error: "Runs aren't set up on this server yet." }, 503);
   try {
     if (request.method === "POST") return json(await saveTeam(await readBody(request), deps, deps.key), 200);
-    const team = await openTeam(url.searchParams.get("t") ?? "", deps.key);
+    const team = await openTeam(url.searchParams.get("t") ?? "", deps.key, deps.links);
     // Opened to be looked at or played against by anyone, so the owner's opt-out applies.
     await playableTeam(team, "", deps.optedOut);
     return new Response(JSON.stringify(team), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${CACHE_SECONDS}`, ...CORS } });
@@ -173,7 +175,7 @@ export function teamPreview(saved: SavedTeam, to: string | null = null): { title
  * The app's own page for /team, with the link-preview tags of the team in its address
  * (as /battle's in worker/src/share.ts). A team whose owner opted out gets the plain page.
  */
-export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts, count: CountEvent): Promise<Response> {
+export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts, count: CountEvent, links?: TeamLinks): Promise<Response> {
   const page = await fetch(request);
   if (!(page.headers.get("Content-Type") ?? "").includes("text/html")) return page;
   // The static host answers a deep link with its fallback page and a 404; the page is the app, so it is a 200.
@@ -182,7 +184,7 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
   let saved: SavedTeam;
   try {
     if (!key) throw new RunRefused("No key.", 503);
-    saved = await openTeam(token, key);
+    saved = await openTeam(token, key, links);
     await playableTeam(saved, "", optOuts);
   } catch {
     return new Response(page.body, { status: 200, headers });

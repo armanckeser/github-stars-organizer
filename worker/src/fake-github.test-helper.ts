@@ -6,6 +6,29 @@ import { OPPONENTS } from "../../server/run/rules.ts";
 
 type Repo = { language: string | null; stars: number; forks: number; topics: string[]; pushedAt: string };
 
+/** How many popular repos the fake search finds in each star band. */
+export const POPULAR_PER_BAND = 6;
+
+/**
+ * Popular repos for GitHub's search to find, six in each star band a rarity starts at
+ * (100, 1,000, 10,000 and 100,000 stars), owned by made-up Greendale sponsors.
+ */
+function popularRepos(): Record<string, Repo> {
+  const bands = [
+    { owner: "chang-dynasty", stars: 500, language: "Python" },
+    { owner: "subway-sandwiches", stars: 5000, language: "Go" },
+    { owner: "hawthorne-wipes", stars: 50_000, language: "TypeScript" },
+    { owner: "honda-dealership", stars: 200_000, language: "Rust" },
+  ];
+  return Object.fromEntries(
+    bands.flatMap((band) => Array.from({ length: POPULAR_PER_BAND }, (_, i) => [`${band.owner}/sponsor-${i}`, { language: band.language, stars: band.stars + i, forks: 40, topics: [], pushedAt: "2026-10-01T00:00:00Z" }])),
+  );
+}
+
+const POPULAR_REPOS = popularRepos();
+/** Every popular repo the fake search can find. */
+export const POPULAR = Object.keys(POPULAR_REPOS);
+
 const REPOS: Record<string, Repo> = {
   "greendale/dreamatorium": { language: "TypeScript", stars: 4200, forks: 310, topics: ["simulation", "game"], pushedAt: "2026-11-01T09:00:00Z" },
   "cougar-town/kickpuncher": { language: "TypeScript", stars: 830, forks: 41, topics: ["cli"], pushedAt: "2026-06-15T00:00:00Z" },
@@ -14,12 +37,17 @@ const REPOS: Record<string, Repo> = {
   "greendale/paintball-assassin": { language: "Rust", stars: 9100, forks: 640, topics: ["game", "security"], pushedAt: "2026-11-08T00:00:00Z" },
   "city-college/mascot": { language: "Go", stars: 1900, forks: 88, topics: [], pushedAt: "2026-09-09T00:00:00Z" },
   "greendale/human-being": { language: "HTML", stars: 75, forks: 3, topics: ["web"], pushedAt: "2023-04-01T00:00:00Z" },
+  ...POPULAR_REPOS,
 };
 
 type Account = { readme: string | null; pinned: string[]; stars: string[] };
 
 export const HOST = "study-group-abed";
 export const GUEST = "study-group-annie";
+/** No stars, no pinned repos and no repos of their own. */
+export const NEWCOMER = "study-group-pierce";
+/** Enough stars to fill a run's pool without any popular repos. */
+export const COLLECTOR = "study-group-britta";
 // A run's opponents are a fixed list of real logins (server/run/rules.ts). This one
 // answers with invented Greendale repos; nothing is read from the real account.
 export const RIVAL = OPPONENTS[0];
@@ -33,6 +61,8 @@ const ACCOUNTS: Record<string, Account> = {
   },
   // No README: the default character, the ace from a pinned repo, only two stars.
   [GUEST]: { readme: null, pinned: ["greendale/paintball-assassin"], stars: ["city-college/mascot", "greendale/human-being"] },
+  [NEWCOMER]: { readme: null, pinned: [], stars: [] },
+  [COLLECTOR]: { readme: null, pinned: ["greendale/dreamatorium"], stars: [...POPULAR, "city-college/mascot"] },
   [RIVAL]: { readme: null, pinned: ["city-college/mascot"], stars: ["greendale/dreamatorium", "troy-barnes/blanket-fort"] },
 };
 
@@ -63,12 +93,25 @@ function userNode(login: string) {
   };
 }
 
+/** The repos a search finds: those in its `stars:` range, the most stars first. Other qualifiers are ignored. */
+function foundBy(search: string): string[] {
+  const range = /stars:(\d+)\.\.(\d+)/.exec(search);
+  const from = /stars:>=(\d+)/.exec(search);
+  const [low, high] = range ? [Number(range[1]), Number(range[2])] : from ? [Number(from[1]), Infinity] : [0, Infinity];
+  return Object.keys(REPOS)
+    .filter((name) => REPOS[name].stars >= low && REPOS[name].stars <= high)
+    .sort((a, b) => REPOS[b].stars - REPOS[a].stars);
+}
+
 /** A stand-in for `fetch` that answers GitHub's GraphQL endpoint and nothing else. */
 export async function fakeGitHub(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const { query } = JSON.parse(String(init?.body)) as { query: string };
   const user = /user\(login: "([^"]+)"\)/.exec(query);
   if (user) return Response.json({ data: { user: userNode(user[1]) } });
   const data: Record<string, unknown> = {};
+  for (const found of query.matchAll(/(b\d+): search\(query: "([^"]+)", type: REPOSITORY, first: (\d+)\)/g)) {
+    data[found[1]] = { nodes: foundBy(found[2]).slice(0, Number(found[3])).map((nameWithOwner) => ({ nameWithOwner })) };
+  }
   for (const found of query.matchAll(/(r\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)/g)) {
     data[found[1]] = REPOS[`${found[2]}/${found[3]}`] ? repoNode(`${found[2]}/${found[3]}`) : null;
   }

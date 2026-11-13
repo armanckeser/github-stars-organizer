@@ -24,14 +24,16 @@ export type Action = { kind: "attack" } | { kind: "special" } | { kind: "guard" 
 
 export type GamePlayer = { login: string; name: string; klass: ClassId; look: Look; level: number; avatarUrl: string | null };
 
-/** Where a team's ace came from: the top four in a Stard profile, a pinned repo, the stars, or the player's own repos. */
-export type TeamSource = "profile" | "pinned" | "stars" | "repos";
+/** Where a team's ace came from: the top four in a Stard profile, a pinned repo, the stars, the player's own repos, or popular repos (an account with none of those). */
+export type TeamSource = "profile" | "pinned" | "stars" | "repos" | "popular";
 
 /** A repo as GitHub described it when the match opened: everything its card's numbers come from. */
 export type FrozenRepo = RepoFacts & {
   topics: string[];
   /** Drawn from the player's stars for the day, not chosen by them. */
   wildcard: boolean;
+  /** A popular repo on GitHub, topping up a pool with too few stars (worker/src/popular.ts). */
+  popular?: boolean;
 };
 
 /** What one side's team was worked out from, read from GitHub once, at `readAt`. */

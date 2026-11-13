@@ -119,6 +119,7 @@ export function RunCard({ fighter, team }: { fighter: RunFighter; team: RunFight
             <span className="min-w-0 truncate">{owner}/{title}</span>
             <span className="flex shrink-0 items-center font-semibold" style={{ gap: "0.6cqw" }}>
               {fighter.home && "home · "}
+              {fighter.popular && "popular on GitHub · "}
               {card.shiny && <><Star style={{ width: "2.8cqw", height: "2.8cqw" }} fill="#d99a0b" stroke="#d99a0b" aria-hidden /> shiny ·</>} stard
             </span>
           </div>

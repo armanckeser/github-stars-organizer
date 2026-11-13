@@ -1,6 +1,7 @@
 import { OPPONENTS } from "../../server/run/rules.ts";
-import { poolResponse, type RunPool } from "./battle.ts";
+import { gql, poolResponse, type RunPool } from "./battle.ts";
 import { DAY, HOUR, cacheKeyFor, readThrough, type CacheDeps, type Lifetime } from "./edge-cache.ts";
+import { cachedPopular, type SearchNodes } from "./popular.ts";
 import { RunRefused } from "./run.ts";
 
 // An account's pool, as the Play screen (GET /api/run/pool) and a run's referee
@@ -24,7 +25,8 @@ export function poolReply(login: string, deps: PoolDeps): Promise<Response> {
   const url = new URL("/api/run/pool", deps.origin);
   url.searchParams.set("login", login);
   const lifetime = OPPONENT_LOGINS.has(login.toLowerCase()) ? OPPONENT_POOL : PLAYER_POOL;
-  return readThrough(cacheKeyFor(url, true), () => poolResponse(url.searchParams, deps.token), lifetime, deps);
+  const popular = () => cachedPopular((query) => gql<Record<string, SearchNodes>>(deps.token, query), deps.origin, deps);
+  return readThrough(cacheKeyFor(url, true), () => poolResponse(url.searchParams, deps.token, popular), lifetime, deps);
 }
 
 /**

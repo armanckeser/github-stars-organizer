@@ -277,6 +277,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
   - The emblem over the head = the topic set's icon, the same one as in the card's hex.
   - Trim = type. Size = cost, in 5 steps. Gold foil = creator card.
 - A balance study across real repos is optional. The owner thinks it is likely not needed.
+- **2026-11-12: build it before Sunday's launch**, right after the never-empty shop.
 
 **Cards and rules**
 
@@ -288,7 +289,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Every `armanckeser` repo is a creator card: legendary, 5 gold, the 460 budget (× 1.05 shiny). "github-stars-organizer" is a 1-gold common today; creator cards are the reason to star them. | branch `sell-every-card` |
 | Hovering a check (yours or theirs) names the board's cards in that set, beside the bonus. | branch `sell-every-card` |
 | Keep the bench, even though Stard cards never combine. | built |
-| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | open (balance check first) |
+| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | branch `shop-never-empty`: a few from each star band (2 to 5 gold), chosen 2026-11-12 |
 | A friend's idea: buying the same repo three times combines it into a stronger one, as in TFT. Today each repo is in the pool once, so copies never meet. | idea |
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |

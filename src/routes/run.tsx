@@ -413,7 +413,7 @@ function RunPage() {
             <button type="button" onClick={() => setHelp(false)} aria-label="Close" className="rounded p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="size-4" /></button>
           </div>
           <ul className="space-y-1.5 text-white/80">
-            <li className="flex gap-2"><Coins className="mt-0.5 size-4 shrink-0 text-[#ffd84d]" /> Tap a shop card to see the card, then buy. Cards come from your stars. {ROUND_GOLD} gold each round, {WIN_GOLD} more for a win.</li>
+            <li className="flex gap-2"><Coins className="mt-0.5 size-4 shrink-0 text-[#ffd84d]" /> Tap a shop card to see the card, then buy. Cards come from your stars, topped up with popular repos when you have only a few. {ROUND_GOLD} gold each round, {WIN_GOLD} more for a win.</li>
             <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Tanks take hits, Assassins deal them, Bruisers do both. All three hit the enemy next to them: put them in the front row.</li>
             <li className="flex gap-2"><Crosshair className="mt-0.5 size-4 shrink-0" /> Ranged cards hit from three cells away. Keep them behind.</li>
             <li className="flex gap-2"><Swords className="mt-0.5 size-4 shrink-0" /> Bought cards wait on the Drafts shelf. Drag between the shelf and the board, or into the Archive to sell for the full price. Only the board counts toward the team.</li>

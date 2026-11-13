@@ -41,6 +41,7 @@ const SOURCE = {
   pinned: "Ace from their pinned repos, the rest drawn from their stars today",
   stars: "Drawn from their stars today",
   repos: "Their top repo, the rest drawn from their stars today",
+  popular: "Popular repos on GitHub, with no stars to draw from",
 } as const;
 const NPX = "npx github-stars-organizer";
 

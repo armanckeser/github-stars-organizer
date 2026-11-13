@@ -5,6 +5,7 @@ import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
 import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
+import { pickPopular, type PopularList } from "./popular.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
 // a fight decided by server/battle.ts.
@@ -139,9 +140,10 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
 // A team is four cards: one ace the player chose and three drawn from their stars for
 // the day. The ace is the first of the top four in their Stard profile, else their
 // first pinned repo, else their own most-starred repo. Someone with too few stars
-// fills the rest from what they chose and then from their own repos, and may still
-// come up short; `evened` then trims the other side to match.
-export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE): Promise<Team> {
+// fills the rest from what they chose and then from their own repos, then from
+// `popular` when given (a run's pool, worker/src/popular.ts), and may still come up
+// short; `evened` then trims the other side to match.
+export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE, popular?: () => Promise<PopularList>): Promise<Team> {
   const name = JSON.stringify(login);
   const data = await gql<{
     user: (PlayerNode & {
@@ -195,25 +197,32 @@ export async function teamFor(token: string, login: string, now: number, size = 
   const ace = chosen.slice(0, 1);
   const stars = user.starredRepositories.nodes.filter((repo) => !repo.isPrivate).map((repo) => repo.nameWithOwner);
   if (ace.length === 0 && stars.length > 0) source = "stars";
-  const drawnNames = drawFromStars(stars, ace, size - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`);
+  const day = new Date(now).toISOString().slice(0, 10);
+  const drawnNames = drawFromStars(stars, ace, size - ace.length, `${user.login.toLowerCase()}|${day}`);
   // An account with few stars fills the rest of its pool from its own repos.
   const spares = [...new Set([...chosen.slice(1), ...owned])]
     .filter((name) => !ace.includes(name) && !drawnNames.includes(name))
     .slice(0, Math.max(0, size - ace.length - drawnNames.length));
+  const short = size - ace.length - drawnNames.length - spares.length;
+  const fill = short > 0 && popular ? pickPopular(await popular(), short, [...ace, ...drawnNames, ...spares, ...stars], `${user.login.toLowerCase()}|${day}|popular`) : [];
 
   const known = new Map(fromProfile.map((node) => [node.nameWithOwner, node]));
-  const unread = [...ace, ...drawnNames, ...spares].filter((name) => !known.has(name));
+  const unread = [...ace, ...drawnNames, ...spares, ...fill].filter((name) => !known.has(name));
   for (const node of await factsFor(token, unread)) known.set(node.nameWithOwner, node);
   const read = (names: string[]) => names.flatMap((name) => known.get(name) ?? []);
   const aceNodes = read(ace);
   const drawn = read(drawnNames);
-  const nodes = [...aceNodes, ...drawn, ...read(spares)].slice(0, size);
+  const filled = read(fill);
+  if (aceNodes.length === 0 && drawn.length === 0 && filled.length > 0) source = "popular";
+  const nodes = [...aceNodes, ...drawn, ...read(spares), ...filled].slice(0, size);
+  const fromPopular = new Set(filled.map((node) => node.nameWithOwner));
   const repos: FrozenRepo[] = nodes.map((node, i) => ({
     ...toFacts(node),
     topics: node.repositoryTopics.nodes.map((entry) => entry.topic.name),
     wildcard: i >= aceNodes.length && i < aceNodes.length + drawn.length,
+    ...(fromPopular.has(node.nameWithOwner) ? { popular: true } : {}),
   }));
-  const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : fighter));
+  const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : repos[i].popular ? { ...fighter, popular: true } : fighter));
   const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: aceNodes[0]?.nameWithOwner ?? null, source, repos };
   return { login: user.login, avatarUrl: user.avatarUrl, source, character, team, facts };
 }
@@ -277,11 +286,12 @@ export function withRunCards(player: Team): RunPool {
   return { ...player, team };
 }
 
-export async function poolResponse(params: URLSearchParams, token: string): Promise<Response> {
+/** A run's pool. `popular` tops up an account with few stars (worker/src/popular.ts). */
+export async function poolResponse(params: URLSearchParams, token: string, popular?: () => Promise<PopularList>): Promise<Response> {
   const login = params.get("login") ?? "";
   if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
   try {
-    const player = await teamFor(token, login, Date.now(), POOL_SIZE);
+    const player = await teamFor(token, login, Date.now(), POOL_SIZE, popular);
     if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
     return json(withRunCards(player), 200, CACHE_SECONDS);
   } catch (error) {

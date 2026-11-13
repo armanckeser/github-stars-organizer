@@ -7,6 +7,11 @@ import { CREATURE_REPOS, printOf, RUN_CREATURES, type CreaturePrint } from "./cr
 
 // A colour is kept as 8-bit hex; a recipe that rounds once more may land one step away.
 const COLOR_STEP = 1;
+// Places a recorded number must match to, within half a step: macOS and Linux sum a sash's
+// 606 vertices about 0.001 apart, and a part moved or resized enough to see is 0.05 or more.
+const PLACES_KEPT = 2;
+
+const nearly = (values: number[]) => values.map((value) => expect.closeTo(value, PLACES_KEPT));
 
 const channels = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
 
@@ -25,11 +30,11 @@ describe("a repo's creature", () => {
       const drawn = printOf(fighter);
       expect(drawn.name).toBe(kept.name);
       expect(drawn.parts.map(({ shape, size, matrix, outlined, paints }) => ({ shape, size, matrix, outlined, paints }))).toEqual(
-        kept.parts.map(({ shape, size, matrix, outlined, paints }) => ({ shape, size, matrix, outlined, paints })),
+        kept.parts.map(({ shape, size, matrix, outlined, paints }) => ({ shape, size: nearly(size), matrix: nearly(matrix), outlined, paints })),
       );
       const colors = drawn.parts.map((part, i) => [part.color, kept.parts[i].color] as const);
       expect(colors.filter(([a, b]) => !colorsClose(a, b))).toEqual([]);
-      expect({ height: drawn.height, floats: drawn.floats, shiny: drawn.shiny, phase: drawn.phase }).toEqual({ height: kept.height, floats: kept.floats, shiny: kept.shiny, phase: kept.phase });
+      expect({ height: drawn.height, floats: drawn.floats, shiny: drawn.shiny, phase: drawn.phase }).toEqual({ height: expect.closeTo(kept.height, PLACES_KEPT), floats: kept.floats, shiny: kept.shiny, phase: expect.closeTo(kept.phase, PLACES_KEPT) });
     },
   );
 

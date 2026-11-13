@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import { GOLD, shade, type Look } from "../../../../server/character";
+import { STAR_PATCH, shade, starCorners, type Look } from "../../../../server/character";
 import { box, cylinder, part, sphere, toon } from "./kit";
 
 // A player's character as a model: the same parts as the drawn figure on the trainer
@@ -133,7 +133,13 @@ function torso(look: Look, top: THREE.Material): THREE.Object3D[] {
   }
 }
 
-/** The model. `supporter` adds the gold band worn by someone who starred Stard. */
+/** The star patch, a thin cut-out. The corners' y is flipped: the scene's y points up. */
+function starPatch(): THREE.ExtrudeGeometry {
+  const shape = new THREE.Shape(starCorners(0.075, 0.032).map(([x, y]) => new THREE.Vector2(x, -y)));
+  return new THREE.ExtrudeGeometry(shape, { depth: 0.018, bevelEnabled: false });
+}
+
+/** The model. `supporter` adds the star patch worn by someone who starred Stard. */
 export function buildTrainer(look: Look, supporter = false): Trainer {
   const skin = toon(look.skin);
   const top = toon(look.topColor);
@@ -156,7 +162,8 @@ export function buildTrainer(look: Look, supporter = false): Trainer {
     if (look.top === "tee") arm.add(part(cylinder(0.075, 0.07, 0.32), skin, { at: [0, -0.34, 0] }));
     arm.add(part(sphere(0.09, 12), skin, { at: [0, -0.56, 0] }));
     // On both arms: the board shows the player's own trainer from behind, the other's from the front, so one arm is always hidden.
-    if (supporter) arm.add(part(cylinder(0.105, 0.105, 0.07), toon(GOLD), { at: [0, -0.14, 0] }));
+    // Turned to face out from the arm's side, so it lies flat on the sleeve.
+    if (supporter) arm.add(part(starPatch(), toon(STAR_PATCH), { at: [side * 0.092, -0.16, 0], turn: [0, (side * Math.PI) / 2, 0] }));
     root.add(arm);
     return arm;
   }) as [THREE.Group, THREE.Group];

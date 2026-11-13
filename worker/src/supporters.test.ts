@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { GOLD } from "../../server/character.ts";
+import { STAR_PATCH } from "../../server/character.ts";
 import type { Opening } from "../../server/game.ts";
 import { battleResponse, poolResponse, trainerResponse } from "./battle.ts";
 import { GUEST, HOST, LISTED_LEFT_OUT, fakeGitHub, stargazerCalls } from "./fake-github.test-helper.ts";
@@ -29,8 +29,10 @@ afterEach(() => {
 type Pool = { login: string; supporter?: boolean };
 const pool = async (login: string) => (await (await poolResponse(new URLSearchParams({ login }), "token")).json()) as Pool;
 
-describe("the gold band for people who starred Stard", () => {
-  // Regression guarded: someone who starred the repo gets no band because their login
+const STAR_PATCH_FILL = `fill="${STAR_PATCH}"/>`;
+
+describe("the star patch for people who starred Stard", () => {
+  // Regression guarded: someone who starred the repo gets no patch because their login
   // is on the second page of stargazers, or GitHub spells it in another case.
   test("poolResponse_marks_the_player_a_supporter_when_their_login_is_among_the_stargazers", async () => {
     expect(await pool(HOST)).toMatchObject({ login: HOST, supporter: true });
@@ -56,7 +58,7 @@ describe("the gold band for people who starred Stard", () => {
   });
 
   // Regression guarded: GitHub failing to list the stargazers fails every battle and
-  // run, or drops every band until the next hour.
+  // run, or drops every patch until the next hour.
   test("poolResponse_keeps_the_last_list_when_github_wont_list_the_stargazers", async () => {
     await pool(HOST);
     vi.setSystemTime(Date.now() + 61 * 60_000);
@@ -87,12 +89,12 @@ describe("the gold band for people who starred Stard", () => {
   });
 
   // Regression guarded: the trainer card of an account on the block list, or with a
-  // `stard/no-play` file, draws the band.
-  test("trainer_card_leaves_the_band_off_when_the_stargazer_asked_to_be_left_out", async () => {
+  // `stard/no-play` file, draws the star patch.
+  test("trainer_card_leaves_the_star_patch_off_when_the_stargazer_asked_to_be_left_out", async () => {
     vi.stubGlobal("caches", memoryCaches());
     const card = async (user: string, blocked: string) => (await callWorker(`/api/card/trainer.svg?user=${user}`, undefined, { NO_PLAY: blocked })).text;
-    expect(await card(HOST, "study-group-abed")).not.toContain(GOLD);
-    expect(await card(LISTED_LEFT_OUT, "")).not.toContain(GOLD);
+    expect(await card(HOST, "study-group-abed")).not.toContain(STAR_PATCH_FILL);
+    expect(await card(LISTED_LEFT_OUT, "")).not.toContain(STAR_PATCH_FILL);
   });
 
   test("battle_and_opening_post_carry_the_flag_when_one_side_starred_stard", async () => {
@@ -103,9 +105,9 @@ describe("the gold band for people who starred Stard", () => {
     expect([opening.players.a.supporter, "supporter" in opening.players.b]).toEqual([true, false]);
   });
 
-  test("trainer_card_draws_the_gold_band_only_when_the_player_starred_stard", async () => {
+  test("trainer_card_draws_the_star_patch_only_when_the_player_starred_stard", async () => {
     const card = async (user: string) => (await trainerResponse(new URLSearchParams({ user }), "token")).text();
-    expect(await card(HOST)).toContain(GOLD);
-    expect(await card(GUEST)).not.toContain(GOLD);
+    expect(await card(HOST)).toContain(STAR_PATCH_FILL);
+    expect(await card(GUEST)).not.toContain(STAR_PATCH_FILL);
   });
 });

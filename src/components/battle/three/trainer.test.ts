@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { COLOR_PARTS, GOLD, STYLE_PARTS, type Look, type StylePart } from "../../../../server/character";
+import { COLOR_PARTS, STAR_PATCH, STYLE_PARTS, type Look, type StylePart } from "../../../../server/character";
 import { buildTrainer } from "./trainer";
 
 const plain: Look = {
@@ -38,12 +38,12 @@ describe("the 3D figure", () => {
     expect(shapeOf(plain).join("|")).not.toContain("#123456");
   });
 
-  // Regression guarded: the arena drops the band a supporter wears on their card, or
-  // wears it only on the arm the board's camera can't see.
-  test("buildTrainer_adds_a_gold_band_on_each_arm_only_when_the_player_starred_stard", () => {
-    const gold = GOLD.slice(1);
-    expect(shapeOf(plain, true).filter((shape) => shape.includes(`#${gold}`))).toHaveLength(2);
-    expect(shapeOf(plain).join("|")).not.toContain(gold);
+  // Regression guarded: the arena drops the star patch a supporter wears on their card,
+  // or wears it only on the arm the board's camera can't see.
+  test("buildTrainer_adds_a_star_patch_on_each_arm_only_when_the_player_starred_stard", () => {
+    const patches = (supporter: boolean) => shapeOf(plain, supporter).filter((shape) => shape.startsWith("ExtrudeGeometry") && shape.includes(STAR_PATCH));
+    expect(patches(true)).toHaveLength(2);
+    expect(patches(false)).toHaveLength(0);
   });
 
   test("buildTrainer_hides_the_top_of_the_hair_when_a_hat_is_on", () => {

@@ -1,6 +1,6 @@
 import { SELF_REPO } from "../../server/self-repo.ts";
 
-// Who starred this repo: a player among them wears a gold band (docs/AGENT-TASKS.md,
+// Who starred this repo: a player among them wears a star patch (docs/AGENT-TASKS.md,
 // Task 12). GitHub is asked at most once an hour per Worker instance, one REST call
 // per 100 stargazers.
 
@@ -20,7 +20,7 @@ async function readStargazers(token: string): Promise<ReadonlySet<string>> {
       headers: { Authorization: `bearer ${token}`, Accept: "application/vnd.github+json", "User-Agent": "stars-demo-battle" },
     });
     // Since GitHub's 2026-06-30 change only the repo's admins and collaborators can list
-    // its stargazers; any other token is answered 404 or 403, and nobody wears the band.
+    // its stargazers; any other token is answered 404 or 403, and nobody wears the patch.
     if (!response.ok) throw new Error(`GitHub returned ${response.status} for the stargazers`);
     const people = (await response.json()) as { login: string }[];
     for (const person of people) logins.add(person.login.toLowerCase());
@@ -37,7 +37,7 @@ export type StargazerRead = {
 
 /**
  * Who starred this repo. When GitHub can't be read, the last list read stands (empty
- * before the first), and the next try is an hour later: a missing band is better than
+ * before the first), and the next try is an hour later: a missing patch is better than
  * a failed battle.
  */
 export function supporters(token: string, now: number): StargazerRead {
@@ -61,7 +61,7 @@ export function supporters(token: string, now: number): StargazerRead {
 export type Playing = "in" | "left-out";
 
 /** The flag a player's figure carries: there, and true, when they starred Stard and haven't asked to be left out. */
-export function bandFor(starred: ReadonlySet<string>, login: string, playing: Playing): { supporter?: true } {
+export function supporterMark(starred: ReadonlySet<string>, login: string, playing: Playing): { supporter?: true } {
   if (playing === "left-out" || !starred.has(login.toLowerCase())) return {};
   return { supporter: true };
 }

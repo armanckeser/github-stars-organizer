@@ -8,7 +8,7 @@ import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 import { pickPopular, type PopularList } from "./popular.ts";
-import { bandFor, supporters } from "./supporters.ts";
+import { supporterMark, supporters } from "./supporters.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
 // a fight decided by server/battle.ts.
@@ -240,8 +240,8 @@ export async function teamFor(token: string, login: string, now: number, size = 
   }));
   const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : repos[i].popular ? { ...fighter, popular: true } : fighter));
   const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: aceNodes[0]?.nameWithOwner ?? null, source, repos };
-  const band = bandFor(await starred.soFar(), user.login, user.stard?.noPlay ? "left-out" : "in");
-  return { login: user.login, avatarUrl: user.avatarUrl, ...band, source, character, team, facts };
+  const mark = supporterMark(await starred.soFar(), user.login, user.stard?.noPlay ? "left-out" : "in");
+  return { login: user.login, avatarUrl: user.avatarUrl, ...mark, source, character, team, facts };
 }
 
 /** Both teams cut to the size of the smaller one, so nobody plays five cards against two. */
@@ -273,7 +273,7 @@ async function cardRepo(fighter: Fighter): Promise<CardRepo> {
 
 // A trainer card is drawn from its own address, so a card shows what its builder chose
 // even before the README is saved. Only the facts come from GitHub.
-// `blocked` is the block list (worker/src/no-play.ts): an account on it never wears the band.
+// `blocked` is the block list (worker/src/no-play.ts): an account on it never wears the star patch.
 export async function trainerResponse(params: URLSearchParams, token: string, blocked: ReadonlySet<string> = new Set()): Promise<Response> {
   const login = params.get("user") ?? "";
   if (!LOGIN.test(login)) return svg(messageCard("This card needs a GitHub username."), 400, CACHE_SECONDS);
@@ -285,8 +285,8 @@ export async function trainerResponse(params: URLSearchParams, token: string, bl
     );
     if (!data.user) return svg(messageCard(`No GitHub user called ${login}.`), 404, CACHE_SECONDS);
     const leftOut = data.user.stard?.noPlay || blocked.has(data.user.login.toLowerCase());
-    const band = bandFor(await starred.soFar(), data.user.login, leftOut ? "left-out" : "in");
-    return svg(trainerCard(data.user.login, characterFrom(params, data.user.login), trainerFacts(data.user), band.supporter === true), 200, CACHE_SECONDS);
+    const mark = supporterMark(await starred.soFar(), data.user.login, leftOut ? "left-out" : "in");
+    return svg(trainerCard(data.user.login, characterFrom(params, data.user.login), trainerFacts(data.user), mark.supporter === true), 200, CACHE_SECONDS);
   } catch (error) {
     console.error(error);
     return svg(messageCard("GitHub didn't answer. This card will be back shortly."), 502, 0);

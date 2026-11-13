@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  CLASS_IDS, COLOR_PARTS, GOLD, STYLE_PARTS, characterFrom, characterFromFile, characterIn, characterLevel, characterParams, chosenCharacter, decodeLook,
+  CLASS_IDS, COLOR_PARTS, STAR_PATCH, STYLE_PARTS, characterFrom, characterFromFile, characterIn, characterLevel, characterParams, chosenCharacter, decodeLook,
   defaultCharacter, defaultLook, encodeLook, figureImage, readCharacterFile, readLook, type Look, type StylePart,
 } from "./character.ts";
 
@@ -77,14 +77,15 @@ describe("the flat figure", () => {
   });
 });
 
-test("figureImage_draws_the_gold_band_only_when_the_player_starred_stard", () => {
-  expect(figureImage(plain, true)).toContain(GOLD);
-  expect(figureImage(plain)).not.toContain(GOLD);
-  expect(figureImage({ ...plain, topColor: GOLD })).not.toBe(figureImage({ ...plain, topColor: GOLD }, true));
+const starPatches = (svg: string) => svg.match(new RegExp(`<polygon points="[^"]+" fill="${STAR_PATCH}"/>`, "g")) ?? [];
+
+test("figureImage_draws_a_star_patch_on_each_arm_only_when_the_player_starred_stard", () => {
+  expect(starPatches(figureImage(plain, true))).toHaveLength(2);
+  expect(starPatches(figureImage(plain))).toHaveLength(0);
 });
 
 // Regression guarded: a top the colour of the Rookie panel (#3a4049) hides the arms,
-// and the band floats beside the shoulders with nothing to wrap.
+// and the star patch floats beside the shoulders with no arm under it.
 test("figureImage_edges_the_arms_in_a_darker_top_when_the_player_starred_stard", () => {
   const rookieGrey = { ...plain, topColor: "#3a4049" as const };
   expect(figureImage(rookieGrey, true).match(/stroke="#23262c"/g)).toHaveLength(2);

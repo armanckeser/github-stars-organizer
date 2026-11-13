@@ -4,7 +4,7 @@ import { buildTrainer } from "../../src/components/battle/three/trainer";
 import { dispose } from "../../src/components/battle/three/kit";
 
 // Every file in characters/, each as the arena model and the flat figure side by side.
-// Run with `npx vite scripts/character-gallery`; add `?supporter=1` to see the gold band on each.
+// Run with `npx vite scripts/character-gallery`; add `?supporter=1` to see the star patch on each.
 
 const supporter = new URLSearchParams(location.search).has("supporter");
 const files = import.meta.glob<string>("../../characters/*.md", { query: "?raw", import: "default", eager: true });

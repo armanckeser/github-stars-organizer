@@ -17,7 +17,7 @@ export type Stance = "enter" | "lunge" | "hit" | "ko" | "idle";
 export type SideView = {
   fighter: Fighter;
   look: Look;
-  /** The player starred Stard, so the character wears the gold band. */
+  /** The player starred Stard, so the character wears the star patch. */
   supporter?: boolean;
   stance: Stance;
   /** The damage this side's card just took. */

@@ -100,7 +100,7 @@ describe("the run's share picture", () => {
     avatar: null,
     cards,
   });
-  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], language: "python", creature: null });
+  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["data"], creature: null });
 
   test("names the player and their first four cards, at link-preview size, when a player is given", () => {
     // Regression guarded: a /run?me= link previewed someone else's run, or a fifth card ran off the picture.
@@ -130,11 +130,11 @@ describe("the run's share picture", () => {
     expect(svg).not.toContain("NaN");
   });
 
-  test("marks each set's hex with its icon, its initials or a hash, when cards carry a topic, a language and an unknown topic", () => {
+  test("marks each set's hex with its icon or a hash, when cards carry a family, a common topic and an uncommon topic", () => {
     // Regression guarded: the hexes beside the set names were drawn empty.
-    const svg = runPreviewCard(player([{ ...card("troy-cli"), sets: ["cli", "python"] }, { ...card("paintball"), sets: ["paintball-league"] }]), "Space Grotesk");
+    const svg = runPreviewCard(player([{ ...card("troy-cli"), sets: ["data", "cli"] }, { ...card("paintball"), sets: ["paintball-league"] }]), "Space Grotesk");
     expect(svg).toContain('d="m4 17 6-6-6-6"');
-    expect(svg).toContain(">Py</text>");
+    expect(svg).toContain('d="M13 17V5"');
     expect(svg).toContain('x1="4" x2="20" y1="9" y2="9"');
     expect(svg).not.toContain('key="');
   });
@@ -164,7 +164,7 @@ describe("the run's share picture", () => {
 });
 
 describe("a saved team's share picture", () => {
-  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["python"], language: "python", creature: null });
+  const card = (name: string, cost = 1): ShareCard => ({ name, cost, sets: ["data"], creature: null });
   const player = (cards: ShareCard[]): ShelfPlayer => ({ login: "greendale", name: "greendale", klass: "Rookie", look: defaultCharacter("greendale").look, avatar: null, cards });
 
   test("draws a finished run at link-preview size with the record as the title and every card, when the team has five", () => {

@@ -374,8 +374,8 @@ const TRIM = "#c9a45c";
 const COIN = "#f2c94c";
 const MARGIN = 64;
 
-/** A card on a share picture. `cost` is 1 to 5 gold; `language` is lower-case, for its set's initials; a blank card has no creature. */
-export type ShareCard = { name: string; cost: number; sets: string[]; language: string | null; creature: CreatureRecipe | null };
+/** A card on a share picture. `cost` is 1 to 5 gold; `sets` are the card's family, then its topics; a blank card has no creature. */
+export type ShareCard = { name: string; cost: number; sets: string[]; creature: CreatureRecipe | null };
 
 /** A player on a share picture: who they are, their trainer, and the cards on their shelf. */
 export type ShelfPlayer = {
@@ -402,14 +402,10 @@ function hexagon(x: number, y: number, size: number): string {
   return points.map(([px, py]) => `${(x + px * size).toFixed(1)},${(y + py * size).toFixed(1)}`).join(" ");
 }
 
-/** A set's mark inside its hex: lucide's icon in white, or the language's initials. */
-function setMark(set: string, language: string | null, x: number, y: number): string {
-  const mark = markOf(set, language);
+/** A set's mark inside its hex: lucide's icon in white. */
+function setMark(set: string, x: number, y: number): string {
+  const mark = markOf(set);
   const middle = { x: x + HEX_SIZE / 2, y: y + HEX_SIZE / 2 };
-  if (mark.kind === "initials") {
-    const size = mark.text.length > 2 ? 7.5 : 9.5;
-    return `<text x="${middle.x}" y="${middle.y + size * 0.36}" text-anchor="middle" font-size="${size}" fill="${TEXT}">${escapeXml(mark.text)}</text>`;
-  }
   const glyph = mark.kind === "icon" ? GLYPH_SIZE : GLYPH_SIZE - 1;
   const drawing = mark.node.map(([element, attributes]) => `<${element} ${Object.entries(attributes).filter(([name]) => name !== "key").map(([name, value]) => `${name}="${escapeXml(value)}"`).join(" ")}/>`).join("");
   return `<g transform="translate(${middle.x - glyph / 2} ${middle.y - glyph / 2}) scale(${glyph / 24})" fill="none" stroke="${TEXT}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${drawing}</g>`;
@@ -433,7 +429,7 @@ function shelfCard(x: number, y: number, w: number, h: number, card: ShareCard, 
   const named = w >= 150;
   [...new Set(card.sets)].slice(0, 2).reverse().forEach((set, i) => {
     const top = y + art - 12 - (i + 1) * 26;
-    out += `<polygon points="${hexagon(x + 10, top, HEX_SIZE)}" fill="${HEX}"/>` + setMark(set, card.language, x + 10, top);
+    out += `<polygon points="${hexagon(x + 10, top, HEX_SIZE)}" fill="${HEX}"/>` + setMark(set, x + 10, top);
     if (named) out += `<text x="${x + 39}" y="${top + 17}" font-size="17" fill="${TEXT}">${escapeXml(truncate(setName(set), Math.floor((w - 47) / 9.6)))}</text>`;
   });
   out += `<rect x="${x}" y="${y + art}" width="${w}" height="${strip}" fill="${blend(tier, WALL, 0.3)}"/>`;
@@ -513,7 +509,7 @@ export function runPreviewCard(player: ShelfPlayer | null, font: string): string
     const width = 180;
     const gap = 16;
     const left = (SHARE_WIDTH - (width * 5 + gap * 4)) / 2;
-    const blanks = [1, 2, 3, 4, 5].map((cost, i) => shelfCard(left + i * (width + gap), SHELF_TOP, width, SHELF_BOTTOM - SHELF_TOP, { name: "", cost, sets: [], language: null, creature: null }, `art${i}`));
+    const blanks = [1, 2, 3, 4, 5].map((cost, i) => shelfCard(left + i * (width + gap), SHELF_TOP, width, SHELF_BOTTOM - SHELF_TOP, { name: "", cost, sets: [], creature: null }, `art${i}`));
     return sharePicture("Play Stard with your GitHub stars", font, headline("Play Stard", true) + blanks.join(""));
   }
   const shown = { ...player, cards: player.cards.slice(0, 4) };

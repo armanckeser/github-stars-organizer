@@ -1,15 +1,14 @@
-import type { Body, CreatureRecipe, Emblem, Paints } from "./creature-recipe.ts";
+import { assemble, type Cluster, type Point, type Shape, type Vector } from "./creature-parts.ts";
+import type { CreatureRecipe } from "./creature-recipe.ts";
 
 // A repo's creature drawn flat, for pictures made without a browser (the Worker's share
-// pictures). It reads the same recipe as the 3D model (server/creature-recipe.ts) and
-// places the same parts at the same sizes as src/components/battle/three/creature.ts,
+// pictures). It draws the same parts as the 3D model (server/creature-parts.ts lists them
+// once for both),
 // seen from the angle a card's portrait uses (portrait.ts turns the model 0.5 rad).
 // Each part is its outline seen from there, filled in two cel bands with an ink edge,
 // the way the toon shading and outline read on a card.
 
-type Vector = [number, number, number];
 type Matrix = [Vector, Vector, Vector];
-type Point = [number, number];
 
 // The portrait turns the creature to show three quarters of it.
 const YAW = 0.5;
@@ -17,12 +16,6 @@ const YAW = 0.5;
 const SUN: Vector = normalised([-3, 5, 6]);
 const INK = "#12151a";
 const OUTLINE_WIDTH = 0.05;
-const EYE_WHITE = "#ffffff";
-const PUPIL = "#15171b";
-const GOLD = "#f5c84b";
-const BEAK = "#e9a23b";
-const PAGES = "#eceae4";
-const RED = "#e5484d";
 // The share of a part the lit band covers, and how far it leans toward the sun.
 const LIT_SHARE = 0.84;
 const LIT_LEAN = 0.09;
@@ -38,22 +31,6 @@ const HALF_VIEW = Math.tan((15 * Math.PI) / 180);
 const CAMERA_HEIGHT = 0.52;
 const CAMERA_DISTANCE = 2;
 const CAMERA_AIM = 0.48;
-
-type Common = { at: Vector; paint: string; turn?: Vector; scale?: Vector; outline?: boolean };
-type Shape =
-  | (Common & { kind: "sphere"; radius: number })
-  | (Common & { kind: "box"; size: Vector })
-  | (Common & { kind: "cone"; radius: number; height: number; sides?: number })
-  | (Common & { kind: "cylinder"; top: number; bottom: number; height: number })
-  | (Common & { kind: "capsule"; radius: number; length: number })
-  | (Common & { kind: "octahedron"; radius: number })
-  | (Common & { kind: "slice"; points: Point[]; depth: number })
-  | (Common & { kind: "ring"; radius: number; tube: number; arc?: number });
-
-/** A face as the plan puts it: its height, how far forward, how far apart the eyes are, and their size. */
-type Face = { y: number; z: number; spread: number; size: number };
-/** `onFace` is drawn over the face, as glasses sit over the eyes. */
-type Plan = { shapes: Shape[]; face: Face; height: number; floats: boolean; onFace?: Shape[] };
 
 function normalised([x, y, z]: Vector): Vector {
   const length = Math.hypot(x, y, z);
@@ -96,11 +73,11 @@ function portraitCamera(tall: number): Pick<Placement, "see" | "scaleAt"> {
   return { see, scaleAt };
 }
 
-function partMatrix(shape: Common, placement: Placement): Matrix {
+function partMatrix(shape: Shape, placement: Placement): Matrix {
   return multiply(placement.root, multiply(rotation(shape.turn ?? [0, 0, 0]), diagonal(shape.scale ?? [1, 1, 1])));
 }
 
-const toWorld = (shape: Common, placement: Placement, local: Vector): Vector => add(apply(placement.root, shape.at), apply(partMatrix(shape, placement), local));
+const toWorld = (shape: Shape, placement: Placement, local: Vector): Vector => add(apply(placement.root, shape.at), apply(partMatrix(shape, placement), local));
 
 function hull(points: Point[]): Point[] {
   const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -250,180 +227,23 @@ function drawShape(shape: Shape, placement: Placement): Drawn[] {
   }
 }
 
-/** The six bodies, part for part as the 3D plans build them. */
-function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
-  switch (body.plan) {
-    case "golem": {
-      const shapes: Shape[] = [
-        { kind: "box", size: [0.92, 0.8, 0.72], at: [0, 0.68, 0], paint: base },
-        { kind: "box", size: [0.98, 0.16, 0.78], at: [0, 1.04, 0], turn: [0.08, 0, 0], paint: dark },
-        ...[-1, 1].flatMap((x): Shape[] => [
-          { kind: "box", size: [0.28, 0.6, 0.34], at: [x * 0.64, 0.56, 0.02], paint: dark },
-          { kind: "box", size: [0.3, 0.28, 0.36], at: [x * 0.24, 0.14, 0], paint: dark },
-        ]),
-        { kind: "cylinder", top: 0.1, bottom: 0.1, height: 0.04, at: [0, 0.44, 0.37], turn: [Math.PI / 2, 0, 0], paint: accent, outline: false },
-      ];
-      if (body.top === "chimneys") for (const x of [-0.24, 0.2]) shapes.push({ kind: "cylinder", top: 0.09, bottom: 0.11, height: 0.3, at: [x, 1.24, -0.1], paint: accent });
-      if (body.top === "horns") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.11, height: 0.36, at: [x * 0.32, 1.26, 0], turn: [0, 0, -x * 0.35], paint: accent });
-      if (body.top === "antenna") {
-        shapes.push({ kind: "cylinder", top: 0.025, bottom: 0.025, height: 0.34, at: [0, 1.28, 0], paint: dark, outline: false });
-        shapes.push({ kind: "sphere", radius: 0.09, at: [0, 1.48, 0], paint: accent });
-      }
-      if (body.top === "fins") for (const z of [-0.22, 0, 0.22]) shapes.push({ kind: "box", size: [0.08, 0.24 - Math.abs(z) * 0.4, 0.16], at: [0, 1.2, z], paint: accent });
-      return { shapes, face: { y: 0.78, z: 0.37, spread: 0.2, size: 0.13 }, height: 1.3, floats: false };
-    }
-    case "wisp": {
-      const { curl } = body;
-      const shapes: Shape[] = [
-        { kind: "sphere", radius: 0.42, at: [0, 0.98, 0.05], paint: base },
-        ...[1, 2, 3, 4, 5].map((i): Shape => ({ kind: "sphere", radius: 0.36 - i * 0.055, at: [Math.sin(i * curl) * 0.16, 0.9 - i * 0.15, -0.14 - i * 0.2], paint: i % 2 ? light : base })),
-        { kind: "octahedron", radius: 0.11, at: [Math.sin(6 * curl) * 0.16, 0.02, -1.32], paint: accent },
-      ];
-      if (body.top === "horns") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.08, height: 0.32, at: [x * 0.22, 1.42, 0], turn: [0, 0, -x * 0.3], paint: accent });
-      if (body.top === "ears") for (const x of [-1, 1]) shapes.push({ kind: "sphere", radius: 0.16, at: [x * 0.42, 1.12, -0.05], scale: [0.45, 1.25, 0.8], turn: [0, 0, x * 0.5], paint: light });
-      if (body.top === "crest") shapes.push({ kind: "cone", radius: 0.16, height: 0.42, sides: 4, at: [0, 1.46, -0.08], scale: [0.35, 1, 1], paint: accent });
-      if (body.top === "halo") shapes.push({ kind: "ring", radius: 0.28, tube: 0.035, at: [0, 1.56, 0.05], turn: [Math.PI / 2, 0, 0], paint: accent, outline: false });
-      return { shapes, face: { y: 1.0, z: 0.43, spread: 0.17, size: 0.125 }, height: 1.5, floats: true };
-    }
-    case "orb": {
-      const shapes: Shape[] = [
-        { kind: "sphere", radius: 0.52, at: [0, 0.66, 0], paint: base },
-        { kind: "ring", radius: 0.66, tube: 0.045, at: [0, 0.66, 0], turn: [Math.PI / 2 - 0.5, 0, 0.3], paint: accent, outline: false },
-        ...[-1, 1].map((x): Shape => ({ kind: "sphere", radius: 0.15, at: [x * 0.22, 0.09, 0.1], scale: [1, 0.6, 1.3], paint: dark })),
-      ];
-      const feelers = body.top === "feeler" ? [0] : body.top === "feelers" ? [-1, 1] : [];
-      for (const x of feelers) {
-        shapes.push({ kind: "cylinder", top: 0.022, bottom: 0.022, height: 0.34, at: [x * 0.2, 1.3, 0], turn: [0, 0, -x * 0.3], paint: dark, outline: false });
-        shapes.push({ kind: "sphere", radius: 0.075, at: [x * 0.26, 1.48, 0], paint: accent });
-      }
-      if (body.top === "ears") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.14, height: 0.3, at: [x * 0.3, 1.16, 0], turn: [0, 0, -x * 0.5], paint: base });
-      return { shapes, face: { y: 0.72, z: 0.47, spread: 0.19, size: 0.14 }, height: 1.4, floats: false };
-    }
-    case "critter": {
-      const shapes: Shape[] = [
-        { kind: "capsule", radius: 0.3, length: 0.26, at: [0, 0.48, 0], paint: base },
-        { kind: "sphere", radius: 0.24, at: [0, 0.44, 0.14], scale: [0.9, 1, 0.7], paint: light, outline: false },
-        { kind: "sphere", radius: 0.42, at: [0, 1.06, 0.02], paint: base },
-        ...[-1, 1].flatMap((x): Shape[] => [
-          { kind: "sphere", radius: 0.12, at: [x * 0.36, 0.52, 0.04], scale: [0.8, 1.3, 0.8], paint: base },
-          { kind: "sphere", radius: 0.15, at: [x * 0.17, 0.08, 0.08], scale: [1, 0.55, 1.4], paint: dark },
-        ]),
-      ];
-      if (body.top === "ears") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.15, height: 0.36, at: [x * 0.28, 1.5, 0], turn: [0, 0, -x * 0.3], paint: base });
-      if (body.top === "buns") for (const x of [-1, 1]) shapes.push({ kind: "sphere", radius: 0.17, at: [x * 0.34, 1.42, 0], paint: dark });
-      if (body.top === "bunny") for (const x of [-1, 1]) shapes.push({ kind: "capsule", radius: 0.09, length: 0.4, at: [x * 0.2, 1.68, -0.02], turn: [0, 0, -x * 0.18], paint: base });
-      if (body.top === "horn") shapes.push({ kind: "cone", radius: 0.1, height: 0.3, at: [0, 1.56, 0], turn: [0.3, 0, 0], paint: accent });
-      shapes.push(
-        body.tail === "ball"
-          ? { kind: "sphere", radius: 0.15, at: [0, 0.36, -0.4], turn: [-1.9, 0, 0], paint: accent }
-          : { kind: "cone", radius: 0.11, height: 0.42, at: [0, 0.36, -0.4], turn: [-1.9, 0, 0], paint: accent },
-      );
-      return { shapes, face: { y: 1.08, z: 0.4, spread: 0.17, size: 0.125 }, height: 1.6, floats: false };
-    }
-    case "bird": {
-      const shapes: Shape[] = [
-        { kind: "sphere", radius: 0.5, at: [0, 0.66, 0], scale: [1, 1.18, 0.98], paint: base },
-        { kind: "sphere", radius: 0.34, at: [0, 0.5, 0.2], scale: [0.95, 1, 0.75], paint: light, outline: false },
-        ...[-1, 1].flatMap((x): Shape[] => [
-          { kind: "sphere", radius: 0.26, at: [x * 0.5, 0.64, -0.02], scale: [0.32, 1.1, 0.85], turn: [0, 0, x * 0.25], paint: dark },
-          { kind: "cone", radius: 0.07, height: 0.18, sides: 8, at: [x * 0.17, 0.07, 0.12], turn: [Math.PI / 2, 0, 0], paint: BEAK },
-        ]),
-        { kind: "cone", radius: 0.1, height: 0.24, sides: 10, at: [0, 0.8, 0.52], turn: [Math.PI / 2, 0, 0], paint: BEAK },
-        ...body.bars.map((tall, i): Shape => ({ kind: "box", size: [0.1, tall, 0.1], at: [(i - 1) * 0.14, 1.22 + tall / 2, -0.04], paint: accent })),
-        { kind: "box", size: [0.26, 0.05, 0.3], at: [0, 0.42, -0.56], turn: [0.5, 0, 0], paint: dark },
-      ];
-      return { shapes, face: { y: 0.92, z: 0.42, spread: 0.17, size: 0.12 }, height: 1.6, floats: false };
-    }
-    case "tome": {
-      const shapes: Shape[] = [
-        { kind: "box", size: [0.7, 0.92, 0.3], at: [0, 0.72, 0], paint: PAGES },
-        ...[-0.17, 0.17].map((z): Shape => ({ kind: "box", size: [0.8, 1.0, 0.07], at: [0.02, 0.72, z], paint: base })),
-        { kind: "box", size: [0.08, 1.0, 0.4], at: [-0.38, 0.72, 0], paint: dark },
-        ...[-1, 1].flatMap((x): Shape[] => [
-          { kind: "cylinder", top: 0.06, bottom: 0.07, height: 0.24, at: [x * 0.18, 0.12, 0], paint: dark },
-          { kind: "sphere", radius: 0.09, at: [x * 0.46, 0.62, 0.06], paint: dark },
-        ]),
-      ];
-      const onFace = body.face === "glasses" ? [-1, 1].map((x): Shape => ({ kind: "ring", radius: 0.11, tube: 0.02, at: [x * 0.16, 0.8, 0.22], paint: "#1b1d21", outline: false })) : [];
-      return { shapes, face: { y: 0.8, z: 0.21, spread: 0.16, size: 0.1 }, height: 1.3, floats: false, onFace };
-    }
-  }
-}
-
-const starPoints = (): Point[] =>
-  Array.from({ length: 10 }, (_, i) => {
-    const reach = i % 2 ? 0.1 : 0.23;
-    const angle = (i / 10) * Math.PI * 2 + Math.PI / 2;
-    return [Math.cos(angle) * reach, Math.sin(angle) * reach];
-  });
-
-/** What floats over the head, at `at`, as creature.ts builds each emblem. */
-function emblemShapes(emblem: Emblem, at: Vector, accent: string): Shape[] {
-  const near = (offset: Vector): Vector => add(at, offset);
-  switch (emblem) {
-    case "star":
-      return [{ kind: "slice", points: starPoints(), depth: 0.07, at, paint: GOLD }];
-    case "coin":
-      return [{ kind: "cylinder", top: 0.18, bottom: 0.18, height: 0.05, at, turn: [Math.PI / 2, 0, 0], paint: GOLD }];
-    case "camera":
-      return [
-        { kind: "cylinder", top: 0.17, bottom: 0.17, height: 0.1, at, turn: [Math.PI / 2, 0, 0], paint: "#2a2f37" },
-        { kind: "sphere", radius: 0.1, at: near([0, 0, 0.04]), scale: [1, 1, 0.5], paint: "#8fd3ff", outline: false },
-      ];
-    case "lock":
-      return [
-        { kind: "ring", radius: 0.09, tube: 0.028, arc: Math.PI, at: near([0, 0.12, 0]), paint: "#9aa0a6", outline: false },
-        { kind: "box", size: [0.3, 0.24, 0.1], at, paint: GOLD },
-      ];
-    case "bolt":
-      return [{ kind: "slice", points: [[0.04, 0.26], [-0.14, -0.02], [-0.02, -0.02], [-0.06, -0.26], [0.14, 0.04], [0.02, 0.04]], depth: 0.07, at, paint: GOLD }];
-    case "heart":
-      return [{ kind: "slice", points: [[0, -0.2], [-0.2, 0.02], [-0.2, 0.14], [-0.11, 0.2], [0, 0.12], [0.11, 0.2], [0.2, 0.14], [0.2, 0.02]], depth: 0.07, at, paint: RED }];
-    case "pin":
-      return [
-        { kind: "cone", radius: 0.1, height: 0.26, at, turn: [Math.PI, 0, 0], paint: RED },
-        { kind: "sphere", radius: 0.13, at: near([0, 0.14, 0]), paint: RED },
-      ];
-    case "cloud":
-      return [-0.16, 0.16].map((x): Shape => ({ kind: "sphere", radius: 0.11, at: near([x, -0.04, 0]), paint: "#eef2f6" })).concat([{ kind: "sphere", radius: 0.15, at, paint: "#eef2f6" }]);
-    case "gear":
-      return [
-        { kind: "ring", radius: 0.13, tube: 0.05, at, paint: accent, outline: false },
-        ...Array.from({ length: 6 }, (_, i): Shape => {
-          const angle = (i / 6) * Math.PI * 2;
-          return { kind: "box", size: [0.07, 0.09, 0.09], at: near([Math.cos(angle) * 0.2, Math.sin(angle) * 0.2, 0]), turn: [0, 0, angle + Math.PI / 2], paint: accent, outline: false };
-        }),
-      ];
-  }
-}
-
-/** Two eyes and a mouth, as creature.ts's `eye` and mouth. */
-function faceShapes(face: Face, size: number, height: number): Shape[] {
-  const eyes = [-1, 1].flatMap((x): Shape[] => {
-    const at: Vector = [x * face.spread, face.y, face.z];
-    return [
-      { kind: "sphere", radius: size, at, scale: [1, height, 0.45], paint: EYE_WHITE },
-      { kind: "sphere", radius: size * 0.56, at: add(at, [0, -size * 0.06, size * 0.34]), scale: [1, height, 0.4], paint: PUPIL, outline: false },
-      { kind: "sphere", radius: size * 0.2, at: add(at, [size * 0.2, size * 0.26 * height, size * 0.52]), paint: EYE_WHITE, outline: false },
-    ];
-  });
-  return [...eyes, { kind: "sphere", radius: size * 0.3, at: [0, face.y - size * 1.25, face.z + 0.01], scale: [1.5, 0.7, 0.4], paint: PUPIL, outline: false }];
-}
+const shifted = (shapes: Shape[], by: Vector): Shape[] => shapes.map((shape) => ({ ...shape, at: add(shape.at, by) }));
+const unclustered = (cluster: Cluster) => shifted(cluster.shapes, cluster.at);
 
 /** A repo's creature (its `creatureRecipe`) as a square `<svg>` at `place`, framed the way a card's portrait frames it. */
 export function creatureSticker(recipe: CreatureRecipe, place: { x: number; y: number; size: number }): string {
-  const plan = planOf(recipe.body, recipe.paints);
-  const size = plan.face.size * recipe.eyeSize;
-  const lift = plan.floats ? FLOAT_LIFT : 0;
-  const emblemAt: Vector = [0, plan.height + (plan.floats ? 0.25 : 0.45), 0];
+  const assembly = assemble(recipe);
+  const lift: Vector = [0, assembly.floats ? FLOAT_LIFT : 0, 0];
   // The portrait frames the body, whatever stands on its head and whatever floats over that.
-  const tall = plan.height * recipe.scale[1] + HEADROOM;
+  const tall = assembly.height * recipe.scale[1] + HEADROOM;
   const placement: Placement = { root: multiply(rotation([0, YAW, 0]), diagonal(recipe.scale)), ...portraitCamera(tall) };
-  const draw = (shapes: Shape[]) => shapes.map((shape) => ({ ...shape, at: add(shape.at, [0, lift, 0]) })).flatMap((shape) => drawShape(shape, placement));
-  const body = draw([...plan.shapes, ...(recipe.emblem ? emblemShapes(recipe.emblem, emblemAt, recipe.paints.accent) : [])]).sort((a, b) => a.depth - b.depth);
+  const draw = (shapes: Shape[]) => shifted(shapes, lift).flatMap((shape) => drawShape(shape, placement));
+  const onBody = assembly.body.filter((shape) => shape.layer !== "face");
+  const onFace = assembly.body.filter((shape) => shape.layer === "face");
+  const body = draw([...onBody, ...(assembly.emblem ? unclustered(assembly.emblem) : [])]).sort((a, b) => a.depth - b.depth);
   // The face sits on the body's surface toward the viewer; sorting it by depth against
   // whole parts would put a wide part's middle over it, so it is drawn last.
-  const face = [...draw(faceShapes(plan.face, size, recipe.eyeHeight)), ...draw(plan.onFace ?? [])];
+  const face = draw([...assembly.eyes.flatMap(unclustered), assembly.mouth, ...onFace]);
   const drawn = [...body, ...face].map((part) => part.svg).join("");
   return (
     `<svg x="${number(place.x)}" y="${number(place.y)}" width="${number(place.size)}" height="${number(place.size)}" viewBox="-1 -1 2 2">` +

@@ -344,12 +344,15 @@ export function figureSvg(look: Look, supporter = false): string {
   if (look.hair === "long") out.push(`<rect x="31" y="20" width="58" height="66" rx="22" fill="${hair}"/>`);
   if (look.hair === "medium") out.push(`<rect x="33" y="20" width="54" height="46" rx="20" fill="${hair}"/>`);
   if (look.top === "hoodie") out.push(`<ellipse cx="60" cy="52" rx="31" ry="30" fill="${topDark}"/>`);
-  // Arms, then hands.
-  out.push(`<rect x="23" y="70" width="15" height="46" rx="7.5" fill="${top}"/><rect x="82" y="70" width="15" height="46" rx="7.5" fill="${top}"/>`);
+  // Arms, then hands. A supporter's arms get an edge, so the band has an arm to wrap even
+  // when the top is the colour of the panel behind it.
+  const armEdge = supporter ? ` stroke="${shade(top, 0.6)}" stroke-width="1.6"` : "";
+  out.push(`<rect x="23" y="70" width="15" height="46" rx="7.5" fill="${top}"${armEdge}/><rect x="82" y="70" width="15" height="46" rx="7.5" fill="${top}"${armEdge}/>`);
   if (look.top === "tee") out.push(`<rect x="23" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/><rect x="82" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/>`);
   out.push(`<circle cx="30.5" cy="118" r="6.5" fill="${skin}"/><circle cx="89.5" cy="118" r="6.5" fill="${skin}"/>`);
-  // Someone who starred Stard wears a gold band on each upper arm, as the 3D figure does.
-  if (supporter) for (const x of [23, 82]) out.push(`<rect x="${x}" y="80" width="15" height="7" rx="2" fill="${GOLD}"/><rect x="${x}" y="81.2" width="15" height="1.6" fill="${GOLD_SHINE}"/>`);
+  // Someone who starred Stard wears a gold band on each upper arm, as the 3D figure does:
+  // curved edges and a dark underside, 1 past each side of the arm, so it reads as wrapping it.
+  if (supporter) for (const x of [23, 82]) out.push(bandAround(x - 1, x + 16));
   // Torso.
   out.push(`<rect x="36" y="66" width="48" height="54" rx="13" fill="${top}"/>`);
   if (look.top === "hoodie") {
@@ -418,6 +421,15 @@ function hairTop(style: Hair, hair: Hex): string {
     case "bald":
       return "";
   }
+}
+
+/** The band around an arm from `left` to `right`, on the upper arm of the 120 by 170 figure. */
+function bandAround(left: number, right: number): string {
+  const middle = (left + right) / 2;
+  const front = `<path d="M${left} 80.5 Q${middle} 83 ${right} 80.5 L${right} 86 Q${middle} 88.5 ${left} 86 Z" fill="${GOLD}"/>`;
+  const underside = `<path d="M${left} 86 Q${middle} 88.5 ${right} 86 L${right} 87 Q${middle} 89.5 ${left} 87 Z" fill="${shade(GOLD, 0.62)}"/>`;
+  const shine = `<path d="M${left + 1} 81.6 Q${middle} 84 ${right - 1} 81.6" fill="none" stroke="${GOLD_SHINE}" stroke-width="1.2"/>`;
+  return front + underside + shine;
 }
 
 /** The figure as a whole image, for an <img> or a background. */

@@ -83,6 +83,14 @@ test("figureImage_draws_the_gold_band_only_when_the_player_starred_stard", () =>
   expect(figureImage({ ...plain, topColor: GOLD })).not.toBe(figureImage({ ...plain, topColor: GOLD }, true));
 });
 
+// Regression guarded: a top the colour of the Rookie panel (#3a4049) hides the arms,
+// and the band floats beside the shoulders with nothing to wrap.
+test("figureImage_edges_the_arms_in_a_darker_top_when_the_player_starred_stard", () => {
+  const rookieGrey = { ...plain, topColor: "#3a4049" as const };
+  expect(figureImage(rookieGrey, true).match(/stroke="#23262c"/g)).toHaveLength(2);
+  expect(figureImage(rookieGrey)).not.toContain("#23262c");
+});
+
 describe("a character file", () => {
   const theo = `name: Theo\nclass: scout\nmotto: Ship it.\nskin: light\nhair: short\nhair-color: brown\nbeard: stubble\nglasses: round\nhat: none\nheadphones: no\ntop: hoodie\ntop-color: #1f1f1f`;
 

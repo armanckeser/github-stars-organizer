@@ -5,6 +5,9 @@ import type { LongFrame, Recording } from "./instrument.ts";
 
 // Turns what a scenario recorded into the numbers the harness reports.
 
+/** Where the harness writes its numbers and pictures; outside test-results/, which `npx playwright test` empties when it starts. */
+export const RESULTS = path.resolve(process.env.PERF_OUT ?? "perf-results");
+
 /** One display refresh at 60 Hz. */
 export const FRAME_BUDGET = 1000 / 60;
 /**

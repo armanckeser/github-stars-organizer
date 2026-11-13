@@ -1,15 +1,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { FrameStats } from "./summary.ts";
+import { RESULTS, type FrameStats } from "./summary.ts";
 
 // Prints two perf runs side by side, scenario by scenario, as a markdown table:
 //   npx tsx e2e/perf/compare.ts before after [desktop|phone]
-// `before` and `after` are PERF_LABEL values; the files are test-results/perf/<label>-<device>.json.
+// `before` and `after` are PERF_LABEL values; the files are perf-results/<label>-<device>.json.
 
 type Run = { rounds: number; outcomes: string[]; scenarios: { name: string; round: number; stats: FrameStats }[]; snapshots: { round: number; when: string; heapMb: number; render: { calls: number; triangles: number; geometries: number; textures: number } }[] };
 
-const OUT = path.resolve(process.env.PERF_OUT ?? "test-results/perf");
-const read = (label: string, device: string): Run => JSON.parse(readFileSync(path.join(OUT, `${label}-${device}.json`), "utf8")) as Run;
+const read = (label: string, device: string): Run => JSON.parse(readFileSync(path.join(RESULTS, `${label}-${device}.json`), "utf8")) as Run;
 
 /** A scenario's frames over every round it was played in, merged by the worst of each. */
 function merged(run: Run, name: string): FrameStats | null {

@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type * as THREE from "three";
 import { poolFor } from "../pool.ts";
 import { instrument, seeded, type Recording } from "./instrument.ts";
-import { summarize } from "./summary.ts";
+import { RESULTS, summarize } from "./summary.ts";
 
 // What the visual trade-offs would buy, none of which ship: a lower pixel ratio, a smaller
 // shadow or none, and no blur behind the panels over the board. The phone is drawn on
@@ -41,7 +41,6 @@ const BLUR_TURNS = 4;
 const BLUR_TURN = 2_000;
 const NO_BLUR = "*, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }";
 const LABEL = process.env.PERF_LABEL ?? "options";
-const OUT = path.resolve(process.env.PERF_OUT ?? "test-results/perf");
 
 /** The median ms the board takes to draw one frame, the GPU's work included, for each option, on the frame the board shows now. */
 const drawCosts = (page: Page) =>
@@ -137,9 +136,9 @@ test("what each visual trade-off would buy, on a GPU in software", async ({ page
   const fightDraw = await drawCosts(page);
   const fightBlur = await blurTurns(page);
 
-  mkdirSync(OUT, { recursive: true });
+  mkdirSync(RESULTS, { recursive: true });
   const results = { gpu, draw: { shop: shopDraw, fight: fightDraw }, blur: { shop: shopBlur, fight: fightBlur } };
-  writeFileSync(path.join(OUT, `${LABEL}-${testInfo.project.name}.json`), JSON.stringify(results, null, 2));
+  writeFileSync(path.join(RESULTS, `${LABEL}-${testInfo.project.name}.json`), JSON.stringify(results, null, 2));
   console.table(DRAW_OPTIONS.map(({ name }) => ({ option: name, shopMs: shopDraw[name], fightMs: fightDraw[name] })));
   console.log("fps with and without the blur, in turns:", JSON.stringify(results.blur));
 });

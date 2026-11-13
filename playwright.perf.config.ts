@@ -9,9 +9,9 @@ import { defineConfig, devices } from "@playwright/test";
 //   PERF_LABEL=before PERF_PROFILE=1 npx playwright test -c playwright.perf.config.ts run.perf.ts
 //
 // run.perf.ts measures a 7-round run (about 10 minutes a device): its numbers land in
-// test-results/perf/<label>-<device>.json, and `npx tsx e2e/perf/compare.ts before after`
+// perf-results/<label>-<device>.json, and `npx tsx e2e/perf/compare.ts before after`
 // prints two labels side by side. look.perf.ts saves the same seeded frames and pictures
-// under test-results/perf/look/, so a change can show the screen did not change.
+// under perf-results/look/, so a change can show the screen did not change.
 // options.perf.ts runs on its own project, the phone on a GPU in software, and measures
 // what the visual trade-offs (pixel ratio, shadows, blur) would buy.
 // PERF_PROFILE=1 adds the hottest functions from a CPU profile, which slows the page, so
@@ -26,7 +26,7 @@ export default defineConfig({
   // One board at a time: two would share the GPU and each other's frames.
   workers: 1,
   fullyParallel: false,
-  outputDir: "test-results/perf-artifacts",
+  outputDir: "perf-results/artifacts",
   use: { baseURL: `http://localhost:${PORT}`, trace: "off", reducedMotion: "no-preference", actionTimeout: 20_000 },
   projects: [
     // The full Chromium in its new headless mode draws WebGL on the machine's GPU; the headless shell only has SwiftShader.

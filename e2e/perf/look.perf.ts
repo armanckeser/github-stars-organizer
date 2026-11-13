@@ -3,13 +3,14 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { poolFor } from "../pool.ts";
 import { seeded } from "./instrument.ts";
+import { RESULTS } from "./summary.ts";
 
 // The same seeded frames, saved so a perf change can show it changed nothing on screen:
 // the shop and a moment of the first fight, drawn on a stopped clock, and every picture
 // the run draws as an image (the shop's art, a card's portrait, the boost medallions),
 // each with a hash of its pixels. Opt-in, with the perf harness:
 //   PERF_LABEL=before npx playwright test -c playwright.perf.config.ts look.perf.ts
-// writes test-results/perf/look/<label>-<device>-<name>.png and <label>-<device>.json.
+// writes perf-results/look/<label>-<device>-<name>.png and <label>-<device>.json.
 
 type Spot = { clientX: number; clientY: number };
 type Exposed = { stardBoard: { screenOfUnit: (id: string) => Spot | null } };
@@ -18,7 +19,7 @@ const SEED = 20261113;
 /** How far into the first fight the fight's frame is taken, on the stopped clock. */
 const INTO_FIGHT = 2_500;
 const LABEL = process.env.PERF_LABEL ?? "look";
-const OUT = path.resolve(process.env.PERF_OUT ?? "test-results/perf", "look");
+const OUT = path.join(RESULTS, "look");
 
 /** The image's pixels, as the page decodes them, hashed: two images with the same hash look the same. */
 const pixelHash = (image: Locator) =>

@@ -5,7 +5,7 @@ import type { Player } from "../../src/lib/run.ts";
 import type { RenderInfo } from "../../src/components/battle/three/board.ts";
 import { poolFor } from "../pool.ts";
 import { instrument, seeded, type Recording } from "./instrument.ts";
-import { appCallers, hotFunctions, summarize, type CpuProfile, type FrameStats, type HotFunction } from "./summary.ts";
+import { appCallers, hotFunctions, RESULTS, summarize, type CpuProfile, type FrameStats, type HotFunction } from "./summary.ts";
 
 // A whole seeded run on the production build, with every scenario the owner plays
 // measured: the shop at rest, a drag, fights at 1x and 2x, a fight with the creature
@@ -36,7 +36,6 @@ const BEATABLE = 0.25;
 const UNBEATABLE = 6;
 const PROFILE = process.env.PERF_PROFILE === "1";
 const LABEL = process.env.PERF_LABEL ?? "run";
-const OUT = path.resolve(process.env.PERF_OUT ?? "test-results/perf");
 const DIST = path.resolve("dist-perf");
 
 const scaled = (player: Player, by: number): Player => ({ ...player, team: player.team.map((fighter) => ({ ...fighter, hp: Math.round(fighter.hp * by), card: { ...fighter.card, hp: Math.round(fighter.card.hp * by), attack: Math.round(fighter.card.attack * by) } })) });
@@ -140,8 +139,8 @@ test("a seeded 7-round run, measured scenario by scenario", async ({ page }, tes
     const profile = PROFILE ? ((await cdp.send("Profiler.stop")).profile as CpuProfile) : null;
     // The raw profile too, which Chrome DevTools' Performance panel opens.
     if (profile) {
-      mkdirSync(OUT, { recursive: true });
-      writeFileSync(path.join(OUT, `${LABEL}-${testInfo.project.name}-${scenarios.length}-${name.replace(/\W+/g, "-")}.cpuprofile`), JSON.stringify(profile));
+      mkdirSync(RESULTS, { recursive: true });
+      writeFileSync(path.join(RESULTS, `${LABEL}-${testInfo.project.name}-${scenarios.length}-${name.replace(/\W+/g, "-")}.cpuprofile`), JSON.stringify(profile));
     }
     scenarios.push({ name, round, stats: summarize(recording), hot: profile ? hotFunctions(profile, DIST, 12) : [], callers: profile ? appCallers(profile, DIST, 12) : [] });
   };
@@ -219,8 +218,8 @@ test("a seeded 7-round run, measured scenario by scenario", async ({ page }, tes
   });
   await snapshot(1, "new run");
 
-  mkdirSync(OUT, { recursive: true });
-  const file = path.join(OUT, `${LABEL}-${testInfo.project.name}.json`);
+  mkdirSync(RESULTS, { recursive: true });
+  const file = path.join(RESULTS, `${LABEL}-${testInfo.project.name}.json`);
   writeFileSync(file, JSON.stringify({ label: LABEL, device: testInfo.project.name, rounds, outcomes, scenarios, snapshots }, null, 2));
   console.log(`\n${testInfo.project.name}: ${rounds} rounds (${outcomes.join(", ")}) → ${file}`);
   console.table(scenarios.map(({ name, round, stats }) => ({ name, round, fps: stats.fps, p50: stats.interval.p50, p95: stats.interval.p95, p99: stats.interval.p99, missed: stats.over16, missed2: stats.over33, workP95: stats.work.p95, workMax: stats.work.max, gpuP95: stats.gpu.p95, commits: stats.commitsPerSecond, long: stats.longTasks })));

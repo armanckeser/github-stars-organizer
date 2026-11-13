@@ -42,3 +42,4 @@ cli/*.tgz
 test-results/
 playwright-report/
 dist-perf
+perf-results

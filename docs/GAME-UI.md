@@ -88,11 +88,12 @@ What fired is drawn on the board, not written. One look per effect kind, so ever
 
 - **Something fired:** a gold ring opens on the floor around the caster and it gives a small squash. Its name shows over the HP bar as one small gold word in capitals for under a second. No card, no "Trigger → effect" line: the card face and hover text explain it.
 - **Damage:** white. Something travels from the caster to each target (shards, a slam, a burst), then the target squashes and the number stamps, white, gold on a critical hit.
+- **A hit:** a melee card draws back before it lunges; a ranged card rocks back as it throws. The target is shoved a little away, squashes and springs back through a small stretch, and its number pops on, then rises. The HP it lost stays white on the bar for a quarter second, then drains. A hit that faints its target holds the fight still for 60 ms, and the creature tips back before it shrinks.
 - **Shield:** pale blue-white. A see-through bubble wraps the creature and stays while the shield lasts; the HP bar gains a pale segment after the HP, which shrinks as hits take it.
 - **Heal:** green, the green of the "+n" numbers. Light rises from the floor under the creature with a few rising plus signs.
 - **Stat:** gold chevrons rise for a stat going up, red chevrons fall for one going down, with a ring at the feet.
 - **Condition:** an orb in the condition's own colour travels to the target, which then wears the badge as before.
-- Effects are short (under 0.6 s, a shield's bubble aside), additive light, and never cover an HP bar. With reduced motion nothing travels or spins: the result shows in place and fades.
+- Effects are short (under 0.6 s, a shield's bubble aside), additive light, and never cover an HP bar. With reduced motion nothing travels, spins or shakes: the result, numbers included, shows in place and fades.
 - Nothing overlaps an HP bar.
 
 ## 10. Type and words

@@ -38,6 +38,10 @@ type Actor = {
   bar: THREE.Group;
   fill: THREE.Mesh;
   shieldFill: THREE.Mesh;
+  /** The HP a hit just took, white behind the fill: it holds a moment, then drains to the HP. `trail` is its share of the bar. */
+  trailFill: THREE.Mesh;
+  trail: number;
+  trailHold: number;
   /** What effects keep on the creature (effects/stage.ts `attach`), by key. */
   attachments: Map<string, THREE.Object3D>;
   /** The creature as an effect sees it. */
@@ -49,8 +53,14 @@ type Actor = {
   nextName: number;
   grow: number;
   lunge: THREE.Vector3;
+  /** A shove from the last hit, away from the hitter, that dies out on its own. */
+  knock: THREE.Vector3;
   flash: number;
+  /** Squash (positive) or stretch (negative) of the body, a spring: a jolt squashes it and it rebounds through a stretch. */
   squash: number;
+  squashSpeed: number;
+  /** How far a fainting creature tips back, in radians. */
+  tilt: number;
   out: boolean;
   won: boolean;
 };
@@ -73,6 +83,26 @@ const BAR_WIDTH = 0.84;
 /** Seconds from a ranged card's ability hit to its number: when a melee lunge lands, which effects/damage.ts times its shard to. */
 const ABILITY_HIT_LANDS = 0.11;
 const HEAL = "#5be37a";
+/** How long the HP a hit took stays white on the bar before it drains, and how fast it drains (about 0.3 s). */
+const TRAIL_HOLD = 0.25;
+const TRAIL_DRAIN = 10;
+/** The body's squash spring: stiff enough to snap back, loose enough to rebound into a small stretch. */
+const SQUASH_STIFFNESS = 300;
+const SQUASH_DAMPING = 12;
+/** A melee hitter draws back this far, for this long, before it lunges. */
+const WIND_UP = 0.12;
+const WIND_UP_TIME = 0.06;
+const REACH = 0.45;
+/** How far a hit shoves its target, and how fast the shove dies out. */
+const KNOCK = 0.08;
+const KNOCK_DECAY = 12;
+/** The fight holds still this long when a hit faints its target. */
+const HIT_STOP = 0.06;
+/** How far a fainting creature tips away from the hit that fainted it, and for how long, before it shrinks. */
+const FAINT_TILT = 0.26;
+const FAINT_TILT_TIME = 0.12;
+/** A strong ease-out: fast away, a long settle. */
+const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
 /** Names over one creature show at least this far apart, and the same name at most this often, in fight seconds. */
 const NAME_GAP = 0.32;
 const NAME_REPEAT = 2.4;
@@ -147,6 +177,9 @@ export class BoardWorld {
   private raf = 0;
   private speed = 1;
   private shake = 0;
+  private shakeTime = 0;
+  /** Seconds the fight holds still for (HIT_STOP). */
+  private stopped = 0;
   private fight: { key: string; ids: [string[], string[]]; events: FightEvent[]; next: number; time: number; done: boolean } | null = null;
   /** The last ability fired: the hits it causes come right after it, in the same tick, from the same card. */
   private cast: { side: Side; unit: number; t: number } | null = null;
@@ -311,6 +344,7 @@ export class BoardWorld {
         actor.won = false;
         actor.hp = unit.fighter.hp;
         actor.shield = 0;
+        actor.tilt = 0;
         this.clearAttachments(actor);
         actor.bar.visible = unit.bench === undefined;
         actor.badge.visible = false;
@@ -536,17 +570,22 @@ export class BoardWorld {
     const shieldFill = new THREE.Mesh(new THREE.PlaneGeometry(BAR_WIDTH, 0.07), new THREE.MeshBasicMaterial({ color: EFFECT_COLOR.shield, depthTest: false, transparent: true }));
     shieldFill.position.z = 0.003;
     shieldFill.visible = false;
+    const trailFill = new THREE.Mesh(new THREE.PlaneGeometry(BAR_WIDTH, 0.07), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.85 }));
+    trailFill.position.z = 0.001;
     back.renderOrder = 10;
+    trailFill.renderOrder = 11;
     fill.renderOrder = 11;
     shieldFill.renderOrder = 11;
     const badge = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.21), new THREE.MeshBasicMaterial({ depthTest: false, transparent: true }));
     badge.position.set(0, 0.19, 0.004);
     badge.renderOrder = 12;
     badge.visible = false;
-    bar.add(back, fill, shieldFill, badge);
+    bar.add(back, trailFill, fill, shieldFill, badge);
+    // Turn first, then tip: a faint tips the creature back the way it faces.
+    creature.root.rotation.order = "YXZ";
     this.scene.add(creature.root, bar);
     const home = homeOf(unit);
-    const actor = { unit, creature, home, at: home.clone(), facing: 0, hp: unit.fighter.hp, shield: 0, bar, fill, shieldFill, attachments: new Map(), badge, named: new Map(), nextName: 0, grow: 0, lunge: new THREE.Vector3(), flash: 0, squash: 0, out: false, won: false } as Omit<Actor, "view"> as Actor;
+    const actor = { unit, creature, home, at: home.clone(), facing: 0, hp: unit.fighter.hp, shield: 0, bar, fill, shieldFill, trailFill, trail: 1, trailHold: 0, attachments: new Map(), badge, named: new Map(), nextName: 0, grow: 0, lunge: new THREE.Vector3(), knock: new THREE.Vector3(), flash: 0, squash: 0, squashSpeed: 0, tilt: 0, out: false, won: false } as Omit<Actor, "view"> as Actor;
     actor.view = {
       side: unit.side,
       get at() {
@@ -601,16 +640,25 @@ export class BoardWorld {
   }
 
   /** The HP bar: HP from the left, then any shield after it. A shield that would run past the end shrinks the HP to make room, as TFT's bar does. */
-  private fill(actor: Actor) {
+  private fill(actor: Actor, hurt = false) {
     const total = Math.max(actor.unit.fighter.hp, actor.hp + actor.shield);
     const hpShare = Math.max(0, Math.min(1, actor.hp / total));
     const shieldShare = Math.max(0, Math.min(1 - hpShare, actor.shield / total));
     const left = -BAR_WIDTH / 2;
     actor.fill.scale.x = Math.max(0.001, hpShare);
     actor.fill.position.x = left + (BAR_WIDTH * hpShare) / 2;
+    // Only lost HP leaves a white trail; a heal, or a shield making room on the bar, moves it at once.
+    if (hurt && hpShare < actor.trail) actor.trailHold = TRAIL_HOLD;
+    else actor.trail = hpShare;
+    this.fillTrail(actor);
     actor.shieldFill.visible = shieldShare > 0;
     actor.shieldFill.scale.x = Math.max(0.001, shieldShare);
     actor.shieldFill.position.x = left + BAR_WIDTH * hpShare + (BAR_WIDTH * shieldShare) / 2;
+  }
+
+  private fillTrail(actor: Actor) {
+    actor.trailFill.scale.x = Math.max(0.001, actor.trail);
+    actor.trailFill.position.x = -BAR_WIDTH / 2 + (BAR_WIDTH * actor.trail) / 2;
   }
 
   private clearAttachments(actor: Actor) {
@@ -676,7 +724,10 @@ export class BoardWorld {
       actor.bar.visible = false;
       this.clearAttachments(actor);
       if (quick) actor.grow = 0;
-      else this.tween(0.12, 0.4, (k) => (actor.grow = 1 - easeOut(k)));
+      else {
+        if (!this.options.reduced) this.tween(0, FAINT_TILT_TIME, (k) => (actor.tilt = FAINT_TILT * easeOut(k)));
+        this.tween(FAINT_TILT_TIME, 0.4, (k) => (actor.grow = 1 - easeOut(k)));
+      }
     } else if (event.kind === "ability") {
       this.cast = { side: event.side, unit: event.unit, t: event.t };
       if (quick) return;
@@ -693,7 +744,7 @@ export class BoardWorld {
       if (event.shield === 0) this.stage.detach(actor.view, SHIELD_KEY);
     } else if (event.kind === "hp") {
       actor.hp = Math.max(0, Math.min(actor.unit.fighter.hp, actor.hp + event.change));
-      this.fill(actor);
+      this.fill(actor, event.change < 0);
       if (quick) return;
       if (event.change > 0) actor.flash = 0.5;
       this.label(this.over(actor, 0.25), event.change > 0 ? `+${event.change}` : String(event.change), { color: event.change > 0 ? HEAL : CONDITION_COLOR[event.cause as Condition] ?? "#ff8f93" });
@@ -709,20 +760,32 @@ export class BoardWorld {
       const target = this.actors.get(fight.ids[event.side === 0 ? 1 : 0][event.target]);
       if (!target) return;
       target.hp = Math.max(0, target.hp - event.damage);
-      this.fill(target);
-      if (quick) return;
+      if (quick) return this.fill(target, true);
+      const reduced = this.options.reduced;
       const toward = target.home.clone().sub(actor.home);
       actor.facing = Math.atan2(toward.x, toward.z);
+      const away = toward.setY(0).normalize();
+      const fainted = target.hp === 0;
+      // A fainting creature turns to the one that fainted it, so it tips straight back.
+      if (fainted) target.facing = actor.facing + Math.PI;
       const land = () => {
+        this.fill(target, true);
         target.flash = 1;
         target.squash = event.critical ? 0.3 : 0.16;
-        if (event.critical) this.shake = 0.12;
-        this.label(this.over(target, 0.25), String(event.damage), event.critical ? { color: "#ffd84d", size: 22 } : {});
+        target.squashSpeed = 0;
+        if (!reduced) {
+          target.knock.addScaledVector(away, KNOCK);
+          if (event.critical) this.shake = 0.12;
+          if (fainted) this.stopped = HIT_STOP;
+        }
+        this.label(this.over(target, 0.25), String(event.damage), event.critical ? { color: "#ffd84d", size: 22, pop: 1.5 } : {});
       };
       const cast = this.cast;
       const fromAbility = cast !== null && cast.side === event.side && cast.unit === event.unit && cast.t === event.t;
-      // An ability's damage flies as its own shard (effects/damage.ts), so the card's ball would be a second shot.
-      if (fromAbility && actor.unit.ranged) {
+      if (reduced) {
+        land();
+      } else if (fromAbility && actor.unit.ranged) {
+        // An ability's damage flies as its own shard (effects/damage.ts), so the card's ball would be a second shot.
         this.after(ABILITY_HIT_LANDS, land);
       } else if (actor.unit.ranged) {
         const shot = new THREE.Mesh(sphere(0.11, 10), new THREE.MeshBasicMaterial({ color: actor.unit.fighter.color && /^#[0-9a-f]{6}$/i.test(actor.unit.fighter.color) ? actor.unit.fighter.color : 0xffffff }));
@@ -730,15 +793,25 @@ export class BoardWorld {
         const to = target.at.clone().setY(target.creature.height * SIZE * 0.5);
         this.scene.add(shot);
         actor.squash = 0.14;
-        this.tween(0, 0.22, (k) => shot.position.lerpVectors(from, to, k).setY(from.y + (to.y - from.y) * k + Math.sin(k * Math.PI) * 0.5), () => {
+        // A throw: the thrower rocks back, and the shot leaves fast and slows as it arrives.
+        this.tween(0, 0.05, (k) => actor.lunge.copy(away).multiplyScalar(-0.1 * easeOut(k)));
+        this.tween(0.05, 0.15, (k) => actor.lunge.copy(away).multiplyScalar(-0.1 * (1 - easeOut(k))));
+        this.tween(0, 0.22, (k) => {
+          const along = 1 - (1 - k) ** 2;
+          shot.position.lerpVectors(from, to, along).setY(from.y + (to.y - from.y) * along + Math.sin(along * Math.PI) * 0.5);
+        }, () => {
           this.scene.remove(shot);
           dispose(shot);
           land();
         });
       } else {
-        const reach = toward.setY(0).normalize().multiplyScalar(0.45);
-        this.tween(0, 0.11, (k) => actor.lunge.copy(reach).multiplyScalar(easeOut(k)), land);
-        this.tween(0.11, 0.2, (k) => actor.lunge.copy(reach).multiplyScalar(1 - easeOut(k)));
+        // An ability's lunge lands when effects/damage.ts's shard does, so only a plain hit draws back first.
+        const windUp = fromAbility ? 0 : WIND_UP_TIME;
+        const back = away.clone().multiplyScalar(windUp ? -WIND_UP : 0);
+        const reach = away.clone().multiplyScalar(REACH);
+        if (windUp) this.tween(0, windUp, (k) => actor.lunge.copy(back).multiplyScalar(easeOut(k)));
+        this.tween(windUp, ABILITY_HIT_LANDS, (k) => actor.lunge.lerpVectors(back, reach, easeOut(k)), land);
+        this.tween(windUp + ABILITY_HIT_LANDS, 0.2, (k) => actor.lunge.copy(reach).multiplyScalar(1 - easeOut(k)));
       }
     }
   }
@@ -748,20 +821,25 @@ export class BoardWorld {
     return actor.at.clone().setY(actor.bar.position.y + above);
   }
 
-  /** A number that rises over the board and fades. */
-  private label(at: THREE.Vector3, text: string, style: { color?: string; size?: number }) {
-    if (this.options.reduced) return;
+  /** A number that pops on, rises over the board and fades. With reduced motion it only fades, in place. */
+  private label(at: THREE.Vector3, text: string, style: { color?: string; size?: number; pop?: number }) {
     const point = at.project(this.camera);
     const label = document.createElement("span");
     label.textContent = text;
     const life = 650;
-    label.style.cssText = `position:absolute;left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;transform:translate(-50%,-100%);pointer-events:none;z-index:5;font:700 ${style.size ?? 15}px/1.2 var(--font-display, system-ui);color:${style.color ?? "#fff"};text-shadow:0 1px 0 #000,0 0 6px #000;transition:transform ${life}ms ease-out,opacity ${life}ms ease-in`;
+    label.style.cssText = `position:absolute;left:${(point.x * 0.5 + 0.5) * 100}%;top:${(-point.y * 0.5 + 0.5) * 100}%;transform:translate(-50%,-100%);pointer-events:none;z-index:5;font:700 ${style.size ?? 15}px/1.2 var(--font-display, system-ui);color:${style.color ?? "#fff"};text-shadow:0 1px 0 #000,0 0 6px #000`;
     this.host.append(label);
     this.labels.add(label);
-    requestAnimationFrame(() => {
-      label.style.transform = "translate(-50%,-190%)";
-      label.style.opacity = "0";
-    });
+    const pop = style.pop ?? 1.25;
+    const frames: Keyframe[] = this.options.reduced
+      ? [{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }]
+      : [
+          { transform: `translate(-50%,-100%) scale(${pop})`, opacity: 1, easing: EASE_OUT },
+          { transform: "translate(-50%,-110%) scale(1)", opacity: 1, offset: 0.18, easing: "ease-out" },
+          { transform: "translate(-50%,-160%) scale(1)", opacity: 1, offset: 0.6, easing: EASE_OUT },
+          { transform: "translate(-50%,-190%) scale(1)", opacity: 0 },
+        ];
+    label.animate(frames, { duration: life, fill: "forwards" });
     setTimeout(() => {
       label.remove();
       this.labels.delete(label);
@@ -836,7 +914,10 @@ export class BoardWorld {
     this.raf = requestAnimationFrame(this.frame);
     const seconds = Math.min(0.05, (ms - this.last) / 1000);
     this.last = ms;
-    const step = seconds * this.speed;
+    // A hit-stop holds the fight, and everything moving in it, still; the camera's shake goes on.
+    const held = this.stopped > 0;
+    this.stopped = Math.max(0, this.stopped - seconds);
+    const step = held ? 0 : seconds * this.speed;
     this.now += step;
     if (!this.options.reduced) this.clock += seconds;
 
@@ -861,29 +942,39 @@ export class BoardWorld {
     });
     this.tweens = [...kept, ...this.tweens];
 
-    this.pose(seconds);
+    this.pose(seconds, held ? 0 : seconds);
     this.renderer.render(this.scene, this.camera);
   };
 
-  private pose(seconds: number) {
+  /** `moving` is `seconds`, or 0 while a hit-stop holds the creatures still. */
+  private pose(seconds: number, moving: number) {
     const dragging = this.drag?.moved ? this.drag.id : null;
     for (const [id, actor] of this.actors) {
       const { creature } = actor;
       const t = this.clock + creature.phase;
       // The creature trails toward where it stands, so a walk and a swap are both a glide.
-      if (id !== dragging) actor.at.lerp(actor.home, 1 - Math.exp(-seconds * this.speed * 9));
+      if (id !== dragging) actor.at.lerp(actor.home, 1 - Math.exp(-moving * this.speed * 9));
       const walking = id !== dragging && actor.at.distanceTo(actor.home) > 0.06;
       const hop = actor.won ? Math.abs(Math.sin(t * 5)) * 0.3 : walking ? Math.abs(Math.sin(this.now * 14)) * 0.12 : 0;
       const breath = this.options.reduced ? 0 : Math.sin(t * 2.3) * 0.028;
-      actor.squash = Math.max(0, actor.squash - seconds * 1.6);
-      actor.flash = Math.max(0, actor.flash - seconds * 6);
+      actor.squashSpeed += (-SQUASH_STIFFNESS * actor.squash - SQUASH_DAMPING * actor.squashSpeed) * moving;
+      actor.squash += actor.squashSpeed * moving;
+      actor.flash = Math.max(0, actor.flash - moving * 6);
+      actor.knock.multiplyScalar(Math.exp(-moving * KNOCK_DECAY));
+      if (actor.trailHold > 0) actor.trailHold = Math.max(0, actor.trailHold - moving);
+      else if (actor.trail > actor.fill.scale.x) {
+        actor.trail -= (actor.trail - actor.fill.scale.x) * (1 - Math.exp(-moving * TRAIL_DRAIN));
+        if (actor.trail - actor.fill.scale.x < 0.002) actor.trail = actor.fill.scale.x;
+        this.fillTrail(actor);
+      }
       const base = creature.root.userData.scale as THREE.Vector3;
-      creature.root.position.copy(actor.at).add(actor.lunge);
+      creature.root.position.copy(actor.at).add(actor.lunge).add(actor.knock);
       if (id === dragging) creature.root.position.y += this.drag?.spot?.kind === "archive" ? 1.0 : 0.45;
       const shelved = actor.unit.bench !== undefined && id !== dragging;
       creature.root.scale.copy(base).multiplyScalar(SIZE * actor.grow * (id === this.selected ? 1.08 : 1) * (shelved ? BENCH_SCALE : 1) * (id === dragging ? 1.1 : 1));
       creature.root.visible = actor.grow > 0.02;
-      creature.root.rotation.y += (((actor.facing - creature.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, seconds * 12);
+      creature.root.rotation.y += (((actor.facing - creature.root.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, moving * 12);
+      creature.root.rotation.x = -actor.tilt;
       creature.body.position.y = hop + (creature.floats ? 0.3 + Math.sin(t * 1.7) * 0.08 : 0);
       creature.body.scale.set(1 - breath * 0.5 + actor.squash * 0.6, 1 + breath - actor.squash, 1 - breath * 0.5 + actor.squash * 0.6);
       const blink = t % 3.6 < 0.11 ? 0.12 : 1;
@@ -920,9 +1011,13 @@ export class BoardWorld {
       trainer.arms[1].rotation.z = won ? 2.7 : 0.12;
     });
 
+    // The shake is two fast sines that die out: a jolt with weight, not a buzz of random jumps.
     this.shake = Math.max(0, this.shake - seconds * 0.6);
+    this.shakeTime += seconds;
+    const shakeX = Math.sin(this.shakeTime * 47) * this.shake * 0.5;
+    const shakeY = Math.sin(this.shakeTime * 61 + 1.3) * this.shake * 0.4;
     const drift = this.options.reduced ? 0 : 1;
-    this.camera.position.set(this.eye.x + drift * Math.sin(this.clock * 0.3) * 0.12 + (Math.random() - 0.5) * this.shake, this.eye.y + (Math.random() - 0.5) * this.shake, this.eye.z);
+    this.camera.position.set(this.eye.x + drift * Math.sin(this.clock * 0.3) * 0.12 + shakeX, this.eye.y + shakeY, this.eye.z);
     this.camera.lookAt(this.aim);
     // The shop covers the bottom of the screen: draw the scene as the top part of a taller picture, so the board centres above it.
     const ease = this.options.reduced ? 1 : 1 - Math.exp(-seconds * 8);

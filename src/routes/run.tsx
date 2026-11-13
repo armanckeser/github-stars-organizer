@@ -3,6 +3,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useState }
 import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, RotateCw, Layers, Maximize, Minimize, SkipForward, Star, Swords, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InspectOverlay } from "@/components/battle/arena";
+import { FightClock } from "@/components/battle/fight-clock";
+import { FightInspect } from "@/components/battle/fight-inspect";
 import { Figure } from "@/components/battle/figure";
 import { RunStart } from "@/components/battle/run-start";
 import type { BoardUnit } from "@/components/battle/three/board";
@@ -197,6 +199,13 @@ function RunPage() {
   const shopShown = shopOpen && shopUsable;
   const cap = round && run ? boardLimit(round.number, run.bought) : 0;
   const roster: Roster = { board: units, bench };
+  const fighting = phase.kind === "fighting";
+  // Stable, because the creature panel restarts its close-after-fainting timer when this changes.
+  const look = useCallback((id: string | null) => dispatch({ type: "look", id }), []);
+  // The tick the board's fight has reached, for the creature panel beside it (fight-inspect.tsx).
+  const [clock] = useState(() => new FightClock());
+  const [covered, setCovered] = useState(0);
+  const fightTeams = useMemo<[RunFighter[], RunFighter[]]>(() => [units.map((unit) => unit.fighter), (round?.theirs ?? []).map((unit) => unit.fighter)], [units, round]);
   const viewingTeam = viewing?.kind === "theirs" ? (round?.theirs ?? []) : units;
   const close = () => dispatch({ type: "close" });
 
@@ -215,11 +224,12 @@ function RunPage() {
           far={round ? { look: round.opponent.character.look, supporter: round.opponent.supporter === true } : null}
           selected={selected}
           fight={fight}
+          clock={clock}
           speed={fast ? 2 : 1}
           skips={skips}
           room={Math.max(0, cap - units.length)}
-          inset={building ? SHOP_TAB + (shopShown ? drawer : 0) : 0}
-          onSelect={(id) => dispatch({ type: "look", id })}
+          inset={building ? SHOP_TAB + (shopShown ? drawer : 0) : fighting ? covered : 0}
+          onSelect={look}
           onFightEnd={(key) => dispatch({ type: "fight-ended", key })}
           onMove={(id, spot) => dispatch({ type: "move", id, spot })}
           sellPrice={(id) => {
@@ -308,7 +318,8 @@ function RunPage() {
         </>
       )}
 
-      {phase.kind === "fighting" && (
+      {fighting && fight && round && <FightInspect fight={fight} teams={fightTeams} opponent={round.opponent.login} clock={clock} selected={selected} onSelect={look} onCover={setCovered} />}
+      {fighting && (
         <div className="absolute bottom-3 right-3 z-10 flex gap-1.5">
           <Button variant="outline" size="sm" aria-pressed={fast} onClick={() => setFast((f) => !f)}>{fast ? "2×" : "1×"}</Button>
           <Button variant="outline" size="sm" onClick={() => setSkips((count) => count + 1)}><SkipForward /> Skip</Button>

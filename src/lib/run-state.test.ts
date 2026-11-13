@@ -111,6 +111,16 @@ describe("a round", () => {
     expect(runReducer(next, { type: "continue" })).toBe(next);
   });
 
+  it("lets go of the creature followed in a fight when the fight ends", () => {
+    // Regression guarded: the creature panel (fight-inspect.tsx) stayed open over the result bar
+    // after the fight, showing a creature from a board that had stopped.
+    const fighting = play(shopping(), { type: "fight" }, { type: "look", id: "1:chang/el-tigre" });
+    expect(fighting.selected).toBe("1:chang/el-tigre");
+    const over = fighting.phase.kind === "fighting" ? runReducer(fighting, { type: "fight-ended", key: fighting.phase.fight.key }) : fighting;
+    expect(over.phase.kind).toBe("round-result");
+    expect(over.selected).toBeNull();
+  });
+
   it("ignores the end of a fight it isn't playing", () => {
     const fighting = runReducer(shopping(), { type: "fight" });
     expect(runReducer(fighting, { type: "fight-ended", key: "the-darkest-timeline" })).toBe(fighting);

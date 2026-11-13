@@ -119,7 +119,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
     case "fight":
       return state.phase.kind === "shop" && state.phase.run.units.length > 0 ? cleared(state, fought(state.phase, state.seed)) : state;
     case "fight-ended":
-      return state.phase.kind === "fighting" && state.phase.fight.key === action.key ? { ...state, phase: { ...state.phase, kind: "round-result" } } : state;
+      return state.phase.kind === "fighting" && state.phase.fight.key === action.key ? { ...state, selected: null, phase: { ...state.phase, kind: "round-result" } } : state;
     case "continue":
       return state.phase.kind === "round-result" ? cleared(state, continued(state.phase, state.seed)) : state;
     case "offer":

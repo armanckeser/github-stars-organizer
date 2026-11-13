@@ -300,6 +300,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | A daily mode next to free play: everyone gets the same deck (the day's popular repos), the same shops and opponents, and a result line to share. "Daily only means something if everyone gets the same draw." | idea, after the launch numbers |
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |
+| "Do they even matter then?" about the checks. Measured: speed did nothing at all. Each wait between hits was rounded to whole ticks, so every real card (speed 100 to 138) waited 10 ticks, and the speed stat and the three speed bonuses changed no fight. Waits now keep their fractions. | branch `sets-speed-fix` |
 | A resent run token can retry a round. Accepted for now. | built |
 
 **Look**

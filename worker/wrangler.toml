@@ -7,11 +7,14 @@
 name = "stars-demo-lists"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
-# /battle is the app's own page; the Worker passes it through with the link-preview
-# tags of the battle in the address (src/share.ts).
+# /battle and /run are the app's own pages; the Worker passes them through with the
+# link-preview tags of the battle or run in the address (src/share.ts).
 routes = [
   { pattern = "stars-demo.armanckeser.com/api/*", zone_name = "armanckeser.com" },
   { pattern = "stars-demo.armanckeser.com/battle*", zone_name = "armanckeser.com" },
+  { pattern = "stars-demo.armanckeser.com/run*", zone_name = "armanckeser.com" },
+  # /team is a finished run's team; the Worker adds the team's tags the same way (src/team.ts).
+  { pattern = "stars-demo.armanckeser.com/team*", zone_name = "armanckeser.com" },
 ]
 # The font the share picture is drawn with.
 rules = [{ type = "Data", globs = ["**/*.ttf"], fallthrough = true }]

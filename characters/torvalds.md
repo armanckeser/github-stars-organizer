@@ -1,5 +1,5 @@
 skin: light
-hair: side-part
+hair: short
 hair-color: #6b5338
 top: shirt
 top-color: white

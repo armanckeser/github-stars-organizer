@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ChartColumn, Cpu, Globe, Smartphone, Star, Terminal, type LucideIcon } from "lucide-react";
 import { seededRandom, type CardType, type Fighter } from "../../../server/battle";
+import { compact, isLight, languageColor } from "@/lib/card-colors";
 
 // A repo as a trading card (issue #45). One rule for the look: the frame is the
 // card's type, the art is the repo's language colour under a commit-graph pattern
@@ -17,21 +18,8 @@ export const TYPE: Record<CardType, { label: string; color: string; Icon: Lucide
   docs: { label: "Docs", color: "#77818d", Icon: BookOpen },
 };
 
-const NO_LANGUAGE = "#3a4049";
 const GRID_COLUMNS = 12;
 const GRID_ROWS = 7;
-
-function isLight(color: string): boolean {
-  const n = parseInt(color.slice(1), 16);
-  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.6;
-}
-
-function compact(count: number): string {
-  if (count < 1000) return String(count);
-  if (count < 10_000) return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k`;
-  if (count < 1_000_000) return `${Math.round(count / 1000)}k`;
-  return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
-}
 
 export function TypeDot({ type, size }: { type: CardType; size: string }) {
   const { color, Icon, label } = TYPE[type];
@@ -43,7 +31,7 @@ export function TypeDot({ type, size }: { type: CardType; size: string }) {
 }
 
 // The art's pattern: a commit graph that is the same every time for the same repo.
-function CommitGrid({ seed, ink }: { seed: string; ink: string }) {
+export function CommitGrid({ seed, ink }: { seed: string; ink: string }) {
   const cells = useMemo(() => {
     const random = seededRandom(seed);
     return Array.from({ length: GRID_COLUMNS * GRID_ROWS }, () => {
@@ -95,7 +83,7 @@ export function RepoCard({ fighter, tilt = false, className = "" }: { fighter: F
   const frame = useRef<HTMLDivElement>(null);
   const creature = useCreature(fighter);
   const type = TYPE[fighter.type];
-  const language = fighter.color && /^#[0-9a-f]{6}$/i.test(fighter.color) ? fighter.color : NO_LANGUAGE;
+  const language = languageColor(fighter.color);
   const ink = isLight(language) ? "#14171a" : "#ffffff";
   const [owner, name] = fighter.fullName.split("/");
   const title = name ?? fighter.fullName;

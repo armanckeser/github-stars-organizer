@@ -30,7 +30,7 @@ function json(body: unknown, status: number, cacheSeconds = 0): Response {
   });
 }
 
-async function sign(key: string, text: string): Promise<string> {
+export async function sign(key: string, text: string): Promise<string> {
   const encoder = new TextEncoder();
   const hmac = await crypto.subtle.importKey("raw", encoder.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const bytes = new Uint8Array(await crypto.subtle.sign("HMAC", hmac, encoder.encode(text)));

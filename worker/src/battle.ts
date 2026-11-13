@@ -2,8 +2,12 @@ import { battle, drawFromStars, fieldTeam, instantSeed, type Fighter, type RepoF
 import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
 import { characterFrom, characterLevel, chosenCharacter, defaultCharacter, listedCharacterPath, type Character } from "../../server/character.ts";
 import { SELF_REPO } from "../../server/self-repo.ts";
+import { NO_PLAY_FILE } from "./no-play.ts";
 import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
+import type { RunFighter } from "../../server/run/rules.ts";
+import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
+import { pickPopular, type PopularList } from "./popular.ts";
 import { supporters } from "./supporters.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -114,8 +118,11 @@ export function topFourIn(readme: string): string[] {
 }
 
 
-async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
-  if (names.length === 0) return [];
+// GitHub answers several small queries side by side faster than one big one: a run's
+// 20 drawn repos took 7 to 8.5 s in one query and about 3 s as five queries of four.
+const FACTS_PER_QUERY = 4;
+
+async function factsQuery(token: string, names: string[]): Promise<FactsNode[]> {
   const found = await gql<Record<string, FactsNode | null>>(
     token,
     `query {${names
@@ -128,12 +135,19 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
   return names.flatMap((_, i) => found[`r${i}`] ?? []);
 }
 
+async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < names.length; i += FACTS_PER_QUERY) chunks.push(names.slice(i, i + FACTS_PER_QUERY));
+  return (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
+}
+
 // A team is four cards: one ace the player chose and three drawn from their stars for
 // the day. The ace is the first of the top four in their Stard profile, else their
 // first pinned repo, else their own most-starred repo. Someone with too few stars
-// fills the rest from what they chose and then from their own repos, and may still
-// come up short; `evened` then trims the other side to match.
-export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE): Promise<Team> {
+// fills the rest from what they chose and then from their own repos, then from
+// `popular` when given (a run's pool, worker/src/popular.ts), and may still come up
+// short; `evened` then trims the other side to match.
+export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE, popular?: () => Promise<PopularList>): Promise<Team> {
   const name = JSON.stringify(login);
   const starred = supporters(token, now);
   const data = await gql<{
@@ -142,9 +156,9 @@ export async function teamFor(token: string, login: string, now: number, size = 
       login: string;
       avatarUrl: string;
       profile: { readme: { text?: string } | null } | null;
-      stard: { readme: { text?: string } | null; character?: { text?: string } | null } | null;
-      pinnedItems: { nodes: (FactsNode | Record<string, never>)[] };
-      repositories: { nodes: FactsNode[] };
+      stard: { readme: { text?: string } | null; character?: { text?: string } | null; noPlay?: { oid: string } | null } | null;
+      pinnedItems: { nodes: ({ nameWithOwner: string } | Record<string, never>)[] };
+      repositories: { nodes: { nameWithOwner: string }[] };
       starredRepositories: { nodes: { nameWithOwner: string; isPrivate: boolean }[] };
     }) | null;
   }>(
@@ -157,9 +171,10 @@ export async function teamFor(token: string, login: string, now: number, size = 
       stard: repository(name: "stard") {
         readme: object(expression: "HEAD:README.md") { ... on Blob { text } }
         character: object(expression: "HEAD:character.md") { ... on Blob { text } }
+        noPlay: object(expression: ${JSON.stringify(`HEAD:${NO_PLAY_FILE}`)}) { oid }
       }
-      pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { ${FACTS} } } }
-      repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { ${FACTS} } }
+      pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { nameWithOwner } } }
+      repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { nameWithOwner } }
       starredRepositories(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { nodes { nameWithOwner isPrivate } }
     }
     here: repository(owner: ${JSON.stringify(SELF_REPO.owner)}, name: ${JSON.stringify(SELF_REPO.name)}) {
@@ -172,38 +187,59 @@ export async function teamFor(token: string, login: string, now: number, size = 
   // Nobody has to give their profile README over to the game: a repo called `stard`
   // is read first, and the two are read together so a part can live in either.
   const readme = `${user.stard?.readme?.text ?? ""}\n${user.profile?.readme?.text ?? ""}`;
-  const built = chosenCharacter({ ownFile: user.stard?.character?.text ?? null, readme, listedFile: data.here?.character?.text ?? null }, user.login);
+  // The file kept here was drawn by someone else, so an account that opted out of being
+  // played (OPPONENTS.md) never shows it; its own file and README card still count.
+  const listedFile = user.stard?.noPlay ? null : (data.here?.character?.text ?? null);
+  const built = chosenCharacter({ ownFile: user.stard?.character?.text ?? null, readme, listedFile }, user.login);
   const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
 
+  // The pinned and top repos are read by name only here, and their facts later in the
+  // small parallel queries: with their facts in this query, a busy account's read
+  // (antfu's: 10.6 s) ran into GitHub's 10-second limit and failed with a 502.
+  const pinned = user.pinnedItems.nodes.flatMap((node) => ("nameWithOwner" in node ? [node.nameWithOwner] : []));
+  const owned = user.repositories.nodes.map((node) => node.nameWithOwner);
+
   let source: TeamSource = "profile";
-  let chosen = await factsFor(token, topFourIn(readme));
+  const fromProfile = await factsFor(token, topFourIn(readme));
+  let chosen = fromProfile.map((node) => node.nameWithOwner);
   if (chosen.length === 0) {
     source = "pinned";
-    chosen = user.pinnedItems.nodes.filter((node): node is FactsNode => "nameWithOwner" in node);
+    chosen = pinned;
   }
   if (chosen.length === 0) {
     source = "repos";
-    chosen = user.repositories.nodes;
+    chosen = owned;
   }
   const ace = chosen.slice(0, 1);
   const stars = user.starredRepositories.nodes.filter((repo) => !repo.isPrivate).map((repo) => repo.nameWithOwner);
   if (ace.length === 0 && stars.length > 0) source = "stars";
-  const drawn = await factsFor(
-    token,
-    drawFromStars(stars, ace.map((node) => node.nameWithOwner), size - ace.length, `${user.login.toLowerCase()}|${new Date(now).toISOString().slice(0, 10)}`),
-  );
-  const nodes = [...ace, ...drawn];
-  for (const spare of [...chosen.slice(1), ...user.repositories.nodes]) {
-    if (nodes.length >= size) break;
-    if (!nodes.some((node) => node.nameWithOwner === spare.nameWithOwner)) nodes.push(spare);
-  }
+  const day = new Date(now).toISOString().slice(0, 10);
+  const drawnNames = drawFromStars(stars, ace, size - ace.length, `${user.login.toLowerCase()}|${day}`);
+  // An account with few stars fills the rest of its pool from its own repos.
+  const spares = [...new Set([...chosen.slice(1), ...owned])]
+    .filter((name) => !ace.includes(name) && !drawnNames.includes(name))
+    .slice(0, Math.max(0, size - ace.length - drawnNames.length));
+  const short = size - ace.length - drawnNames.length - spares.length;
+  const fill = short > 0 && popular ? pickPopular(await popular(), short, [...ace, ...drawnNames, ...spares, ...stars], `${user.login.toLowerCase()}|${day}|popular`) : [];
+
+  const known = new Map(fromProfile.map((node) => [node.nameWithOwner, node]));
+  const unread = [...ace, ...drawnNames, ...spares, ...fill].filter((name) => !known.has(name));
+  for (const node of await factsFor(token, unread)) known.set(node.nameWithOwner, node);
+  const read = (names: string[]) => names.flatMap((name) => known.get(name) ?? []);
+  const aceNodes = read(ace);
+  const drawn = read(drawnNames);
+  const filled = read(fill);
+  if (aceNodes.length === 0 && drawn.length === 0 && filled.length > 0) source = "popular";
+  const nodes = [...aceNodes, ...drawn, ...read(spares), ...filled].slice(0, size);
+  const fromPopular = new Set(filled.map((node) => node.nameWithOwner));
   const repos: FrozenRepo[] = nodes.map((node, i) => ({
     ...toFacts(node),
     topics: node.repositoryTopics.nodes.map((entry) => entry.topic.name),
-    wildcard: i >= ace.length && i < ace.length + drawn.length,
+    wildcard: i >= aceNodes.length && i < aceNodes.length + drawn.length,
+    ...(fromPopular.has(node.nameWithOwner) ? { popular: true } : {}),
   }));
-  const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : fighter));
-  const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: ace[0]?.nameWithOwner ?? null, source, repos };
+  const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : repos[i].popular ? { ...fighter, popular: true } : fighter));
+  const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: aceNodes[0]?.nameWithOwner ?? null, source, repos };
   const supporter = (await starred).has(user.login.toLowerCase()) ? { supporter: true as const } : {};
   return { login: user.login, avatarUrl: user.avatarUrl, ...supporter, source, character, team, facts };
 }
@@ -253,13 +289,30 @@ export async function trainerResponse(params: URLSearchParams, token: string): P
 }
 
 /** The cards a run is played with: the ace first, then the day's draws from the player's stars. */
-export async function poolResponse(params: URLSearchParams, token: string): Promise<Response> {
+/** An account's cards as a run deals them: each fighter with its run card. */
+export type RunPool = Omit<Team, "team"> & { team: RunFighter[] };
+
+/**
+ * Each card gets its run card (server/run/stats.ts), and the fighter takes the card's
+ * numbers in place of the battle's, so the board's HP bars match the fight.
+ */
+export function withRunCards(player: Team): RunPool {
+  const readAt = Date.parse(player.facts.readAt);
+  const team = player.team.map((fighter, i): RunFighter => {
+    const card = cardFor(player.facts.repos[i], readAt);
+    return { ...fighter, hp: card.hp, attack: card.attack, defense: card.guard, speed: card.speed, shiny: card.shiny, card };
+  });
+  return { ...player, team };
+}
+
+/** A run's pool. `popular` tops up an account with few stars (worker/src/popular.ts). */
+export async function poolResponse(params: URLSearchParams, token: string, popular?: () => Promise<PopularList>): Promise<Response> {
   const login = params.get("login") ?? "";
   if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
   try {
-    const player = await teamFor(token, login, Date.now(), POOL_SIZE);
+    const player = await teamFor(token, login, Date.now(), POOL_SIZE, popular);
     if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
-    return json(player, 200, CACHE_SECONDS);
+    return json(withRunCards(player), 200, CACHE_SECONDS);
   } catch (error) {
     if (error instanceof NoSuchUser) return json({ error: `No GitHub user called ${error.message}.` }, 404, CACHE_SECONDS);
     console.error(error);

@@ -224,3 +224,1055 @@ input[type="search"]::-webkit-search-cancel-button {
 @keyframes battle-deal {
   from { opacity: 0; transform: translateY(18px) scale(0.94); }
 }
+
+/* The Play board (src/components/battle/three/board.ts): the refund beside a creature held over the Archive. */
+.board-refund {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 5px;
+  border-radius: 999px;
+  font: 700 20px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: #ffe08a;
+  background: linear-gradient(180deg, #2b2110, #140f07);
+  box-shadow: 0 0 0 1px #ffb53d66, 0 6px 18px #000a, 0 0 24px #ffb53d40;
+  opacity: 0;
+  transform: translateY(6px) scale(0.92);
+  transition: opacity 120ms ease-out, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.board-refund::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #ffc93d 45%, #b97a12 100%);
+  box-shadow: inset 0 -2px 0 #8a5a0a, 0 1px 2px #0008;
+}
+.board-refund[data-kind="refused"] {
+  color: #c9d1d9;
+  font-size: 14px;
+  padding-left: 10px;
+  box-shadow: 0 0 0 1px #ffffff30, 0 6px 18px #000a;
+}
+.board-refund[data-kind="refused"]::before {
+  display: none;
+}
+.board-refund[data-shown] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-refund {
+    transition: none;
+  }
+}
+
+/* The shop card (docs/GAME-UI.md §4): art edge to edge, the tier on the border and the strip only. */
+.shop-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border: 2px solid var(--tier);
+  border-radius: 4px;
+  background: #0e1418;
+  text-align: left;
+  outline: none;
+  container-type: inline-size;
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.45);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease-out;
+}
+.shop-card:hover {
+  transform: translateY(-3px);
+}
+.shop-card:active {
+  transform: translateY(-1px) scale(0.985);
+}
+.shop-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring), 0 6px 14px rgb(0 0 0 / 0.45);
+}
+.shop-card[data-unaffordable] {
+  opacity: 0.55;
+}
+.shop-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #131b20;
+}
+.shop-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 66% 50%;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop-card:hover .shop-art img {
+  transform: scale(1.04);
+}
+/* The fade that keeps the sets readable: the left 40%, dark to clear. */
+.shop-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(10 14 17 / 0.7), transparent 45%);
+  pointer-events: none;
+}
+.shop-sets {
+  position: absolute;
+  left: 5px;
+  /* Full set names, over the creature's body as TFT prints traits over its champion's; the left fade and the text shadow keep them readable. */
+  right: 8px;
+  bottom: 5px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.shop-set {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  font: 500 10.5px/1 var(--font-display);
+  color: #fff;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.85);
+  white-space: nowrap;
+}
+.shop-set-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.set-hex {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  place-items: center;
+  clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
+  background: #1c242b;
+  color: #fff;
+}
+.set-initials {
+  font: 700 7px/1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.set-initials[data-long] {
+  font-size: 5.5px;
+}
+.shop-reach {
+  flex: none;
+  font: 700 10.5px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: #3fb950;
+}
+.shop-strip {
+  display: flex;
+  height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 7px;
+  background: color-mix(in oklab, var(--tier) 30%, #131b20);
+  font: 700 13px/1 var(--font-display);
+  color: #fff;
+}
+.shop-cost {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.shop-card[data-unaffordable] .shop-cost {
+  color: #ff7b72;
+}
+.shop-empty {
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.025);
+  box-shadow: inset 0 2px 10px rgb(0 0 0 / 0.6);
+}
+/* A card under 120px is too narrow for set names: the hexes carry the sets, each with its "would reach" count. */
+@container (max-width: 119px) {
+  .shop-set-name {
+    display: none;
+  }
+  .shop-sets {
+    left: 3px;
+    bottom: 3px;
+    gap: 2px;
+  }
+  .shop-strip {
+    height: 20px;
+    padding: 0 4px;
+    font-size: 9.5px;
+  }
+  .shop-cost {
+    gap: 2px;
+    font-size: 10px;
+  }
+}
+@media (max-width: 639px) {
+  .shop-art {
+    aspect-ratio: 1;
+  }
+  /* A square shows 62.5% of the 16:10 art: this keeps the creature, drawn at 66% across, near 60% of the square, so its face clears the right edge. */
+  .shop-art img {
+    object-position: 76% 50%;
+  }
+}
+.shop-coin,
+.hud-coin {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #ffc93d 45%, #b97a12 100%);
+  box-shadow: inset 0 -1.5px 0 #8a5a0a, 0 1px 2px #0008;
+}
+.hud-coin {
+  width: 22px;
+  height: 22px;
+  box-shadow: inset 0 -2.5px 0 #8a5a0a, 0 2px 4px #0009, 0 0 14px rgb(255 201 61 / 0.35);
+}
+.hud-button {
+  font-family: var(--font-display);
+  font-weight: 700;
+  border-radius: 8px;
+  color: rgb(230 237 243 / 0.8);
+  background: rgb(255 255 255 / 0.06);
+  transition: transform 120ms ease-out, filter 120ms ease-out, background 120ms ease-out;
+}
+.hud-button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.12);
+}
+.hud-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.hud-button:disabled {
+  opacity: 0.45;
+}
+.hud-fight {
+  color: #04140a;
+  background: #2ea043;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.4);
+}
+.hud-fight:hover:not(:disabled) {
+  background: #3fb950;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shop-card,
+  .hud-button {
+    transition: none;
+  }
+  .shop-card:hover {
+    transform: none;
+  }
+}
+
+/* The shop folds down under its tab, which keeps the gold; the camera eases out to fill the room it leaves. */
+.shop-dock {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.shop-dock:not([data-open]) {
+  transform: translateY(var(--drawer));
+}
+/* The shop bar (docs/GAME-UI.md §5): slate, a gold line on its outer edge, the gold plaque on top. */
+.shop-bar {
+  padding: 10px 16px 12px;
+  border-top: 1px solid rgb(201 164 92 / 0.7);
+  background: #0e1418;
+  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.45);
+}
+.shop-layout {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 7.5rem;
+  gap: 10px;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+.shop-layout::after {
+  /* The corner Fight stands in. */
+  content: "";
+}
+.shop-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.shop-plaque {
+  position: absolute;
+  bottom: calc(100% - 1px);
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  width: 8.5rem;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding-top: 2px;
+  translate: -50% 0;
+  background: rgb(201 164 92 / 0.7);
+  clip-path: polygon(15% 0, 85% 0, 100% 100%, 0 100%);
+  outline: none;
+}
+.shop-plaque::before {
+  content: "";
+  position: absolute;
+  inset: 1px 1.5px 0;
+  z-index: -1;
+  background: #0e1418;
+  clip-path: polygon(15% 0, 85% 0, 100% 100%, 0 100%);
+}
+.shop-plaque:hover::before {
+  background: #131b20;
+}
+.shop-plaque:focus-visible::before {
+  background: #1b262d;
+}
+.shop-plaque-gold {
+  font: 700 19px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: #f2c94c;
+}
+.bar-button {
+  display: flex;
+  flex: 1;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 5px 4px 10px;
+  border-radius: 4px;
+  background: #172127;
+  color: #fff;
+  text-align: left;
+  outline: none;
+  transition: background 120ms ease-out, transform 120ms ease-out;
+}
+.bar-button:hover:not(:disabled) {
+  background: #1e2b32;
+}
+.bar-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.bar-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.bar-button:disabled {
+  opacity: 0.45;
+}
+.bar-button-label {
+  display: block;
+  font: 700 14px/1.1 var(--font-display);
+  white-space: nowrap;
+}
+.bar-button-count {
+  margin-left: 3px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: rgb(230 237 243 / 0.55);
+}
+.bar-button-cost {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font: 700 12px/1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: #f2c94c;
+}
+.bar-button-tile {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 3px;
+  background: #24323b;
+  color: #e6edf3;
+}
+.shop-fight {
+  position: absolute;
+  right: calc(16px + max(0px, (100% - 32px - 64rem) / 2));
+  bottom: 12px;
+  z-index: 11;
+  display: flex;
+  width: 7.5rem;
+  height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 4px;
+  font: 700 16px/1 var(--font-display);
+  outline: none;
+  transition: bottom 280ms cubic-bezier(0.22, 1, 0.36, 1), height 280ms cubic-bezier(0.22, 1, 0.36, 1), background 120ms ease-out;
+}
+.shop-fight:not([data-open]) {
+  bottom: 8px;
+  height: 2.6rem;
+}
+/* Open, Fight stands level with the cards' bottom edge at 60% of their height: the card row is the bar's height less its top line (1px) and padding (10px, 12px). */
+.shop-fight[data-open] {
+  height: calc((var(--drawer) - 23px) * 0.6);
+}
+.shop-fight:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.shop-fight:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 639px) {
+  /* An upright phone: the cards across the top, Reroll and Slot under them, Fight in the corner. */
+  .shop-bar {
+    padding: 8px 8px 10px;
+  }
+  .shop-layout {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .shop-layout::after {
+    display: none;
+  }
+  .shop-controls {
+    flex-direction: row;
+    padding-right: 7.25rem;
+  }
+  .bar-button-tile {
+    width: 26px;
+    height: 26px;
+  }
+  .shop-fight {
+    right: 8px;
+    bottom: 10px;
+    width: 6.75rem;
+    height: 2.6rem;
+  }
+  /* An upright phone has Fight beside Reroll and Slot, under the cards: it keeps their height. */
+  .shop-fight[data-open] {
+    height: 2.6rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shop-dock,
+  .shop-fight {
+    transition: none;
+  }
+}
+
+/* Play owns the screen (docs/GAME-UI.md §1): no app frame, and nothing under a phone's notch or home bar. */
+.arena {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .hud-top {
+    padding-top: 6px;
+    padding-bottom: 0.75rem;
+  }
+  .checks-rail {
+    top: 40px;
+  }
+  /* One row of short cards, with the side controls stacked tight, so the open shop keeps a quarter of the height as TFT's does. */
+  .shop-art {
+    aspect-ratio: 2 / 1;
+  }
+  .shop-bar {
+    padding: 6px 12px 8px;
+  }
+  .shop-layout {
+    grid-template-columns: 6.75rem minmax(0, 1fr) 6rem;
+    gap: 8px;
+  }
+  .bar-button {
+    min-height: 0;
+    padding: 3px 4px 3px 8px;
+  }
+  .bar-button-label {
+    font-size: 12px;
+  }
+  .bar-button-cost {
+    margin-top: 2px;
+    font-size: 11px;
+  }
+  .bar-button-tile {
+    width: 24px;
+    height: 24px;
+  }
+  .shop-fight {
+    right: 12px;
+    bottom: 8px;
+    width: 6rem;
+    height: 2.6rem;
+    font-size: 14px;
+  }
+  /* Here the bar's padding is 6px and 8px. */
+  .shop-fight[data-open] {
+    height: calc((var(--drawer) - 15px) * 0.6);
+  }
+  .checks {
+    width: 9.5rem;
+    padding: 4px;
+  }
+  .check-row {
+    height: 22px;
+    font-size: 12px;
+  }
+}
+
+/* The Play top bar: names and the round read off a shade falling from the top edge, not boxes. */
+.hud-top {
+  background: linear-gradient(180deg, rgb(6 8 11 / 0.7), rgb(6 8 11 / 0));
+  padding-bottom: 1.5rem;
+}
+.hud-chip {
+  border-radius: 8px;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
+  transition: background 120ms ease-out;
+}
+button.hud-chip:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
+/* The Play set tracker (src/components/run/checks.tsx): a pull request's checks. */
+.checks {
+  width: 11.5rem;
+  padding: 6px 6px 10px;
+  background: radial-gradient(120% 100% at 0% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
+}
+.checks-toggle {
+  width: 100%;
+  border-radius: 3px;
+  outline: none;
+}
+.checks-toggle:hover {
+  color: rgb(230 237 243 / 0.75);
+}
+.checks-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.checks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 6px 6px;
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(230 237 243 / 0.45);
+}
+/* Opens a folded list: tall enough for a thumb, quiet enough to read as the list's last line. */
+.checks-more {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 6px;
+  border-radius: 3px;
+  text-align: left;
+  font: 600 11px/1 var(--font-display);
+  color: rgb(230 237 243 / 0.55);
+  outline: none;
+}
+.checks-more:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.check-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  outline: none;
+  font: 650 13px/1 var(--font-display);
+  color: rgb(230 237 243 / 0.62);
+  cursor: default;
+}
+.check-row:hover,
+.check-row:focus-visible {
+  background: rgb(255 255 255 / 0.06);
+}
+.check-row[data-live] {
+  color: #e6edf3;
+}
+.check-mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px #d29922;
+}
+.check-row[data-live] .check-mark {
+  box-shadow: 0 0 10px rgb(63 185 80 / 0.55);
+  background: #3fb950 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.2 8.3l2.4 2.4 5.2-5.3' fill='none' stroke='%2304140a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat;
+}
+.check-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.check-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.check-row[data-live] .check-count {
+  color: #56d364;
+}
+.check-detail {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  z-index: 40;
+  width: 15rem;
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: rgb(230 237 243 / 0.8);
+  background: linear-gradient(180deg, #1c2128, #12161c);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.09), 0 10px 28px rgb(0 0 0 / 0.6);
+  font: 500 12px/1.35 var(--font-sans);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-4px, -50%);
+  transition: opacity 120ms ease-out, transform 140ms ease-out;
+}
+.checks-right {
+  /* Stays at the right edge when the player's own checks are empty and draw nothing. */
+  margin-left: auto;
+  background: radial-gradient(120% 100% at 100% 40%, rgb(6 8 11 / 0.72), rgb(6 8 11 / 0.35) 55%, transparent 80%);
+}
+.check-repos {
+  color: rgb(255 255 255 / 0.55);
+}
+.checks-right .check-detail {
+  left: auto;
+  right: calc(100% + 6px);
+  transform: translate(4px, -50%);
+}
+.check-row:hover .check-detail,
+.check-row:focus-visible .check-detail {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+.check-detail [data-on] {
+  color: #e6edf3;
+}
+.check-tier {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 4px;
+  font: 700 10px/1 var(--font-display);
+  background: #30363d;
+}
+.check-detail [data-on] .check-tier {
+  color: #04140a;
+  background: #3fb950;
+}
+.check-boost {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  background: none;
+}
+.boost-pip {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #e9b949 40%, #8a5a0a 100%);
+  box-shadow: inset 0 -2px 0 #6b4306, 0 2px 6px #000a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .check-detail {
+    transition: none;
+  }
+}
+@media (max-width: 639px) {
+  .checks {
+    width: 8.6rem;
+    padding: 4px;
+  }
+  .check-row {
+    height: 24px;
+    gap: 6px;
+    padding: 0 5px;
+    font-size: 12px;
+  }
+  .check-mark {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+/* The boost pick (src/components/run/boost-pick.tsx): three lit medallions held over the board, the board dimmed but in view. */
+.boost-pick {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.5rem, 3dvh, 1.5rem);
+  padding: 16px;
+  /* The medallion's diameter, from the screen's short side, so three fit a phone turned wide. */
+  --coin: min(200px, 34dvh, 24vw);
+  background: radial-gradient(70% 60% at 50% 48%, rgb(6 8 11 / 0.45), rgb(6 8 11 / 0.86));
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+  animation: boost-in 220ms ease-out both;
+}
+.boost-row {
+  display: flex;
+  justify-content: center;
+  gap: clamp(0.5rem, 3vw, 3rem);
+}
+.boost-title {
+  font: 700 clamp(1.375rem, 6dvh, 2.25rem)/1.1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.boost-subtitle {
+  margin-top: 2px;
+  font-size: 13px;
+  color: rgb(230 237 243 / 0.65);
+}
+.boost-name {
+  display: block;
+  margin-top: 6px;
+  font: 700 clamp(14px, 4.4dvh, 18px)/1.15 var(--font-display);
+  letter-spacing: -0.01em;
+}
+.boost-text {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.3;
+  color: rgb(230 237 243 / 0.75);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.boost-medal {
+  width: calc(var(--coin) + min(24px, 3vw));
+  text-align: center;
+  outline: none;
+  animation: boost-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--order) * 70ms + 60ms);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease-out, filter 260ms ease-out;
+}
+.boost-coin {
+  position: relative;
+  display: block;
+  width: var(--coin);
+  margin: 0 auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 14px 18px rgb(0 0 0 / 0.7));
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), filter 180ms ease-out;
+}
+.boost-coin::before {
+  /* The enamel's light thrown on the board under the medallion. */
+  content: "";
+  position: absolute;
+  inset: 12% 8% -14%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--enamel) 55%, transparent), transparent);
+  filter: blur(14px);
+  opacity: 0.55;
+  z-index: -1;
+  transition: opacity 180ms ease-out;
+}
+.boost-coin img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.boost-coin-blank {
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #f0c76a, #9a6a12);
+}
+.boost-medal:hover .boost-coin,
+.boost-medal:focus-visible .boost-coin {
+  transform: translateY(-8px) rotate(-3deg);
+  filter: drop-shadow(0 22px 22px rgb(0 0 0 / 0.75)) brightness(1.08);
+}
+.boost-medal:hover .boost-coin::before,
+.boost-medal:focus-visible .boost-coin::before {
+  opacity: 0.95;
+}
+.boost-medal:focus-visible {
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.boost-medal[data-state="chosen"] {
+  transform: translateY(-14px) scale(1.1);
+}
+.boost-medal[data-state="passed"] {
+  opacity: 0;
+  transform: translateY(24px) scale(0.92);
+}
+@media (max-width: 559px) {
+  /* Too narrow for three across: the boosts stack as rows, the medallion left, the whole text right, never cut. */
+  .boost-row {
+    flex-direction: column;
+    gap: 12px;
+    width: min(100%, 22rem);
+  }
+  .boost-medal {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 88px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: center;
+    text-align: left;
+  }
+  .boost-coin {
+    width: 88px;
+    grid-row: span 2;
+  }
+  .boost-name {
+    margin-top: 0;
+    align-self: end;
+    font-size: 17px;
+  }
+  .boost-text {
+    display: block;
+    align-self: start;
+    font-size: 13.5px;
+  }
+}
+.boost-peek,
+.boost-return {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 2.25rem;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: 700 14px/1 var(--font-display);
+  color: rgb(230 237 243 / 0.8);
+  background: rgb(255 255 255 / 0.07);
+  outline: none;
+  transition: background 120ms ease-out, opacity 200ms ease-out;
+}
+.boost-peek:hover,
+.boost-return:hover {
+  background: rgb(255 255 255 / 0.13);
+}
+.boost-peek:disabled {
+  opacity: 0;
+}
+/* Over the round's title while the board is looked at: the top bar holds no HP bar, so the pill never covers one. */
+.boost-return {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%;
+  z-index: 20;
+  translate: -50% 0;
+  min-width: 11rem;
+  justify-content: center;
+  color: #ffe08a;
+  background: #0e1418;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.5);
+}
+@keyframes boost-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes boost-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boost-pick,
+  .boost-medal {
+    animation: none;
+  }
+  .boost-medal,
+  .boost-coin {
+    transition: opacity 120ms linear;
+  }
+  .boost-medal:hover .boost-coin,
+  .boost-medal:focus-visible .boost-coin,
+  .boost-medal[data-state] {
+    transform: none;
+  }
+}
+@media (max-width: 639px) {
+  .boost-medal .text-lg {
+    font-size: 15px;
+  }
+  .boost-medal .text-\[13px\] {
+    font-size: 12px;
+  }
+}
+
+/* What fired over a creature (docs/GAME-UI.md §9): its name as a small gold word, its foot above the HP bar, for under a second. The effect itself plays on the board (src/components/battle/three/effects/). */
+.ability-pop {
+  position: absolute;
+  z-index: 5;
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c9a45c;
+  text-shadow: 0 1px 0 #000, 0 0 6px rgb(0 0 0 / 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  translate: -50% -100%;
+  animation: ability-pop var(--life) ease-out both;
+}
+@keyframes ability-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  15%,
+  70% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ability-pop {
+    animation: ability-pop-still var(--life) linear both;
+  }
+  @keyframes ability-pop-still {
+    0%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}
+
+/* A panel over the board (docs/GAME-UI.md §2): the run's end (src/components/run/run-end.tsx) and a saved team (src/routes/team.tsx). Slate, the gold line on its outer edge only, one soft shadow. */
+.run-panel {
+  display: flex;
+  width: 100%;
+  /* Wide enough that five cards stay over 120px, where they keep their set names (§4). */
+  max-width: 44rem;
+  max-height: calc(100dvh - 32px);
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid rgb(201 164 92 / 0.7);
+  border-radius: 6px;
+  background: #0e1418;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.55);
+  animation: boost-in 220ms ease-out both;
+}
+.run-panel-title {
+  font: 700 clamp(1.5rem, 5dvh, 2.25rem)/1.1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.run-panel-record {
+  margin-top: 4px;
+  font: 600 15px/1.2 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: rgb(230 237 243 / 0.7);
+}
+/* The label over the team, in the checks' heading voice. */
+.run-panel-label {
+  margin-bottom: 8px;
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+  color: rgb(230 237 243 / 0.45);
+}
+.run-panel-primary {
+  display: flex;
+  width: min(100%, 18rem);
+  align-self: center;
+  height: 2.75rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 4px;
+  font-size: 16px;
+  outline: none;
+}
+.run-panel-primary:focus-visible,
+.run-panel-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.run-panel-quiet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 20px;
+}
+.run-panel-link {
+  display: inline-flex;
+  height: 2rem;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+.run-panel-note {
+  font-size: 13px;
+  color: rgb(230 237 243 / 0.55);
+}
+/* A team's cards in the shop's anatomy, five to a row (three on a phone), centred when a row is short. They are shown, not bought, so they don't lift. */
+.team-cards {
+  --gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--gap);
+}
+.team-cards > .shop-card {
+  flex: 0 0 calc((100% - 4 * var(--gap)) / 5);
+}
+.team-cards > .shop-card:hover,
+.team-cards > .shop-card:hover .shop-art img {
+  transform: none;
+}
+@media (max-width: 639px) {
+  .run-panel {
+    padding: 16px;
+  }
+  .run-panel-title {
+    font-size: 1.5rem;
+  }
+  .team-cards > .shop-card {
+    flex-basis: calc((100% - 2 * var(--gap)) / 3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .run-panel {
+    animation: none;
+  }
+}

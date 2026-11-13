@@ -2,17 +2,17 @@
 
 How a player looks in Stard: the figure behind their cards in a battle, on the board in a run, and on their trainer card. One file per GitHub account, `characters/<login>.md`, login in lower case.
 
-The files here were made by hand from each account's public avatar. A key is left out where the avatar doesn't show that part.
-
 ![Every character here, as the arena model and the flat figure](gallery.png)
 
 The picture comes from `npx vite scripts/character-gallery`.
 
 ## Change or remove your file
 
-- Change it: open a pull request that edits `characters/<your login>.md`.
-- Remove it: open a pull request that deletes the file, or open an issue saying which file to remove.
-- Skip this repo entirely: put a file `character.md` with the same keys in a repo of your own called `stard`. Your own file always wins over the one here, and needs no pull request.
+The files for the accounts in [OPPONENTS.md](../OPPONENTS.md) are drawn by hand from each account's public avatar, with plain parts only: hair, glasses, top and colours.
+
+- Change it: add a file `character.md` with the keys below to a public repo of your own called `stard`. Your own file always wins over the one here.
+- Remove it: open an issue (https://github.com/armanckeser/github-stars-organizer/issues/new?title=Remove%20my%20character) or message the owner on GitHub, and the file is deleted.
+- An account that opted out of being played ([OPPONENTS.md](../OPPONENTS.md#dont-want-to-be-played)) never shows the file here.
 
 The game reads, in this order: `character.md` in your `stard` repo, then a trainer card in your `stard` or profile README, then the file here, then a look made from your username.
 

@@ -45,6 +45,10 @@ export type FightEvent =
   | { t: number; kind: "hit"; side: Side; unit: number; target: number; damage: number; critical: boolean }
   | { t: number; kind: "ability"; side: Side; unit: number; ability: string; targets: number[] }
   | { t: number; kind: "condition"; side: Side; unit: number; condition: string; on: boolean }
+  /** HP that changes without a hit: a heal (above 0) or a card hurting itself (below 0). `cause` is the ability, set, boost or condition. */
+  | { t: number; kind: "hp"; side: Side; unit: number; change: number; cause: string }
+  /** The shield a card has left, after it gains one or a hit takes some of it. 0 is no shield. */
+  | { t: number; kind: "shield"; side: Side; unit: number; shield: number }
   | { t: number; kind: "faint"; side: Side; unit: number }
   | { t: number; kind: "end"; winner: Side | null };
 

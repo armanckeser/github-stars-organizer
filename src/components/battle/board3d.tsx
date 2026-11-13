@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { Wearer } from "../../../server/character";
-import { BoardWorld, type BoardFight, type BoardUnit } from "./three/board";
+import { BoardWorld, type BoardFight, type BoardUnit, type Spot } from "./three/board";
+
+declare global {
+  interface Window {
+    /** The board, for the browser tests (e2e/), in development builds only. */
+    stardBoard?: Pick<BoardWorld, "screenOf" | "screenOfSlot" | "screenOfUnit" | "screenOfArchive">;
+  }
+}
 
 export type BoardProps = {
   units: BoardUnit[];
@@ -12,9 +19,18 @@ export type BoardProps = {
   speed: number;
   /** Goes up by one to jump to the end of the fight. */
   skips: number;
-  onPlace: (id: string, col: number, row: number) => void;
+  /** Free board cells a creature from the Drafts may take. */
+  room: number;
+  /** Screen pixels the shop covers along the bottom. */
+  inset: number;
   onSelect: (id: string | null) => void;
   onFightEnd: (key: string) => void;
+  /** What a creature sells for in the Archive, or null when it can't be sold. */
+  sellPrice: (id: string) => number | null;
+  /** A creature carried to a cell, a Drafts slot or the Archive. */
+  onMove: (id: string, spot: Spot) => void;
+  /** One of the player's creatures is being carried (its id), or was put down (null). */
+  onDrag: (id: string | null) => void;
 };
 
 // Started in full, then once more with the extras off after the browser drops the WebGL context.
@@ -40,10 +56,13 @@ export default function Board3D(props: BoardProps) {
         reduced: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
         lite: start > 0,
         onLost: () => (retry = setTimeout(() => setStart((count) => count + 1), 400)),
-        onPlace: (...args) => latest.current.onPlace(...args),
         onSelect: (id) => latest.current.onSelect(id),
         onFightEnd: (key) => latest.current.onFightEnd(key),
+        onDrag: (id) => latest.current.onDrag(id),
+        onMove: (id, spot) => latest.current.onMove(id, spot),
+        sellPrice: (id) => latest.current.sellPrice(id),
       });
+      if (import.meta.env.DEV) window.stardBoard = world.current;
     } catch {
       return;
     }
@@ -51,6 +70,7 @@ export default function Board3D(props: BoardProps) {
       clearTimeout(retry);
       world.current?.dispose();
       world.current = null;
+      if (import.meta.env.DEV) delete window.stardBoard;
     };
   }, [start]);
 
@@ -59,6 +79,8 @@ export default function Board3D(props: BoardProps) {
     if (!board) return;
     board.setLooks(props.near, props.far);
     board.setSpeed(props.speed);
+    board.setRoom(props.room);
+    board.setInset(props.inset);
     if (props.fight) board.play(props.fight);
     else board.setUnits(props.units);
     board.setSelected(props.selected);

@@ -1,4 +1,5 @@
 import { seededRandom, type Fighter } from "../battle.ts";
+import { BUDGET, HP_FLOOR, roleOf } from "./stats.ts";
 import { COLS, ROWS, type Card, type FightEvent, type Side, type Snapshot } from "./types.ts";
 
 // A run's rules, shared by the Play screen and the Worker that referees a run
@@ -76,16 +77,6 @@ export function shopFor<T extends { fullName: string }>(player: Pool<T>, owned: 
 /** How many cards a team may hold in a round. */
 export const teamSizeAt = (round: number) => Math.min(TEAM_MAX, round + 1);
 
-const FIRST_ROUND = 1;
-/**
- * Cards the other account fields in round 1: its ace alone, against the player's two.
- * With two cards each, a greedy player won round 1 about 40% of the time, as the
- * opponent's free pick often cost more than the 4 starting gold buys.
- */
-export const OPENING_OPPONENT_SIZE = 1;
-/** How many cards the other account fields in a round: its ace alone in round 1, a full team after. */
-export const opponentSizeAt = (round: number) => (round === FIRST_ROUND ? OPENING_OPPONENT_SIZE : teamSizeAt(round));
-
 /** Cards bought wait on the bench until placed. Only cards on the board count toward the team limit. */
 export const BENCH_SIZE = 5;
 /** Gold for one more board slot than the round allows, and the most a board can hold with bought slots. */
@@ -110,18 +101,48 @@ export function opponentLogin(login: string, round: number, seed: string, optedO
   return shuffled(others, `${login.toLowerCase()}|${seed}|opponents`)[(round - 1) % others.length];
 }
 
+const FIRST_ROUND = 1;
+/**
+ * The stat points each of the other account's cards fights with in round 1 (BUDGET gives a
+ * common 400). armanckeser's ace and one card bought with the starting gold won round 1 in
+ * 40% of 2,000 simulated runs against the full-strength ace and free pick, and in 73% at 350.
+ */
+export const OPENING_STAT_POINTS = 350;
+
+// Rounding four stats moves the lean roleOf reads by about 0.01, which tips a card sitting on
+// a role's cut into the next role (3 of 297 cards in the pools tried). Guard counts on the
+// toughness side only, so moving it by up to this many points puts the card back.
+const GUARD_NUDGE = 5;
+const NUDGES = Array.from({ length: 2 * GUARD_NUDGE + 1 }, (_, i) => (i % 2 === 0 ? 1 : -1) * Math.ceil(i / 2));
+
+/**
+ * A card with its stat points shrunk to OPENING_STAT_POINTS. Its cost and everything else
+ * stay. Only the HP above HP_FLOOR shrinks: that part is the points' share, and shrinking it
+ * with the other three keeps the lean roleOf reads, so the card keeps its role and its body.
+ */
+export function atOpeningStrength(fighter: RunFighter): RunFighter {
+  const scale = OPENING_STAT_POINTS / BUDGET[fighter.card.rarity];
+  const shrunk = (stat: number) => Math.round(stat * scale);
+  const hp = HP_FLOOR + shrunk(fighter.card.hp - HP_FLOOR);
+  const rounded = { ...fighter.card, hp, attack: shrunk(fighter.card.attack), guard: shrunk(fighter.card.guard), speed: shrunk(fighter.card.speed) };
+  const role = roleOf(fighter.card);
+  const card = NUDGES.map((nudge) => ({ ...rounded, guard: rounded.guard + nudge })).find((candidate) => roleOf(candidate) === role) ?? rounded;
+  return { ...fighter, hp: card.hp, attack: card.attack, defense: card.guard, speed: card.speed, card };
+}
+
 /**
  * The other account's team at this round, built the way a player builds one: each round
- * a shop from its stars, one card taken. Round 1 takes none (opponentSizeAt), and round 2
- * still takes round 1's pick, so every later round's team is the one it always was.
+ * a shop from its stars, one card taken. In round 1 the two cards fight with
+ * OPENING_STAT_POINTS each (atOpeningStrength); from round 2 on at their own.
  */
 export function opponentUnits(opponent: Pool<RunFighter>, round: number, seed: string): Unit[] {
-  const team = opponent.team.slice(0, 1);
-  for (let r = 1; team.length > 0 && team.length < opponentSizeAt(round); r++) {
-    const [pick] = shopFor(opponent, team, r, 0, seed, 1);
+  const drafted = opponent.team.slice(0, 1);
+  for (let r = 1; drafted.length > 0 && drafted.length < teamSizeAt(round); r++) {
+    const [pick] = shopFor(opponent, drafted, r, 0, seed, 1);
     if (!pick) break;
-    team.push(pick);
+    drafted.push(pick);
   }
+  const team = round === FIRST_ROUND ? drafted.map(atOpeningStrength) : drafted;
   const units: Unit[] = [];
   for (const fighter of [...team].sort((x, y) => y.defense - x.defense)) {
     const cell = freeCell(units, fighter);

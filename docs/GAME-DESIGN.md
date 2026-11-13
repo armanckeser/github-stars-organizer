@@ -301,7 +301,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |
 | A resent run token can retry a round. Accepted for now. | built |
-| "Beating the first guy is pretty hard right now." A player's ace and one bought card met the opponent's ace and a free pick, which often cost more than the 4 starting gold buys: a greedy player won round 1 about 40% of the time (15% against torvalds). Round 1's opponent fields only its ace, the player still fields 2; rounds 2 on are unchanged. | branch `round1-ace-only` (#98) |
+| "Beating the first guy is pretty hard right now." A player's ace and one bought card met the opponent's ace and a free pick, which often cost more than the 4 starting gold buys: a greedy player won round 1 about 40% of the time (15% against torvalds). First built as the ace alone: two cards against one won 100%, and the owner asked for "winnable, still a fight", about 70%, no opponent under about 50% or over about 90%. Now round 1's opponent fields its ace and free pick with 350 stat points each (`OPENING_STAT_POINTS`; a common has 400), HP above the floor shrunk with the rest so every card keeps its role and body: 73% for armanckeser's pool, 48% (kentcdodds) to 94% (sindresorhus) by opponent; 59% to 95% for the 7 other pools tried. No rule tried met both bounds: what is left of the spread is the aces' roles and abilities (an assassin or ranged ace stays hard). A run against a saved team link keeps round 1 at full strength, so the board matches what that team fought. Rounds 2 on are unchanged. | branch `round1-ace-only` (#98) |
 
 **Look**
 

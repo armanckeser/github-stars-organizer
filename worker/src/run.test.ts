@@ -262,8 +262,8 @@ describe("POST /api/run/act", () => {
     expect(fight.events.at(-1)).toMatchObject({ kind: "end", winner: 0 });
     expect(OPPONENTS).toContain(fight.opponent.login);
     expect(reads).toEqual([PLAYER, fight.opponent.login]);
-    // Round 1: the bot fields its ace alone, against the player's two cards.
-    expect(fight.teams[1].units).toHaveLength(1);
+    // Round 1: the bot fields its ace and one card from its shop.
+    expect(fight.teams[1].units).toHaveLength(2);
     expect(body.run).toMatchObject({ round: 2, gold: 10, wins: 1, losses: 0, teamSize: 3, results: [{ round: 1, opponent: fight.opponent.login, winner: 0 }] });
     expect(body.run.shop).toHaveLength(5);
     const replayed = (await act(token, { fight: true }, deps)).body;

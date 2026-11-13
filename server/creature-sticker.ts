@@ -25,6 +25,8 @@ const LIT_FACE = 0.85;
 const SHADED_FACE = 0.3;
 const HEADROOM = 0.75;
 const FLOAT_LIFT = 0.3;
+// How squarely a sash square must face the viewer to be drawn: about 75° off at most.
+const SQUARE_SEEN = 0.25;
 // The portrait camera (portrait.ts): 30° wide, twice the frame's height away and a little
 // above its middle, looking at just under its middle.
 const HALF_VIEW = Math.tan((15 * Math.PI) / 180);
@@ -227,11 +229,16 @@ function drawShape(shape: Shape, placement: Placement): Drawn[] {
   }
 }
 
-/** The sash's pieces that face the viewer, each in its own flat paint, as the contribution graph's squares are. */
+/**
+ * The sash's pieces that face the viewer, each in its own flat paint, as the contribution
+ * graph's squares are. A square turned nearly edge-on is left out: on the model it is a
+ * sliver at the outline, and drawn flat it would read as one more square.
+ */
 function quadsDrawn(quads: Quad[], placement: Placement, lift: Vector): Drawn[] {
-  return quads.flatMap(({ corners, normal, paint }) => {
+  return quads.flatMap(({ piece, corners, normal, paint }) => {
     const facing = apply(placement.root, normal);
-    if (facing[2] <= 0) return [];
+    const least = piece === "square" ? SQUARE_SEEN : 0;
+    if (facing[2] <= least) return [];
     const world = corners.map((corner) => apply(placement.root, add(corner, lift)));
     const depth = world.reduce((sum, [, , z]) => sum + z / world.length, 0);
     return [{ depth, svg: `<polygon points="${pointsOf(world.map(placement.see))}" fill="${paint}"/>` }];

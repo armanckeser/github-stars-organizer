@@ -12,8 +12,10 @@ import { cellOf, type Card, type Side } from "../../server/run/types";
 //   ?view=grid      every body of every role, at a low and a high cost
 //   ?view=board     7 cards a side on the real Play board; ?count=0 for an empty board.
 //                   window.frames() reports the frame times measured so far.
+//                   &shelf=0, 1 or 2 also puts five of the twelve bodies, at cost 4, on the Drafts shelf.
 //   ?view=stickers  the flat sticker beside the 3D portrait, for three cards
 
+const SHELF_SLOTS = 5;
 const ROLES: Role[] = ["tank", "bruiser", "assassin", "ranged"];
 const LOGINS = Array.from({ length: 60 }, (_, i) => `study-group-${i}`);
 // The made-up pool's one description says "browser", which picks a body by itself, so it is dropped.
@@ -68,8 +70,12 @@ function board() {
   const units: BoardUnit[] = teams.flatMap((team, side) =>
     team.slice(0, count).map((fighter, index) => ({ id: `${side}:${fighter.fullName}`, side: side as Side, fighter, ...cellOf(side as Side, { col: index % 4, row: Math.floor(index / 4) }), ranged: fighter.card.range > 1 })),
   );
+  const shelf = params.get("shelf");
+  const bodies = [...new Set(fighters.map(bodyOf))].sort();
+  const onShelf = shelf === null ? [] : bodies.slice(Number(shelf) * SHELF_SLOTS, (Number(shelf) + 1) * SHELF_SLOTS).map((body) => atCost(fighters.find((fighter) => bodyOf(fighter) === body)!, 4));
+  const drafts: BoardUnit[] = onShelf.map((fighter, slot) => ({ id: `shelf:${fighter.fullName}`, side: 0, fighter, x: 0, y: 0, ranged: fighter.card.range > 1, bench: slot }));
   world.setLooks(null, null);
-  world.setUnits(units);
+  world.setUnits([...units, ...drafts]);
   const renderer = (world as unknown as { renderer: { render: (...args: unknown[]) => void; info: { render: { calls: number; triangles: number } } } }).renderer;
   const render = renderer.render.bind(renderer);
   const renders: number[] = [];

@@ -32,7 +32,7 @@ A player picks cards for a synergy or a need by looking at the creature, and ope
 
 Language and type colors appear only on the creature: language is its body, type its trim, tier its sash. No panel, text or chip uses them. Set colors are not used in the game UI: a set is shown by its icon and its name.
 
-**The sash** is a white band across the creature with five squares in the GitHub contribution graph's style, as many lit as the card costs. A flat-fronted body (a block or a book) wears its five on its front and again on its back. A round body wears one row on the flank its sash rises to, 60° round from the front, where the board's camera sees it from above and a card's three-quarter view sees all five. The flat sticker draws the same squares.
+**The sash** is a white band across the creature with five squares in the GitHub contribution graph's style, as many lit as the card costs. A flat-fronted body (a block or a book) wears its five on its front and again on its back. A round body wears two rows on the flank its sash rises to, one 45° round from the front and one 45° from the back, smaller on a small body so the two don't meet: the board's camera sees the other team's front row and your own team's back row, and a card's three-quarter view sees the front row whole. Its band sits as high under the face as the face allows, so the ball over it hides as little as it can from the camera over the Drafts shelf. The wisp's face fills its head's middle, so it wears its band round its brow, lying back on the head. The flat sticker draws the squares that face its viewer, and leaves out one turned nearly edge-on.
 
 ## 4. The shop card (the TFT anatomy)
 
@@ -130,4 +130,5 @@ Each change below is a rule that made the screen look worse as first written.
 | Card wall pool | faint, narrow | brighter and wider, to about 45% behind the head | The cards averaged 83 against TFT's 90. A brighter wall closes the gap without changing the creature's colors. |
 | Tier color | the card's border, name strip and cost gem | also the creature's sash | On the board a card is only its creature, so its cost didn't show anywhere a player looks while placing. |
 | Language and type colors | not used in the game UI | the creature's body and trim | They were already the creature's colors; the rule now says so and keeps them off the panels. |
-| Sash squares on a round body | front and back, low on the waist | one row on the raised flank | The bulge of a round body hid a low front row from the board's camera. A second row for the back would overlap the first: most round bodies' bands are under three rows' length around. |
+| Sash squares on a round body | front and back, low on the waist | two rows on the raised flank, 45° off the front and the back | The bulge of a round body hid a low row from the board's camera. One row on the flank showed only to the other team's side: from behind your own creatures it was a sliver or nothing. |
+| The wisp's sash | round its neck, under its head | round its brow | Its head hid a band under it from every camera above, and its face, on the head's middle, leaves no room for one across it. |

@@ -47,7 +47,10 @@ export type Assembly = {
   emblem: Cluster | null;
   eyes: Cluster[];
   mouth: Shape;
-  /** The contribution sash as flat pieces (band, ink edge and squares), or none for a creature with no cost. */
+  /**
+   * The contribution sash as flat pieces, or none for a creature with no cost: the ink edge and
+   * the band, then its rows of squares, five at a time, each row from its viewer's left.
+   */
   sash: Quad[];
   /** The body's height before the creature's scale, its head's top bits included. */
   height: number;
@@ -58,24 +61,26 @@ export type Assembly = {
  * Where a body wears its sash: a band round it at `at`, `radii` across and deep, as square
  * as `roundness` (2 is an ellipse, higher hugs a box), rolled by `tilt` so it runs from one
  * hip up toward the other shoulder. A flat-fronted body shows its squares on its front and
- * back; a round one on its raised left flank, which faces up toward the board's camera,
- * since the bulge of a round body hides a band's front and back from above.
+ * back; a round one on its raised left flank (see `rowsOf`). A band on a ball's upper half
+ * `leans` back by that angle and lies on it, facing up; one on the lower half stands upright,
+ * which keeps its face out from under the ball's bulge, toward a camera above.
  */
-type SashFit = { at: Vector; radii: [number, number]; roundness: number; tilt: number; squares: "front" | "side" };
+type SashFit = { at: Vector; radii: [number, number]; roundness: number; tilt: number; leans: number; squares: "front" | "side" };
 
 /**
  * A sash round a ball of `radius` at `centre`: the band's plane rolled by `tilt` and dropped
- * `drop` below the middle meets the ball in a circle, which the band sits just outside.
+ * `drop` below the middle (or above it, when negative) meets the ball in a circle, which the
+ * band sits just outside.
  */
 function aroundBall(centre: Vector, radius: number, drop: number, tilt: number, deep = radius): SashFit {
   const up: Vector = [-Math.sin(tilt), Math.cos(tilt), 0];
   const across = Math.sqrt(radius ** 2 - drop ** 2) + SASH_CLEARANCE;
   const depth = Math.sqrt(Math.max(0, deep ** 2 - drop ** 2)) + SASH_CLEARANCE;
-  return { at: [centre[0] - up[0] * drop, centre[1] - up[1] * drop, centre[2]], radii: [across, depth], roundness: 2, tilt, squares: "side" };
+  return { at: [centre[0] - up[0] * drop, centre[1] - up[1] * drop, centre[2]], radii: [across, depth], roundness: 2, tilt, leans: Math.asin(Math.max(0, -drop) / radius), squares: "side" };
 }
 
-/** A flat four-cornered piece, its corners counter-clockwise seen from outside. */
-export type Quad = { corners: [Vector, Vector, Vector, Vector]; normal: Vector; paint: string };
+/** A flat piece of the sash: part of the band (or its ink edge), or one of its squares. */
+export type Quad = { piece: "band" | "square"; corners: [Vector, Vector, Vector, Vector]; normal: Vector; paint: string };
 
 type Plan = { shapes: Shape[]; face: Face; height: number; floats: boolean; sash: SashFit };
 
@@ -114,7 +119,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
         shapes.push({ kind: "sphere", radius: 0.09, detail: 12, at: [0, 1.48, 0], paint: accent });
       }
       if (body.top === "fins") for (const z of [-0.22, 0, 0.22]) shapes.push({ kind: "box", size: [0.08, 0.24 - Math.abs(z) * 0.4, 0.16], at: [0, 1.2, z], paint: accent });
-      return { shapes, face: { y: 0.78, z: 0.37, spread: 0.2, size: 0.13 }, height: 1.3, floats: false, sash: { at: [0, 0.46, 0], radii: [0.51, 0.41], roundness: 4, tilt: 0.22, squares: "front" } };
+      return { shapes, face: { y: 0.78, z: 0.37, spread: 0.2, size: 0.13 }, height: 1.3, floats: false, sash: { at: [0, 0.46, 0], radii: [0.51, 0.41], roundness: 4, tilt: 0.22, leans: 0, squares: "front" } };
     }
     case "turtle": {
       // A low dome of a shell on four stubby legs, its head poking out in front.
@@ -131,7 +136,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
       }
       if (body.shell === "spikes") for (const x of [-0.3, 0, 0.3]) shapes.push({ kind: "cone", radius: 0.09, height: 0.24, at: [x, x ? 0.86 : 0.94, -0.06], turn: [0, 0, -x * 1.4], paint: accent });
       if (body.shell === "ridge") for (const z of [-0.26, 0, 0.26]) shapes.push({ kind: "box", size: [0.08, 0.2 - Math.abs(z) * 0.3, 0.16], at: [0, 0.88 - Math.abs(z) * 0.2, z - 0.06], turn: [z * 0.8, 0, 0], paint: accent });
-      return { shapes, face: { y: 0.74, z: 0.86, spread: 0.12, size: 0.1 }, height: 1.0, floats: false, sash: { at: [0, 0.42, 0], radii: [0.8, 0.69], roundness: 2.2, tilt: -0.3, squares: "side" } };
+      return { shapes, face: { y: 0.74, z: 0.86, spread: 0.12, size: 0.1 }, height: 1.0, floats: false, sash: { at: [0, 0.42, 0], radii: [0.8, 0.69], roundness: 2.2, tilt: -0.3, leans: 0, squares: "side" } };
     }
     case "warden": {
       // A squat block with a round shield on one arm.
@@ -148,7 +153,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
       }
       if (body.top === "horns") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.1, height: 0.32, at: [x * 0.4, 1.04, 0], turn: [0, 0, -x * 0.5], paint: accent });
       if (body.top === "visor") shapes.push({ kind: "box", size: [1.0, 0.14, 0.76], round: { segments: 2, radius: 0.05 }, at: [0, 0.9, 0], paint: dark });
-      return { shapes, face: { y: 0.66, z: 0.35, spread: 0.2, size: 0.12 }, height: 1.2, floats: false, sash: { at: [0, 0.34, 0], radii: [0.59, 0.4], roundness: 4, tilt: -0.2, squares: "front" } };
+      return { shapes, face: { y: 0.66, z: 0.35, spread: 0.2, size: 0.12 }, height: 1.2, floats: false, sash: { at: [0, 0.34, 0], radii: [0.59, 0.4], roundness: 4, tilt: -0.2, leans: 0, squares: "front" } };
     }
     case "wisp": {
       // A head trailing a tapering tail, off the ground.
@@ -162,7 +167,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
       if (body.top === "ears") for (const x of [-1, 1]) shapes.push({ kind: "sphere", radius: 0.16, detail: 12, at: [x * 0.42, 1.12, -0.05], scale: [0.45, 1.25, 0.8], turn: [0, 0, x * 0.5], paint: light });
       if (body.top === "crest") shapes.push({ kind: "cone", radius: 0.16, height: 0.42, sides: 4, at: [0, 1.46, -0.08], scale: [0.35, 1, 1], paint: accent });
       if (body.top === "halo") shapes.push({ kind: "ring", radius: 0.28, tube: 0.035, sides: 8, steps: 24, at: [0, 1.56, 0.05], turn: [Math.PI / 2, 0, 0], paint: accent, outline: false, motion: "spinner" });
-      return { shapes, face: { y: 1.0, z: 0.43, spread: 0.17, size: 0.125 }, height: 1.5, floats: true, sash: aroundBall([0, 0.98, 0.05], 0.42, 0.27, -0.35) };
+      return { shapes, face: { y: 1.0, z: 0.43, spread: 0.17, size: 0.125 }, height: 1.5, floats: true, sash: aroundBall([0, 0.98, 0.05], 0.42, -0.2, -0.15) };
     }
     case "orb": {
       // A ball with a ring round it, off the ground.
@@ -176,7 +181,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
         shapes.push({ kind: "sphere", radius: 0.075, detail: 12, at: [x * 0.26, 1.48, 0], paint: accent });
       }
       if (body.top === "ears") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.14, height: 0.3, at: [x * 0.3, 1.16, 0], turn: [0, 0, -x * 0.5], paint: base });
-      return { shapes, face: { y: 0.72, z: 0.47, spread: 0.19, size: 0.14 }, height: 1.4, floats: true, sash: aroundBall([0, 0.66, 0], 0.52, 0.34, -0.45) };
+      return { shapes, face: { y: 0.72, z: 0.47, spread: 0.19, size: 0.14 }, height: 1.4, floats: true, sash: aroundBall([0, 0.66, 0], 0.52, 0.28, -0.45) };
     }
     case "critter": {
       // A small animal on two feet.
@@ -198,7 +203,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
           ? { kind: "sphere", radius: 0.15, detail: 12, at: [0, 0.36, -0.4], turn: [-1.9, 0, 0], paint: accent }
           : { kind: "cone", radius: 0.11, height: 0.42, at: [0, 0.36, -0.4], turn: [-1.9, 0, 0], paint: accent },
       );
-      return { shapes, face: { y: 1.08, z: 0.4, spread: 0.17, size: 0.125 }, height: 1.6, floats: false, sash: { at: [0, 0.5, 0], radii: [0.39, 0.34], roundness: 2, tilt: -0.6, squares: "side" } };
+      return { shapes, face: { y: 1.08, z: 0.4, spread: 0.17, size: 0.125 }, height: 1.6, floats: false, sash: { at: [0, 0.5, 0], radii: [0.39, 0.34], roundness: 2, tilt: -0.6, leans: 0, squares: "side" } };
     }
     case "brawler": {
       // A heavy pear of a body with its gloves up.
@@ -216,7 +221,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
       }
       if (body.top === "mohawk") for (const z of [0.12, -0.02, -0.16]) shapes.push({ kind: "cone", radius: 0.08, height: 0.24, at: [0, 1.15 - Math.abs(z + 0.02) * 0.3, z], turn: [-z, 0, 0], paint: accent });
       if (body.top === "ears") for (const x of [-1, 1]) shapes.push({ kind: "sphere", radius: 0.12, detail: 12, at: [x * 0.3, 1.08, 0], scale: [1, 1, 0.5], paint: dark });
-      return { shapes, face: { y: 0.8, z: 0.38, spread: 0.17, size: 0.12 }, height: 1.3, floats: false, sash: aroundBall([0, 0.62, 0], 0.46, 0.2, -0.5, 0.41) };
+      return { shapes, face: { y: 0.8, z: 0.38, spread: 0.17, size: 0.12 }, height: 1.3, floats: false, sash: aroundBall([0, 0.62, 0], 0.46, 0.1, -0.5, 0.41) };
     }
     case "rhino": {
       // Upright and thickset, with a horn on its snout.
@@ -234,7 +239,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
       if (body.horns === "two") shapes.push({ kind: "cone", radius: 0.055, height: 0.15, at: [0, 1.2, 0.4], turn: [0.6, 0, 0], paint: accent });
       if (body.top === "ears") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.08, height: 0.18, at: [x * 0.24, 1.5, 0], turn: [0, 0, -x * 0.4], paint: base });
       if (body.top === "plates") for (const [y, z] of [[1.42, -0.18], [1.12, -0.38], [0.82, -0.42]]) shapes.push({ kind: "box", size: [0.06, 0.18, 0.16], at: [0, y, z], turn: [-0.6, 0, 0], paint: accent });
-      return { shapes, face: { y: 1.27, z: 0.31, spread: 0.16, size: 0.1 }, height: 1.6, floats: false, sash: { at: [0, 0.58, 0], radii: [0.45, 0.41], roundness: 2, tilt: -0.5, squares: "side" } };
+      return { shapes, face: { y: 1.27, z: 0.31, spread: 0.16, size: 0.1 }, height: 1.6, floats: false, sash: { at: [0, 0.58, 0], radii: [0.45, 0.41], roundness: 2, tilt: -0.5, leans: 0, squares: "side" } };
     }
     case "bird": {
       // A small bird with blade wings swept back, and a bar chart for a crest.
@@ -272,7 +277,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
         shapes.push({ kind: "sphere", radius: 0.12, detail: 12, at: [0, 0.82, -0.7], paint: light });
       }
       if (body.tail === "blade") shapes.push({ kind: "cone", radius: 0.13, height: 0.62, sides: 4, at: [0, 0.6, -0.48], turn: [-0.93, 0, 0], scale: [0.3, 1, 1], paint: accent });
-      return { shapes, face: { y: 0.96, z: 0.33, spread: 0.13, size: 0.1 }, height: 1.4, floats: false, sash: { at: [0, 0.42, 0], radii: [0.34, 0.3], roundness: 2, tilt: -0.55, squares: "side" } };
+      return { shapes, face: { y: 0.96, z: 0.33, spread: 0.13, size: 0.1 }, height: 1.4, floats: false, sash: { at: [0, 0.42, 0], radii: [0.34, 0.3], roundness: 2, tilt: -0.55, leans: 0, squares: "side" } };
     }
     case "imp": {
       // A small round imp with horns, bat wings and a pointed tail.
@@ -289,7 +294,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
       if (body.horns === "curved") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.08, height: 0.3, at: [x * 0.22, 1.02, 0.02], turn: [0.3, 0, -x * 0.7], paint: accent });
       if (body.horns === "straight") for (const x of [-1, 1]) shapes.push({ kind: "cone", radius: 0.07, height: 0.34, at: [x * 0.16, 1.08, 0], turn: [0, 0, -x * 0.15], paint: accent });
       if (body.horns === "single") shapes.push({ kind: "cone", radius: 0.1, height: 0.36, at: [0, 1.12, 0.04], turn: [0.2, 0, 0], paint: accent });
-      return { shapes, face: { y: 0.7, z: 0.33, spread: 0.14, size: 0.11 }, height: 1.3, floats: false, sash: aroundBall([0, 0.6, 0], 0.39, 0.23, -0.4, 0.36) };
+      return { shapes, face: { y: 0.7, z: 0.33, spread: 0.14, size: 0.11 }, height: 1.3, floats: false, sash: aroundBall([0, 0.6, 0], 0.39, 0.17, -0.4, 0.36) };
     }
     case "tome": {
       // A book with a face on its cover, off the ground.
@@ -301,7 +306,7 @@ function planOf(body: Body, { base, light, dark, accent }: Paints): Plan {
         ...[-1, 1].map((x): Shape => ({ kind: "sphere", radius: 0.09, detail: 12, at: [x * 0.5, 0.62, 0.06], paint: dark, motion: "limb" })),
       ];
       if (body.face === "glasses") for (const x of [-1, 1]) shapes.push({ kind: "ring", radius: 0.11, tube: 0.02, sides: 8, steps: 20, at: [x * 0.16, 0.8, 0.22], paint: GLASSES, outline: false, layer: "face" });
-      return { shapes, face: { y: 0.8, z: 0.21, spread: 0.16, size: 0.1 }, height: 1.3, floats: true, sash: { at: [0.02, 0.42, 0], radii: [0.47, 0.25], roundness: 8, tilt: 0.2, squares: "front" } };
+      return { shapes, face: { y: 0.8, z: 0.21, spread: 0.16, size: 0.1 }, height: 1.3, floats: true, sash: { at: [0.02, 0.42, 0], radii: [0.47, 0.25], roundness: 8, tilt: 0.2, leans: 0, squares: "front" } };
     }
   }
 }
@@ -379,18 +384,17 @@ const SQUARE_LIFT = 0.014;
 const INK_SINK = 0.004;
 const BAND_STEPS = 48;
 const PATH_STEPS = 192;
-// How far round from the front a round body's row of squares sits, and how far round its far
-// end may reach before a card's three-quarter view (portrait.ts turns the model 0.5 rad) loses it.
-const ROW_ANGLE = Math.PI / 3;
-const ROW_FAR_END = 1.9;
+// The least space between a round body's two rows on top of its flank, about a square, so a
+// steep camera that sees both rows' ends there reads them as two groups.
+const ROW_SPACING = 0.12;
 /** How far outside the body a band sits. */
 const SASH_CLEARANCE = 0.02;
 
 /** A point round the band's middle line, 0 at the front, and the way out from it there. */
 type Along = { point: [number, number]; out: [number, number] };
 
-/** The band's middle line: its length, the point a distance round from the front, and how far round its raised side is. */
-function bandPath({ radii: [across, deep], roundness }: SashFit): { length: number; at: (distance: number) => Along; raised: number } {
+/** The band's middle line: its length, the point a distance round from the front, and how far round its left side is. */
+function bandPath({ radii: [across, deep], roundness }: SashFit): { length: number; at: (distance: number) => Along; side: number } {
   const power = 2 / roundness;
   const curve = (angle: number): [number, number] => [across * Math.sign(Math.sin(angle)) * Math.abs(Math.sin(angle)) ** power, deep * Math.sign(Math.cos(angle)) * Math.abs(Math.cos(angle)) ** power];
   // Sampled from the back (-π) round to the back again, so the front sits half way.
@@ -407,38 +411,58 @@ function bandPath({ radii: [across, deep], roundness }: SashFit): { length: numb
     const run = Math.hypot(dx, dz) || 1;
     return { point: [from[0] + dx * k, from[1] + dz * k], out: [-dz / run, dx / run] };
   };
-  // A round body's band is rolled down to the right (a negative tilt), so it rises on its
-  // left: the flank a card's three-quarter view turns toward the camera. Its one row of squares
-  // sits 60° round from the front, where the raised band faces up at the board's camera, or
-  // nearer the front on a narrow band, so the row's far end stays in that view. A second row
-  // off the back, for the camera behind your own creatures, would overlap the first: most
-  // round bodies' bands are under three times the row's length around.
-  const round = (angle: number) => lengths[Math.round(((angle + Math.PI) / (Math.PI * 2)) * PATH_STEPS)] - front;
-  const raised = Math.max(round(-ROW_ANGLE), round(-ROW_FAR_END) + ROW_LENGTH / 2);
-  return { length, at, raised };
+  // A round body's band is rolled down to the right (a negative tilt), so it rises on its left.
+  const side = lengths[PATH_STEPS / 4] - front;
+  return { length, at, side };
 }
 
-/** The band, its ink edges, and five squares on each face that shows them, lit as many as the cost. */
+/**
+ * Where a sash's rows of squares sit along its band, and how much smaller than full size they
+ * are. The board's camera looks at the other team's fronts and at your own creatures' backs,
+ * so each body needs a row facing each way. A flat front and back each take one. On a round
+ * body the bulge hides a band's front and back from above, so its rows sit on the raised left
+ * flank, one each side of the middle, in a quarter of the band each: they face up and toward
+ * the front, and up and toward the back. A narrow band shrinks its squares to fit.
+ */
+function rowsOf(fit: SashFit, path: ReturnType<typeof bandPath>): { middles: number[]; scale: number } {
+  if (fit.squares === "front") return { middles: [0, path.length / 2], scale: 1 };
+  const quarter = path.length / 4;
+  // Each row sits in the middle of its quarter, 45° off the front or the back, and is at most
+  // the quarter less the spacing long, so the two stop that far apart on top of the flank.
+  const scale = Math.min(1, (quarter - ROW_SPACING) / ROW_LENGTH);
+  return { middles: [path.side + quarter / 2, path.side - quarter / 2], scale };
+}
+
+/** The band, its ink edges, and five squares in each row, lit as many as the cost. */
 function sashQuads(fit: SashFit, sash: Sash): Quad[] {
   const path = bandPath(fit);
   const [cos, sin] = [Math.cos(fit.tilt), Math.sin(fit.tilt)];
   const place = ([x, y, z]: Vector): Vector => [fit.at[0] + x * cos - y * sin, fit.at[1] + x * sin + y * cos, fit.at[2] + z];
   const turn = ([x, y, z]: Vector): Vector => [x * cos - y * sin, x * sin + y * cos, z];
-  const strip = (from: number, to: number, half: number, lift: number, paint: string): Quad => {
+  const [leanCos, leanSin] = [Math.cos(fit.leans), Math.sin(fit.leans)];
+  const strip = (piece: Quad["piece"], from: number, to: number, half: number, lift: number, paint: string): Quad => {
     const [start, end] = [path.at(from), path.at(to)];
-    const point = (along: Along, height: number): Vector => place([along.point[0] + along.out[0] * lift, height, along.point[1] + along.out[1] * lift]);
-    const out = turn(normalised([start.out[0] + end.out[0], 0, start.out[1] + end.out[1]]));
-    return { corners: [point(start, -half), point(end, -half), point(end, half), point(start, half)], normal: out, paint };
+    // Out from the band and up across it, both leaned back with the band.
+    const outOf = (along: Along): Vector => [along.out[0] * leanCos, leanSin, along.out[1] * leanCos];
+    const acrossOf = (along: Along): Vector => [-along.out[0] * leanSin, leanCos, -along.out[1] * leanSin];
+    const point = (along: Along, height: number): Vector => {
+      const [out, across] = [outOf(along), acrossOf(along)];
+      return place([along.point[0] + out[0] * lift + across[0] * height, out[1] * lift + across[1] * height, along.point[1] + out[2] * lift + across[2] * height]);
+    };
+    const [startOut, endOut] = [outOf(start), outOf(end)];
+    const out = turn(normalised([startOut[0] + endOut[0], startOut[1] + endOut[1], startOut[2] + endOut[2]]));
+    return { piece, corners: [point(start, -half), point(end, -half), point(end, half), point(start, half)], normal: out, paint };
   };
   const step = path.length / BAND_STEPS;
-  const band = Array.from({ length: BAND_STEPS }, (_, i) => [strip(i * step, (i + 1) * step, BAND_WIDTH / 2 + INK_EDGE, -INK_SINK, SASH_INK), strip(i * step, (i + 1) * step, BAND_WIDTH / 2, 0, SASH_BAND)]).flat();
+  const band = Array.from({ length: BAND_STEPS }, (_, i) => [strip("band", i * step, (i + 1) * step, BAND_WIDTH / 2 + INK_EDGE, -INK_SINK, SASH_INK), strip("band", i * step, (i + 1) * step, BAND_WIDTH / 2, 0, SASH_BAND)]).flat();
   // The band runs round from the front toward the right flank, so every row reads from the
   // viewer's left, whichever side the viewer stands on.
-  const middles = fit.squares === "front" ? [0, path.length / 2] : [path.raised];
+  const { middles, scale } = rowsOf(fit, path);
+  const [square, pitch] = [SQUARE * scale, (SQUARE + SQUARE_GAP) * scale];
   const squares = middles.flatMap((middle) =>
     Array.from({ length: SASH_SQUARES }, (_, i) => {
-      const centre = middle + (i - (SASH_SQUARES - 1) / 2) * (SQUARE + SQUARE_GAP);
-      return strip(centre - SQUARE / 2, centre + SQUARE / 2, SQUARE / 2, SQUARE_LIFT, i < sash.lit ? sash.tier : SASH_EMPTY);
+      const centre = middle + (i - (SASH_SQUARES - 1) / 2) * pitch;
+      return strip("square", centre - square / 2, centre + square / 2, square / 2, SQUARE_LIFT, i < sash.lit ? sash.tier : SASH_EMPTY);
     }),
   );
   return [...band, ...squares];

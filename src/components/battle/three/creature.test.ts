@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { assemble, type Vector } from "../../../../server/creature-parts";
 import { creatureRecipe } from "../../../../server/creature-recipe";
 import { creatureSticker } from "../../../../server/creature-sticker";
 import recorded from "./creature.fixture.json";
@@ -70,4 +71,38 @@ describe("a repo's creature", () => {
     expect(printOf(koosh).parts.filter((part) => part.paints)).toEqual([]);
     expect(creatureSticker(creatureRecipe(koosh), { x: 0, y: 0, size: 200 })).not.toContain(`fill="${EMPTY}"`);
   });
+
+  // Where the board's camera is, seen from a creature on a wide screen, measured on the
+  // dev page (creatures.html?view=board&shelf=0): how far above the ground it is, and how
+  // far round from the creature's front, over every cell and Drafts slot of that side.
+  const SIDES = [
+    { side: "the other team's", above: [0.68, 0.75], round: [-0.21, 0.21] },
+    { side: "your own", above: [0.81, 0.91], round: [Math.PI - 0.24, Math.PI + 0.29] },
+    { side: "the Drafts shelf's", above: [0.99, 1.04], round: [0.11, -0.62] },
+  ] as const;
+  // A square turned more than about 72° from the camera is a sliver at the board's zoom.
+  const MIN_FACING = 0.3;
+
+  const towardCamera = (above: number, round: number): Vector => [Math.sin(round) * Math.cos(above), Math.sin(above), Math.cos(round) * Math.cos(above)];
+
+  test.each(RUN_CREATURES.flatMap((fighter) => SIDES.map((where) => [fighter.fullName, where.side, where, fighter] as const)))(
+    "turns a whole row of its sash's squares toward the board's camera, when %s stands on %s side",
+    (_name, _side, where, fighter) => {
+      // Regression guarded: a round body wore one row of squares on its front flank, so the
+      // camera behind your own creatures saw a sliver of it or nothing, and your board's costs
+      // read only on the block-shaped bodies. And the wisp wore its band round its neck, under
+      // its head, turned away from the camera on both sides of the board. This test checks
+      // which way the squares face, not whether the body hides them (see creatures.html).
+      const recipe = creatureRecipe(fighter);
+      const { lit, tier } = recipe.sash ?? { lit: 0, tier: "" };
+      const squares = assemble(recipe).sash.filter(({ paint }) => paint === tier || paint === EMPTY);
+      const rows = Array.from({ length: squares.length / SQUARES }, (_, row) => squares.slice(row * SQUARES, (row + 1) * SQUARES));
+      for (const [above, round] of where.above.flatMap((height) => where.round.map((turn) => [height, turn] as const))) {
+        const view = towardCamera(above, round);
+        const facesCamera = ({ normal }: (typeof squares)[number]) => normal[0] * view[0] + normal[1] * view[1] + normal[2] * view[2] > MIN_FACING;
+        const seenWhole = rows.filter((row) => row.every(facesCamera)).map((row) => row.map(({ paint }) => (paint === tier ? "lit" : "empty")));
+        expect({ above, round, seenWhole: seenWhole.slice(0, 1) }).toEqual({ above, round, seenWhole: [Array.from({ length: SQUARES }, (_, i) => (i < lit ? "lit" : "empty"))] });
+      }
+    },
+  );
 });

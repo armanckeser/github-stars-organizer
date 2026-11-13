@@ -6,7 +6,8 @@ import type { Card, FightEvent, Placed, Side, Snapshot } from "./types.ts";
 // side 0 within it. Side 1 opens with a hit on every enemy (the `opening-volley`
 // boost), which knocks out side 0's fragile second card at once: the first card is
 // hurt and has lost a teammate from the first tick. Two strong cards then wear the
-// first card down past half its HP while it hits them many times.
+// first card down past half its HP while it hits them many times. No two cards on a
+// side share a type, so no family bonus (sets.ts) fires unless a test asks for one.
 
 export const card = (fullName: string, over: Partial<Card> = {}): Card => ({ fullName, type: "web", sets: [], rarity: 0, hp: 150, attack: 100, guard: 100, speed: 100, range: 1, ability: "none", shiny: false, ...over });
 
@@ -14,8 +15,8 @@ export const card = (fullName: string, over: Partial<Card> = {}): Card => ({ ful
 export function greendale(first: Partial<Card> = {}, sets: [string[], string[], string[]] = [[], [], []], boosts: string[] = []): Snapshot {
   const units: Placed[] = [
     { card: card("greendale/troy", { hp: 600, sets: sets[0], ...first }), col: 1, row: 0 },
-    { card: card("greendale/pierce", { hp: 3, sets: sets[1] }), col: 2, row: 0 },
-    { card: card("greendale/abed", { hp: 600, range: 3, sets: sets[2] }), col: 1, row: 1 },
+    { card: card("greendale/pierce", { hp: 3, type: "apps", sets: sets[1] }), col: 2, row: 0 },
+    { card: card("greendale/abed", { hp: 600, range: 3, type: "data", sets: sets[2] }), col: 1, row: 1 },
   ];
   return { login: "greendale", round: 3, units, boosts };
 }
@@ -25,7 +26,7 @@ export const cityCollege: Snapshot = {
   round: 3,
   units: [
     { card: card("city-college/chang", { hp: 4000, attack: 160 }), col: 1, row: 0 },
-    { card: card("city-college/dean", { hp: 4000, attack: 160 }), col: 2, row: 0 },
+    { card: card("city-college/dean", { hp: 4000, attack: 160, type: "systems" }), col: 2, row: 0 },
   ],
   boosts: ["opening-volley"],
 };

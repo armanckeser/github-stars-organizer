@@ -1,4 +1,5 @@
 import "../index.css";
+import { CARD_TYPES } from "../../server/battle";
 import { BoardWorld, type BoardUnit } from "../components/battle/three/board";
 import { CREATURE_REPOS } from "../components/battle/three/creature-fingerprint";
 import { ABILITIES } from "../../server/run/abilities";
@@ -6,27 +7,32 @@ import { BOOSTS } from "../../server/run/boosts";
 import { fight } from "../../server/run/fight";
 import type { Effect } from "../../server/run/hooks";
 import { effectsOf, sourceOf } from "../../server/run/names";
-import { SETS } from "../../server/run/sets";
+import { COMMON_TOPICS, FAMILIES } from "../../server/run/sets";
 import { cityCollege, greendale } from "../../server/run/testbed";
 import { cellOf, type FightEvent, type Side, type Snapshot } from "../../server/run/types";
 
 // A page that plays one ability, set bonus or boost on the real board, from a real fight,
 // so its effect can be looked at and screenshotted alone. Open /fx.html?play=<id>, for
-// example ?play=fork-bomb, ?play=boost:head-start or ?play=set:typescript.
+// example ?play=fork-bomb, ?play=boost:head-start or ?play=set:web.
 //
 // The fight is the ability tests' testbed (server/run/testbed.ts): every trigger happens
 // to side 0's first card. Every other ability event is dropped, so only the chosen one is
 // drawn; the hits, heals and conditions of the whole fight still play.
 
 const KINDS: Effect["kind"][] = ["damage", "shield", "heal", "stat", "condition"];
-const SOURCES = [...ABILITIES.map((ability) => ability.id), ...BOOSTS.map((boost) => `boost:${boost.id}`), ...SETS.map((bonus) => `set:${bonus.set}`)];
+const SOURCES = [...ABILITIES.map((ability) => ability.id), ...BOOSTS.map((boost) => `boost:${boost.id}`), ...[...Object.keys(FAMILIES), COMMON_TOPICS[0]].map((set) => `set:${set}`)];
+
+/** Side 0 with all three cards in the set: a family's by their type, a topic's by their topics. */
+function setTeam(set: string): Snapshot {
+  const team = greendale({}, [[set], [set], [set]]);
+  const family = CARD_TYPES.find((type) => type === set);
+  if (!family) return team;
+  return { ...team, units: team.units.map((unit) => ({ ...unit, card: { ...unit.card, type: family } })) };
+}
 
 function teamsFor(source: string): [Snapshot, Snapshot] {
   if (source.startsWith("boost:")) return [greendale({}, [[], [], []], [source.slice("boost:".length)]), { ...cityCollege, boosts: ["opening-volley"] }];
-  if (source.startsWith("set:")) {
-    const set = source.slice("set:".length);
-    return [greendale({}, [[set], [set], [set]]), cityCollege];
-  }
+  if (source.startsWith("set:")) return [setTeam(source.slice("set:".length)), cityCollege];
   return [greendale({ ability: source }), cityCollege];
 }
 

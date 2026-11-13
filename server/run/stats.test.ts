@@ -99,9 +99,9 @@ describe("cardFor", () => {
     expect(cardFor(repo({ language }), NOW).range).toBe(range);
   });
 
-  it("puts the language and up to two topics in the card's sets, lower-case", () => {
-    expect(cardFor(repo({ topics: ["cli", "ai", "web"] }), NOW).sets).toEqual(["typescript", "cli", "ai"]);
-    expect(cardFor(repo({ language: null }), NOW).sets).toEqual([]);
+  it("puts the family and up to two topics in the card's sets, lower-case", () => {
+    expect(cardFor(repo({ topics: ["cli", "ai", "web"] }), NOW).sets).toEqual(["web", "cli", "ai"]);
+    expect(cardFor(repo({ language: null }), NOW).sets).toEqual(["docs"]);
   });
 });
 

@@ -37,14 +37,29 @@ export type Aim = "self" | "foe" | "weakest-foe" | "foes" | "weakest-ally" | "al
 export type Stat = "attack" | "guard" | "speed" | "critical" | "luck" | "haste";
 
 /**
- * One at a time per card, for 3 seconds:
- * - `merge-conflict`: one hit in three lands on the card itself.
- * - `rate-limited`: the card waits half as long again between actions.
- * - `deprecated`: the card loses a thirtieth of its full HP each second.
- * - `flaky`: one hit in four misses.
+ * One at a time per card, for CONDITION_TICKS (3 seconds):
+ * - `merge-conflict`: one hit in three (MERGE_CONFLICT_ODDS) lands on the card itself.
+ * - `rate-limited`: the card waits half as long again (RATE_LIMITED) between actions.
+ * - `deprecated`: the card loses a thirtieth of its full HP each second (deprecatedLoss).
+ * - `flaky`: one hit in four (FLAKY_ODDS) misses.
+ *
+ * The engine (fight.ts) and the words the screen shows (names.ts `conditionLine`) both
+ * read the numbers below, so a change to one changes what the player is told.
  */
 export const CONDITIONS = ["merge-conflict", "rate-limited", "deprecated", "flaky"] as const;
 export type Condition = (typeof CONDITIONS)[number];
+
+export const CONDITION_TICKS = 30;
+export const MERGE_CONFLICT_ODDS = 1 / 3;
+/** A rate-limited card waits this many times as long between actions. */
+export const RATE_LIMITED = 1.5;
+/** A deprecated card loses this share of its full HP every DEPRECATED_EVERY ticks. */
+export const DEPRECATED_SHARE = 1 / 30;
+export const DEPRECATED_EVERY = 10;
+export const FLAKY_ODDS = 1 / 4;
+
+/** The HP a deprecated card with `fullHp` loses each time the condition bites. */
+export const deprecatedLoss = (fullHp: number) => Math.max(1, Math.round(fullHp * DEPRECATED_SHARE));
 
 export type Effect =
   /** A hit of `power` times the card's normal hit, never critical. */

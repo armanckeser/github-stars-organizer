@@ -1,5 +1,5 @@
 import { seededRandom } from "../battle.ts";
-import { type Aim, type Condition, type Effect, type Gate, type Hook, type Rules, type Trigger } from "./hooks.ts";
+import { CONDITION_TICKS, DEPRECATED_EVERY, deprecatedLoss, FLAKY_ODDS, MERGE_CONFLICT_ODDS, RATE_LIMITED, type Aim, type Condition, type Effect, type Gate, type Hook, type Rules, type Trigger } from "./hooks.ts";
 import { GAME_RULES } from "./game-rules.ts";
 import { EVEN } from "./stats.ts";
 import { cellOf, COLS, ROWS, type Card, type Fight, type FightEvent, type Side } from "./types.ts";
@@ -38,13 +38,6 @@ const FIRST_ACTION_SPREAD = 8;
 /** A hit lands for 70% to 130% of its damage. */
 const VARIANCE = 0.6;
 const THIRD = 3;
-const CONDITION_TICKS = 30;
-/** A deprecated card loses this share of its full HP every DEPRECATED_EVERY ticks. */
-const DEPRECATED_SHARE = 1 / 30;
-const DEPRECATED_EVERY = 10;
-const MERGE_CONFLICT_ODDS = 1 / 3;
-const FLAKY_ODDS = 1 / 4;
-const RATE_LIMITED = 1.5;
 
 type Scaled = "attack" | "guard" | "speed";
 
@@ -210,7 +203,7 @@ function wearConditions(arena: Arena) {
     if (!condition || unit.hp <= 0) continue;
     if (condition.name === "deprecated" && arena.t >= condition.bite) {
       condition.bite = arena.t + DEPRECATED_EVERY;
-      wound(arena, condition.from, unit, Math.max(1, Math.round(unit.card.hp * DEPRECATED_SHARE)), false);
+      wound(arena, condition.from, unit, deprecatedLoss(unit.card.hp), false);
     }
     if (unit.hp > 0 && arena.t >= condition.until) {
       unit.condition = null;

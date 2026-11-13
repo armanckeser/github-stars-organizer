@@ -99,13 +99,14 @@ What fired is drawn on the board, not written. One look per effect kind, so ever
 - **Heal:** green, the green of the "+n" numbers. Light rises from the floor under the creature with a few rising plus signs.
 - **Stat:** gold chevrons rise for a stat going up, red chevrons fall for one going down, with a ring at the feet.
 - **Condition:** an orb in the condition's own colour travels to the target, which then wears the badge as before.
+- **Looking at a creature:** in a fight, a tap on a creature, or on its condition badge, opens its panel without pausing the fight, as TFT's unit panel does. It is never a modal: it docks at the right edge, or along the bottom on a phone, where the camera lifts the board clear of it. It shows the name and side, HP and shield as numbers and a bar, the condition as a sentence with the seconds left, the ability, and the creature's live set bonuses, all as the fight plays. It closes on a tap on the floor, Escape, its close button, or a moment after the creature faints. A condition's sentence comes from `conditionLine` (`server/run/names.ts`), which reads the numbers the engine uses (`server/run/hooks.ts`). From the keyboard, Tab reaches a row of the creatures' names.
 - Effects are short (under 0.6 s, a shield's bubble aside), additive light, and never cover an HP bar. With reduced motion nothing travels, spins or shakes: the result, numbers included, shows in place and fades.
 - Nothing overlaps an HP bar.
 
 ## 10. Type and words
 
 - Clash Display (the app's display face, loaded at 500 to 700) for names, numbers, titles and short labels. Space Grotesk for sentences. Nothing else. Play must not change the app's fonts: they are set in `src/index.css` for every screen.
-- On screen at rest: names, counts and costs only. Sentences live in the card face, hover text and the boost pick.
+- On screen at rest: names, counts and costs only. Sentences live in the card face, hover text, the boost pick and a fight's creature panel.
 - Motion is short and physical: a lift on pickup, a settle on drop, the lid opening. Respect `prefers-reduced-motion`.
 
 ## Changed from the first draft

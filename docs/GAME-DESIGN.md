@@ -307,6 +307,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | "Play a run" sounds meh: say "Play Stard" everywhere (share pictures, README badge, team page button, team preview). | built (#77) |
 | Share pictures show creatures (flat stickers), fill the set hexes, title only. README GIF ends on the new end screen. | built (#71, #77) |
 | Front page: a normal-size Play button beside the title, no sample-account button. | built |
+| Characters for the 12 opponents: ship all 12 (and `armanckeser`), kind and plain (hair, glasses, top, colours; no beards or anything that could read as a caricature), drawn from their public avatars. Removal path in `OPPONENTS.md` and `characters/README.md`: their own `stard/character.md` wins, or ask and the file is deleted. An opted-out account (`stard/no-play` or the block list) never shows the file. One line on the privacy page, pending the owner's wording. | branch `characters` (#72) |
 
 **Demo and speed**
 

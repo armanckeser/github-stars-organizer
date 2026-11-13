@@ -20,7 +20,7 @@ describe("fetchPlayer", () => {
 
     expect(asked).toHaveLength(1);
     expect(asked[0].pathname).toBe("/api/run/pool");
-    expect(Object.fromEntries(asked[0].searchParams)).toEqual({ login: "study-group-abed", for: "study-group-annie", _shape: "5" });
+    expect(Object.fromEntries(asked[0].searchParams)).toEqual({ login: "study-group-abed", for: "study-group-annie", _shape: "6" });
   });
 
   test("raises the Worker's message when the pool can't be read", async () => {

@@ -2,6 +2,7 @@ import { battle, drawFromStars, fieldTeam, instantSeed, type Fighter, type RepoF
 import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
 import { characterFrom, characterLevel, chosenCharacter, defaultCharacter, listedCharacterPath, type Character } from "../../server/character.ts";
 import { SELF_REPO } from "../../server/self-repo.ts";
+import { NO_PLAY_FILE } from "./no-play.ts";
 import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
 import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
@@ -152,7 +153,7 @@ export async function teamFor(token: string, login: string, now: number, size = 
       login: string;
       avatarUrl: string;
       profile: { readme: { text?: string } | null } | null;
-      stard: { readme: { text?: string } | null; character?: { text?: string } | null } | null;
+      stard: { readme: { text?: string } | null; character?: { text?: string } | null; noPlay?: { oid: string } | null } | null;
       pinnedItems: { nodes: ({ nameWithOwner: string } | Record<string, never>)[] };
       repositories: { nodes: { nameWithOwner: string }[] };
       starredRepositories: { nodes: { nameWithOwner: string; isPrivate: boolean }[] };
@@ -167,6 +168,7 @@ export async function teamFor(token: string, login: string, now: number, size = 
       stard: repository(name: "stard") {
         readme: object(expression: "HEAD:README.md") { ... on Blob { text } }
         character: object(expression: "HEAD:character.md") { ... on Blob { text } }
+        noPlay: object(expression: ${JSON.stringify(`HEAD:${NO_PLAY_FILE}`)}) { oid }
       }
       pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { nameWithOwner } } }
       repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { nameWithOwner } }
@@ -182,7 +184,10 @@ export async function teamFor(token: string, login: string, now: number, size = 
   // Nobody has to give their profile README over to the game: a repo called `stard`
   // is read first, and the two are read together so a part can live in either.
   const readme = `${user.stard?.readme?.text ?? ""}\n${user.profile?.readme?.text ?? ""}`;
-  const built = chosenCharacter({ ownFile: user.stard?.character?.text ?? null, readme, listedFile: data.here?.character?.text ?? null }, user.login);
+  // The file kept here was drawn by someone else, so an account that opted out of being
+  // played (OPPONENTS.md) never shows it; its own file and README card still count.
+  const listedFile = user.stard?.noPlay ? null : (data.here?.character?.text ?? null);
+  const built = chosenCharacter({ ownFile: user.stard?.character?.text ?? null, readme, listedFile }, user.login);
   const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
 
   // The pinned and top repos are read by name only here, and their facts later in the

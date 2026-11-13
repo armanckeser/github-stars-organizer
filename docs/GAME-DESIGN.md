@@ -30,7 +30,7 @@ Decided 2026-11-11: the run. A friend's point: picking a move each turn is an ol
 5. After rounds 2 and 4, pick one of three boosts.
 6. The run ends at 5 wins or 3 losses. About five minutes.
 
-- **Sets.** Cards that share a language or a topic give a bonus at 2 and at 3 (three TypeScript cards, two `cli` cards). Types become sets. No rule ever forbids a mix.
+- **Sets.** Cards of one family (Systems, Scripts, Web, Apps, Data, Docs, from the language) or that share a topic give a bonus at 2 and a bigger one at 4. No rule ever forbids a mix. See "The sets" below.
 - **Saved teams.** A finished round is saved as a signed snapshot: the cards with their numbers frozen, the order, the boosts. A fight is worked out from two snapshots and a seed, so anyone can replay a fight and get the same result even after the repos change.
 - **Challenge a person.** A challenge link fights that person's latest saved team. No waiting for a reply.
 - **Demo.** Playable with no login: type a username, draft from that account's public stars, fight saved teams. Well-known accounts are seeded so the first visitor has opponents.
@@ -196,6 +196,30 @@ Next, in order of what a viewer notices:
 5. Sealed simultaneous moves and paste-to-play, in the chosen arena repo.
 6. Record, ladder, upset line.
 
+## The sets
+
+A card has one family, from its language (its type), and up to two of its repo's topics. Each family does one thing no other set does. Every topic does the same plain thing, so a topic never hides a rule. A set gives its bonus to the cards that share it, at 2 cards and, bigger, at 4. Code: `server/run/sets.ts`. Held to its band by `server/run/set-strength.test.ts`.
+
+| Set | Languages | Name | At 2 cards, each of them | At 4 cards, each of them | Wins gained at 2 / 4 |
+|---|---|---|---|---|---|
+| Systems | Rust, C, C++, Go, Zig, Haskell, Elixir ... | Extra hit | Every third hit adds another hit of 25%. | ... of 30%. | +10.5 / +19.9 |
+| Scripts | Shell, Ruby, PHP, Lua, Perl, Nix ... | Opening hit | As the fight starts, hits every enemy for 25% of a hit. | ... for 28%. | +12.5 / +22.9 |
+| Web | TypeScript, JavaScript, HTML, CSS, Vue ... | Shield | Starts each fight with a shield of 5% of its HP. | ... of 8%. | +12.1 / +20.6 |
+| Apps | Swift, Kotlin, Java, C#, Dart ... | Guard | Each hit it takes adds 4% guard. | ... 7%. | +10.0 / +23.4 |
+| Data | Python, Jupyter Notebook, R, Julia ... | Critical | Lands a critical hit on 16% of its hits, not 6%. | ... on 21%. | +10.7 / +24.5 |
+| Docs | no language, or one the game doesn't know | Heal | Every third hit heals it 2.5% of its HP. | ... 5%. | +12.0 / +22.9 |
+| Any topic two cards share | | Faster | Acts 7% more often. | ... 9%. | +11.0 / +22.1 |
+
+"Wins gained" is win-rate points, the same fights with and without the bonus, on the test fixture's 200 repos: 4 cards a side for the 2-card bonus, 5 for the 4-card one. The band is +8 to +14 at 2 and +18 to +26 at 4. Fights are close, so about 2 HP is one point: the amounts look small and still count. On the 12 opponents' and the owner's real pools (297 cards) every cell is in the band but Docs at 4 (+12.5): real Docs repos are weak cards, and no heal tried lifted four of them past +17. Re-measure: `node scripts/balance/strength.ts`.
+
+**Why these rules (measured 2026-11-13 on the real pools)**
+
+- **Six families, no language sets.** The 20 language sets and 6 type sets gave bonuses from 0 points (JavaScript's speed, CLI's speed, the Scripts type) to +38 (PHP) at 2 cards, and many said the same thing (three were "more guard", three "more speed").
+- **One topic bonus.** Topics are long-tail: the 276 different repos in those pools carry 292 topics, 233 of them different, and the 6 common ones are 7% of them. 128 repos have no topic. On the owner's 5-card boards a shared topic is live 0.21 times, a common one 0.04 times, so named topic bonuses would almost never be seen. A topic on one card is not a check and is not listed.
+- **Tiers 2 and 4.** On the owner's 5-card boards, 47% have 3 cards of one family and 9% have 4 (21% at 6 cards). On the opponents' boards it is 81% and 48%. At 2 and 3 nearly every board reaches the top tier, so it is no goal; at 4 it is one to build toward.
+
+**Checks list:** every family on the board (each is live or one card from live) and every topic two cards share; live ones first. Owner boards show 1.8 rows at 2 cards, 3.2 at 5 and 3.6 at 6 (10.6 at 5 before).
+
 ## Everything else that came up
 
 Ideas and open items from the design conversations that the sections above don't cover. None of these is scheduled.
@@ -301,6 +325,8 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |
 | "Do they even matter then?" about the checks. Measured: speed did nothing at all. Each wait between hits was rounded to whole ticks, so every real card (speed 100 to 138) waited 10 ticks, and the speed stat and the three speed bonuses changed no fight. Waits now keep their fractions. | branch `sets-speed-fix` (#100) |
+| "The checks are very meh, they all have the same bonuses almost? ... there are soooo many types." 20 language sets and 6 type sets, several saying the same thing, from 0 to +38 win points. Now six families from the language, each with one thing it does, and one plain bonus for any topic two cards share, at 2 and 4 cards, each worth +8 to +14 points at 2 and +18 to +26 at 4. See "The sets". | branch `sets-redesign` (#PR) |
+| "Claude-code: No bonus: mixed types. I have no idea what types are, what mixing them means, what the bonuses would be." The line is gone: a shared topic always gives its bonus, and each set line names the family or topic, what it does and the count ("Web: Shield 2/4"). The checks list shows what each row does, and only families and the topics two cards share (3.2 rows on a 5-card board, 10.6 before). | branch `sets-redesign` (#PR) |
 | A resent run token can retry a round. Accepted for now. | built |
 
 **Look**

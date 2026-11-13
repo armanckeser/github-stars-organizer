@@ -1,6 +1,6 @@
 skin: fair
-hair: medium
+hair: bun
 hair-color: black
 beard: full
 top: jacket
-top-color: #1f2328
+top-color: #2f5a94

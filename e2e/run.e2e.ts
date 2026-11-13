@@ -32,6 +32,14 @@ const archiveSpot = (page: Page) => page.evaluate(() => window.stardBoard!.scree
 const slotSpot = (page: Page, slot: number) => page.evaluate((index) => window.stardBoard!.screenOfSlot(index), slot);
 const unitSpot = (page: Page, fullName: string) => page.evaluate((id) => window.stardBoard!.screenOfUnit(id), `0:${fullName}`);
 const aceName = () => poolFor("abed").team[0].fullName;
+const shopNames = (page: Page) => page.getByRole("button", { name: /^Look at / }).evaluateAll((all) => all.map((card) => card.getAttribute("aria-label")));
+// Every card a hundred times as strong, so the run wins every round whatever its seed's opponents.
+const STRENGTH = 100;
+const strongAbed = (login: string): Player => {
+  const pool = poolFor(login);
+  if (login !== "abed") return pool;
+  return { ...pool, team: pool.team.map((fighter) => ({ ...fighter, card: { ...fighter.card, hp: fighter.card.hp * STRENGTH, attack: fighter.card.attack * STRENGTH } })) };
+};
 
 /** Waits until the camera has stopped moving: it dollies when the shop folds or opens, as after a boost pick. */
 async function settled(page: Page) {
@@ -165,14 +173,21 @@ test("a check's hover names the cards on the board that fill it", async ({ page 
 
 test("a reroll costs one gold and shows other cards", async ({ page }) => {
   await startRun(page);
-  const shopNames = () => page.getByRole("button", { name: /^Look at / }).evaluateAll((all) => all.map((card) => card.getAttribute("aria-label")));
-  const before = await shopNames();
+  const before = await shopNames(page);
   const goldBefore = await gold(page);
 
   await page.getByRole("button", { name: /^Reroll/ }).click();
 
   expect(await gold(page)).toBe(goldBefore - 1);
-  expect(await shopNames()).not.toEqual(before);
+  expect(await shopNames(page)).not.toEqual(before);
+});
+
+test("a second run for the same account deals another first shop", async ({ page }) => {
+  // Regression guarded: every run on one day dealt the same first shop, because the shops were seeded with the date.
+  await startRun(page);
+  const first = await shopNames(page);
+  await startRun(page);
+  expect(await shopNames(page)).not.toEqual(first);
 });
 
 test("a bought slot lets one more card on the board", async ({ page }) => {
@@ -187,7 +202,9 @@ test("a bought slot lets one more card on the board", async ({ page }) => {
 test("a whole run plays to its end, with the two boost picks", async ({ page }) => {
   // Seven rounds of software WebGL: about 40 s on a laptop and over 120 s on CI's runner.
   test.setTimeout(360_000);
-  await startRun(page);
+  // Each run draws its own opponents, so abed is strong here: the run wins rounds 1 to 5 and meets both boost picks, whatever its seed.
+  await startRun(page, "", strongAbed);
+  const firstShop = await shopNames(page);
   const free = [[2, 0], [0, 0], [3, 0], [1, 1], [2, 1], [0, 1], [3, 1]];
   let picks = 0;
   for (let round = 1; round <= 7; round++) {
@@ -219,6 +236,11 @@ test("a whole run plays to its end, with the two boost picks", async ({ page }) 
   await expect(page.getByText(/^Run (finished|over)$/)).toBeVisible();
   await expect(page.getByText(/^\d wins?, \d loss(es)?$/)).toBeVisible();
   expect(picks).toBe(2);
+
+  // New run deals afresh: its first shop isn't the last run's.
+  await page.getByRole("button", { name: "New run" }).click();
+  await expect(page.getByLabel("1 of 2 cards on the board").locator("visible=true")).toBeVisible();
+  expect(await shopNames(page)).not.toEqual(firstShop);
 });
 
 test("?fps=1 shows a frame counter", async ({ page }) => {
@@ -233,13 +255,6 @@ test("without ?fps=1 there is no frame counter", async ({ page }) => {
 
 // A share link's token, as the Worker would hand one back; the browser never opens it.
 const TOKEN = "abeds-team-token";
-// Every card a hundred times as strong, so the run wins every round whatever the day's opponents.
-const STRENGTH = 100;
-const strongAbed = (login: string): Player => {
-  const pool = poolFor(login);
-  if (login !== "abed") return pool;
-  return { ...pool, team: pool.team.map((fighter) => ({ ...fighter, card: { ...fighter.card, hp: fighter.card.hp * STRENGTH, attack: fighter.card.attack * STRENGTH } })) };
-};
 
 test("the end screen names who the run beat, and copies a challenge with the friend on the link", async ({ page, context }) => {
   // Regression guarded: a run's end was a dead end, with no one named and nothing to send a friend.
@@ -296,4 +311,56 @@ test("a team link without a friend, or with one that isn't a username, greets no
   await expect(page.getByText(/challenges you/)).toHaveCount(0);
   await page.getByRole("link", { name: "Beat this team" }).click();
   await expect.poll(() => Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ against: TOKEN });
+});
+
+/** Fights every round with the board as it stands, taking the first boost offered, until the run ends. */
+async function fightToEnd(page: Page) {
+  const ended = page.getByText(/^Run (finished|over)$/);
+  for (let round = 1; round <= 12 && !(await ended.isVisible()); round++) {
+    await page.getByRole("button", { name: "Fight" }).locator("visible=true").click();
+    await page.getByRole("button", { name: "Skip" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    const boost = page.getByRole("dialog", { name: "Pick a boost" });
+    const next = page.getByLabel(/ cards on the board$/).locator("visible=true");
+    await expect(ended.or(boost).or(next).first()).toBeVisible({ timeout: 30_000 });
+    if (await boost.isVisible()) await boost.getByRole("button").first().click();
+  }
+  await expect(ended).toBeVisible();
+}
+
+test("a challenge goes from one run's end to the friend's own run against that team, each saved with its own seed", async ({ page, context }) => {
+  // Regression guarded: a team save that sent no run seed, which the Worker refuses, since it
+  // replays the fights against the opponents that seed picked. The friend's run draws its own seed.
+  test.setTimeout(360_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const saves: { login: string; seed: string; against?: string }[] = [];
+  await page.route("**/api/run/team", (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    saves.push(route.request().postDataJSON() as (typeof saves)[number]);
+    return route.fulfill({ json: { token: TOKEN } });
+  });
+  await page.route("**/api/run/team?t=*", (route) => route.fulfill({ json: savedAbed() }));
+  await startRun(page, "", strongAbed);
+  await fightToEnd(page);
+  await page.getByLabel("Friend's GitHub username").fill("annie");
+  await page.getByRole("button", { name: "Challenge a friend" }).click();
+  const message = await page.evaluate(() => navigator.clipboard.readText());
+  const link = new URL(message.slice(message.indexOf(APP_URL)));
+  expect(Object.fromEntries(link.searchParams)).toEqual({ t: TOKEN, to: "annie" });
+
+  await page.goto(`${link.pathname}${link.search}`);
+  await page.getByRole("link", { name: "Beat this team" }).click();
+  await expect(page.getByLabel("Your GitHub username")).toHaveValue("annie");
+  await page.getByRole("button", { name: "Start a run" }).click();
+  await expect(page.getByRole("button", { name: "About abed" })).toBeVisible();
+  await fightToEnd(page);
+  // A development build's StrictMode runs the end screen's save twice, with the same body; each run's save counts once.
+  const distinct = () => [...new Map(saves.map((save) => [JSON.stringify(save), save])).values()];
+  await expect.poll(() => distinct().length).toBe(2);
+
+  const [mine, friends] = distinct();
+  expect(mine).toMatchObject({ login: "abed", seed: expect.stringMatching(/^[0-9a-f]{32}$/) });
+  expect(mine.against).toBeUndefined();
+  expect(friends).toMatchObject({ login: "annie", against: TOKEN, seed: expect.stringMatching(/^[0-9a-f]{32}$/) });
+  expect(friends.seed).not.toBe(mine.seed);
 });

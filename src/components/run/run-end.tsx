@@ -24,8 +24,10 @@ const COPIED_FOR = 1500;
  * to beat that team. The Worker plays the run's fights again before it hands back the
  * team's link (worker/src/team.ts).
  */
-export function RunEnd({ login, rounds, results, team, wins, losses, against, loading, onNewRun }: {
+export function RunEnd({ login, seed, rounds, results, team, wins, losses, against, loading, onNewRun }: {
   login: string;
+  /** The run's seed, which the Worker replays the fights with. */
+  seed: string;
   /** The team as fought at each round, round 1 first. */
   rounds: Snapshot[];
   /** Each round's opponent and how it went. */
@@ -42,13 +44,13 @@ export function RunEnd({ login, rounds, results, team, wins, losses, against, lo
   useEffect(() => {
     let live = true;
     setSaving({ state: "saving" });
-    saveTeam(login, rounds, against)
+    saveTeam(login, seed, rounds, against)
       .then(({ token }) => live && setSaving({ state: "saved", link: teamLink(token) }))
       .catch((cause: unknown) => live && setSaving({ state: "failed", message: cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The team couldn't be saved." }));
     return () => {
       live = false;
     };
-  }, [login, rounds, against]);
+  }, [login, seed, rounds, against]);
   const beaten = beatenIn(results);
   const lead = beatLine(beaten);
   const newRun = <button type="button" className="hud-button run-panel-link" onClick={onNewRun} disabled={loading}><RotateCcw className="size-4" /> New run</button>;

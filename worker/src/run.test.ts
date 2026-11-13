@@ -13,7 +13,9 @@ import { RunRefused, runResponse, type RunDeps } from "./run.ts";
 const KEY = "the-key-to-greendale";
 const NOW = Date.parse("2026-11-11T12:00:00Z");
 const PLAYER = "greendale";
-const POOL = 21;
+const POOL = 40;
+/** The seed every run in this file starts with, unless a test gives its own. */
+const RUN_SEED = "greendale-run-1";
 
 const fighter = (fullName: string, over: Partial<Fighter> = {}): RunFighter => {
   const base: Fighter = {
@@ -41,6 +43,7 @@ function depsFor(player: Partial<Fighter>, others: Partial<Fighter>, reads: stri
   return {
     key,
     now: NOW,
+    newSeed: () => RUN_SEED,
     optedOut: async () => [],
     read: async (login) => {
       reads.push(login);
@@ -86,7 +89,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("POST /api/run/new", () => {
   it("starts with the ace on the team, 4 gold and a five-card shop without the ace", async () => {
     const body = await started();
-    expect(body.run).toMatchObject({ login: PLAYER, day: "2026-11-11", status: "playing", round: 1, gold: 4, wins: 0, losses: 0, teamSize: 2, team: [{ card: 0, col: 1, row: 0 }], boosts: [], offer: [] });
+    expect(body.run).toMatchObject({ login: PLAYER, seed: RUN_SEED, status: "playing", round: 1, gold: 4, wins: 0, losses: 0, teamSize: 2, team: [{ card: 0, col: 1, row: 0 }], boosts: [], offer: [] });
     expect(body.run.shop).toHaveLength(5);
     expect(body.run.shop.every((slot) => slot !== null && slot.card !== 0 && slot.price === 1)).toBe(true);
     expect(body.ace).toMatchObject({ fullName: "greendale/repo-0" });
@@ -116,14 +119,38 @@ describe("POST /api/run/new", () => {
   });
 });
 
+describe("a new run's seed", () => {
+  // Regression guarded: every run on one day dealt the same shops and opponents, because they were seeded with the date.
+  it("deals two runs on the same day other first shops and other opponents, with the same ace", async () => {
+    const one = await started({ ...commons, newSeed: () => "greendale-run-1" });
+    const two = await started({ ...commons, newSeed: () => "greendale-run-2" });
+    const cards = (body: Body) => body.run.shop.map((slot) => slot?.card);
+    const opponents = async (body: Body) => {
+      const seen: string[] = [];
+      for (let round = 0, state = body; round < 3; round++, state = (await act(state.token, { fight: true })).body) seen.push(String(state.run.opponent));
+      return seen;
+    };
+
+    expect(one.ace).toMatchObject({ fullName: "greendale/repo-0" });
+    expect(two.ace).toMatchObject({ fullName: "greendale/repo-0" });
+    expect(cards(one)).not.toEqual(cards(two));
+    expect(await opponents(one)).not.toEqual(await opponents(two));
+  });
+
+  it("deals the same shop to two runs with the same seed", async () => {
+    // Not a regression: the shops were always a function of their seed. It pins that the seed, and nothing else, varies them.
+    const one = await started({ ...commons, newSeed: () => "greendale-run-1" });
+    const again = await started({ ...commons, newSeed: () => "greendale-run-1" });
+    expect(again.run.shop).toEqual(one.run.shop);
+  });
+});
+
 describe("POST /api/run/act", () => {
-  it("shows the same shop and opponent from the same token, and to a second run on the same day", async () => {
+  it("shows the same shop and opponent again from the same token", async () => {
     const first = await started();
     const reload = (await act(first.token, {})).body;
-    const again = await started();
     expect(reload.run.shop).toEqual(first.run.shop);
-    expect(again.run.shop).toEqual(first.run.shop);
-    expect(again.run.opponent).toBe(first.run.opponent);
+    expect(reload.run.opponent).toBe(first.run.opponent);
   });
 
   it("refuses a token whose run was edited", async () => {

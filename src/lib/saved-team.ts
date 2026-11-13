@@ -14,9 +14,13 @@ async function answered<T>(response: Response, otherwise: string): Promise<T> {
   return body;
 }
 
-/** Saves the team a run fought with at each round. `against` is the saved team's token when the run was played against one. */
-export async function saveTeam(login: string, rounds: Snapshot[], against?: string): Promise<{ token: string; team: SavedTeam }> {
-  const body = { login, against, rounds: rounds.map((round) => ({ units: round.units.map((unit) => ({ repo: unit.card.fullName, col: unit.col, row: unit.row })), boosts: round.boosts })) };
+/**
+ * Saves the team a run fought with at each round. `seed` is the run's (newRunSeed), so
+ * the Worker meets the same opponents when it replays the fights. `against` is the
+ * saved team's token when the run was played against one.
+ */
+export async function saveTeam(login: string, seed: string, rounds: Snapshot[], against?: string): Promise<{ token: string; team: SavedTeam }> {
+  const body = { login, seed, against, rounds: rounds.map((round) => ({ units: round.units.map((unit) => ({ repo: unit.card.fullName, col: unit.col, row: unit.row })), boosts: round.boosts })) };
   const response = await fetch(`${CARD_ORIGIN}/api/run/team`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return answered(response, "The team couldn't be saved.");
 }

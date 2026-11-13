@@ -19,7 +19,7 @@ import { demoUser } from "@/lib/demo";
 import { countEvent } from "@/lib/events";
 import type { RoundResult } from "@/lib/challenge";
 import { validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, newRunSeed, opponentUnits, rangeOf, shopFor, snapshot, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
 import { CLASSES } from "../../server/character";
 import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
@@ -125,6 +125,8 @@ function RunPage() {
   // The team as fought at each round, for the end screen's share link.
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [against, setAgainst] = useState<SavedTeam | null>(null);
+  // Drawn at each start, so every run deals its own shops, rerolls, opponents and boosts.
+  const [seed, setSeed] = useState("");
   // Each round's opponent and how it went, for the end screen's "You beat".
   const [results, setResults] = useState<RoundResult[]>([]);
 
@@ -143,24 +145,24 @@ function RunPage() {
   // For screenshots of the boost pick: `stardOffer(2)` in the console, development builds only.
   useEffect(() => {
     if (!import.meta.env.DEV || !player) return;
-    (window as unknown as { stardOffer?: (round: number) => void }).stardOffer = (number) => setOffer({ round: number, ids: boostOffer(`${player.login}|${today()}|${number}`, boosts) });
-  }, [player, boosts]);
+    (window as unknown as { stardOffer?: (round: number) => void }).stardOffer = (number) => setOffer({ round: number, ids: boostOffer(`${player.login}|${seed}|${number}`, boosts) });
+  }, [player, seed, boosts]);
   const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
   const cap = round ? boardLimit(round.number, bought) : 0;
   const roster: Roster = { board: units, bench };
   const fighting = played !== null && !played.over;
 
-  async function openRound(me: Player, owned: RunFighter[], number: number, saved = against) {
+  async function openRound(me: Player, owned: RunFighter[], number: number, run = seed, saved = against) {
     setLoading(true);
     setError("");
     try {
       if (saved) setRound({ number, ...savedRound(saved, number) });
       else {
-        const opponent = await fetchOpponent(me.login, number);
-        setRound({ number, opponent, theirs: opponentUnits(opponent, number) });
+        const opponent = await fetchOpponent(me.login, number, run);
+        setRound({ number, opponent, theirs: opponentUnits(opponent, number, run) });
       }
       setRerolls(0);
-      setShop(shopFor(me, owned, number, 0));
+      setShop(shopFor(me, owned, number, 0, run));
       setPlayed(null);
       setSelected(null);
       countEvent("round_reached", number);
@@ -175,12 +177,14 @@ function RunPage() {
     if (!validLogin(who)) return;
     setLoading(true);
     setError("");
+    const run = newRunSeed();
     try {
-      // Round 1's opponent is known from the name alone, so both teams are read at once.
-      if (!search.against) fetchOpponent(who, 1).catch(() => {});
+      // Round 1's opponent is known from the name and the seed alone, so both teams are read at once.
+      if (!search.against) fetchOpponent(who, 1, run).catch(() => {});
       const [me, saved] = await Promise.all([fetchPlayer(who), search.against ? openTeam(search.against) : null]);
       const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
       setAgainst(saved);
+      setSeed(run);
       setHistory([]);
       setResults([]);
       setPlayer(me);
@@ -193,7 +197,7 @@ function RunPage() {
       setOffer(null);
       countEvent("run_started");
       if (saved) countEvent("challenge_started");
-      await openRound(me, team.map((unit) => unit.fighter), 1, saved);
+      await openRound(me, team.map((unit) => unit.fighter), 1, run, saved);
     } catch (cause) {
       setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The cards couldn't be read. Check the connection and try again.");
       setLoading(false);
@@ -246,7 +250,7 @@ function RunPage() {
     if (!player || !round || gold < REROLL_COST) return;
     setGold(gold - REROLL_COST);
     setRerolls(rerolls + 1);
-    setShop(shopFor(player, cardsOf(roster), round.number, rerolls + 1));
+    setShop(shopFor(player, cardsOf(roster), round.number, rerolls + 1, seed));
   }
 
   // A creature dropped on a taken cell trades places with the one standing there.
@@ -258,16 +262,16 @@ function RunPage() {
 
   function fight() {
     if (!player || !round || units.length === 0) return;
-    const seed = `${player.login}|${round.opponent.login}|${round.number}|${today()}`;
+    const fightSeed = `${player.login}|${round.opponent.login}|${round.number}|${seed}`;
     const mine = snapshot(player.login, round.number, units, boosts);
     // A saved team fights with the boosts it had at that round, as the Worker replays it (worker/src/team.ts).
     const theirs = against ? savedSnapshotAt(against, round.number) : snapshot(round.opponent.login, round.number, round.theirs);
-    const events = playFight(mine, theirs, seed);
+    const events = playFight(mine, theirs, fightSeed);
     const winner = winnerOf(events);
     setHistory([...history, mine]);
     setResults([...results, { round: round.number, opponent: round.opponent.login, outcome: winner === 0 ? "won" : winner === 1 ? "lost" : "draw" }]);
     setSelected(null);
-    setPlayed({ fight: { key: `${seed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner, over: false });
+    setPlayed({ fight: { key: `${fightSeed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner, over: false });
   }
 
   function next() {
@@ -282,7 +286,7 @@ function RunPage() {
     }
     setGold(gold + counted.earned);
     // The same seed as the Worker's offer (worker/src/run.ts), so both offer the same three.
-    if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${today()}|${round.number}`, boosts) });
+    if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${seed}|${round.number}`, boosts) });
     void openRound(player, cardsOf(roster), round.number + 1);
   }
 
@@ -420,7 +424,7 @@ function RunPage() {
 
       {player && finished && !played && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 p-4">
-          <RunEnd login={player.login} rounds={history} results={results} team={units} wins={wins} losses={losses} against={against ? search.against : undefined} loading={loading} onNewRun={() => void start()} />
+          <RunEnd login={player.login} seed={seed} rounds={history} results={results} team={units} wins={wins} losses={losses} against={against ? search.against : undefined} loading={loading} onNewRun={() => void start()} />
         </div>
       )}
 

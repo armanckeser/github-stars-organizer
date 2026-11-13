@@ -7,7 +7,7 @@ import { poolReply, type PoolDeps } from "./pool.ts";
 // can't fill it, so the shop is never short (worker/src/popular.ts). GitHub is faked at
 // fetch; its search finds the fake repos in each `stars:` range.
 
-const POOL_SIZE = 21;
+const POOL_SIZE = 40;
 const GUEST_OWN = ["greendale/paintball-assassin", "city-college/mascot", "greendale/human-being"];
 
 /** The edge cache, in memory, keeping every entry. */
@@ -61,15 +61,15 @@ const countByPrice = (pool: RunPool) => popularIn(pool).reduce<Record<number, nu
 
 describe("a run's pool, topped up with popular repos", () => {
   // Regression guarded: an account with three cards got a shop of two, and no reroll could add any.
-  test("fills a short pool to 21 cards, cheapest band first, around the four bands", async () => {
+  test("fills a short pool to 40 cards, cheapest band first, around the four bands", async () => {
     const { status, pool } = await poolOf(GUEST);
 
     expect(status).toBe(200);
     expect(pool.team).toHaveLength(POOL_SIZE);
     expect(pool.team.slice(0, 3).map((fighter) => fighter.popular ?? false)).toEqual([false, false, false]);
-    expect(popularIn(pool)).toHaveLength(18);
-    // 18 cards over four bands, one band after another from the cheapest: 5, 5, 4 and 4.
-    expect(countByPrice(pool)).toEqual({ 2: 5, 3: 5, 4: 4, 5: 4 });
+    expect(popularIn(pool)).toHaveLength(37);
+    // 37 cards over four bands, one band after another from the cheapest: 10, 9, 9 and 9.
+    expect(countByPrice(pool)).toEqual({ 2: 10, 3: 9, 4: 9, 5: 9 });
     expect(popularIn(pool).filter((fighter) => GUEST_OWN.includes(fighter.fullName))).toEqual([]);
     expect(new Set(pool.team.map((fighter) => fighter.fullName)).size).toBe(POOL_SIZE);
     expect(pool.team.map((fighter) => fighter.fullName)).toEqual(expect.arrayContaining(GUEST_OWN));

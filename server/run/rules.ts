@@ -4,7 +4,7 @@ import { COLS, ROWS, type Card, type FightEvent, type Side, type Snapshot } from
 // A run's rules, shared by the Play screen and the Worker that referees a run
 // (worker/src/run.ts): buy cards from a shop drawn from your stars, place them on
 // your half of the board, and fight another account's team. Five wins or three
-// losses ends the run. Pure: the day is passed in, nothing is read from GitHub.
+// losses ends the run. Pure: the run's seed is passed in, nothing is read from GitHub.
 
 export const WINS_TO_FINISH = 5;
 export const LOSSES_TO_END = 3;
@@ -54,13 +54,23 @@ export function shuffled<T>(items: T[], seed: string): T[] {
   return out;
 }
 
-export const today = () => new Date().toISOString().slice(0, 10);
+const SEED_BYTES = 16;
 
-/** Cards from the player's stars that are not on the team. The same day, round and reroll show the same cards. */
-export function shopFor<T extends { fullName: string }>(player: Pool<T>, owned: T[], round: number, rerolls: number, size = SHOP_SIZE, day = today()): T[] {
+/**
+ * A new run's seed, which deals its shops, rerolls, opponents and boosts: every run is
+ * dealt afresh, however many are played in a day. `getRandomValues` rather than
+ * `randomUUID`, which a browser only has on HTTPS, and the Play screen is also opened
+ * over plain HTTP on a home network (a phone against the dev server, a self-hosted copy).
+ */
+export function newRunSeed(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(SEED_BYTES)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Cards from the player's stars that are not on the team. The same run seed, round and reroll show the same cards. */
+export function shopFor<T extends { fullName: string }>(player: Pool<T>, owned: T[], round: number, rerolls: number, seed: string, size = SHOP_SIZE): T[] {
   const onTeam = new Set(owned.map((card) => card.fullName));
   const rest = player.team.slice(1).filter((card) => !onTeam.has(card.fullName));
-  return shuffled(rest, `${player.login}|${day}|shop|${round}|${rerolls}`).slice(0, size);
+  return shuffled(rest, `${player.login}|${seed}|shop|${round}|${rerolls}`).slice(0, size);
 }
 
 /** How many cards a team may hold in a round. */
@@ -84,17 +94,17 @@ export function freeCell(units: { col: number; row: number }[], card: { type: st
 }
 
 /** Who a round is played against. `optedOut` holds the accounts that asked not to be played (lower case). */
-export function opponentLogin(login: string, round: number, day = today(), optedOut: readonly string[] = []): string {
+export function opponentLogin(login: string, round: number, seed: string, optedOut: readonly string[] = []): string {
   const others = OPPONENTS.filter((name) => name !== login.toLowerCase() && !optedOut.includes(name));
   if (others.length === 0) throw new NoOpponentLeft();
-  return shuffled(others, `${login.toLowerCase()}|${day}|opponents`)[(round - 1) % others.length];
+  return shuffled(others, `${login.toLowerCase()}|${seed}|opponents`)[(round - 1) % others.length];
 }
 
 /** The other account's team at this round, built the way a player builds one: each round a shop from its stars, one card taken. */
-export function opponentUnits(opponent: Pool<RunFighter>, round: number, day = today()): Unit[] {
+export function opponentUnits(opponent: Pool<RunFighter>, round: number, seed: string): Unit[] {
   const team = opponent.team.slice(0, 1);
   for (let r = 1; team.length > 0 && team.length < teamSizeAt(round); r++) {
-    const [pick] = shopFor(opponent, team, r, 0, 1, day);
+    const [pick] = shopFor(opponent, team, r, 0, seed, 1);
     if (!pick) break;
     team.push(pick);
   }

@@ -1,6 +1,6 @@
 import type { Character } from "../../server/character";
 import { RESPONSE_SHAPE } from "../../server/response-shape";
-import { opponentLogin, today, type RunFighter } from "../../server/run/rules";
+import { opponentLogin, type RunFighter } from "../../server/run/rules";
 import { CARD_ORIGIN } from "./published-list";
 
 // The Play screen's side of a run. The rules live in server/run/rules.ts, which the
@@ -10,11 +10,13 @@ export * from "../../server/run/rules";
 
 export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: RunFighter[] };
 
-// One read per account, run and day for the page, so the first opponent can be read
-// while the player's own cards are (a cold read is several seconds each).
+// One read per account and day for the page, so the first opponent can be read while
+// the player's own cards are (a cold read is several seconds each), and a new run reads
+// nothing again: the Worker draws an account's pool once a day.
 const reads = new Map<string, Promise<Player>>();
+const today = () => new Date().toISOString().slice(0, 10);
 
-/** An account's cards for the day. `forRun` names whose run reads them, when that is someone else's. */
+/** An account's cards. `forRun` names whose run reads them, when that is someone else's. */
 export function fetchPlayer(login: string, forRun?: string): Promise<Player> {
   const key = `${login.toLowerCase()}|${forRun?.toLowerCase() ?? ""}|${today()}`;
   const known = reads.get(key);
@@ -53,7 +55,7 @@ function opponentsOptedOut(): Promise<string[]> {
   return optedOut;
 }
 
-/** The team `me` plays in a round: an account from OPPONENTS that hasn't asked to be left out (OPPONENTS.md). */
-export async function fetchOpponent(me: string, round: number): Promise<Player> {
-  return fetchPlayer(opponentLogin(me, round, today(), await opponentsOptedOut()), me);
+/** The team `me` plays in a round of the run seeded `seed`: an account from OPPONENTS that hasn't asked to be left out (OPPONENTS.md). */
+export async function fetchOpponent(me: string, round: number, seed: string): Promise<Player> {
+  return fetchPlayer(opponentLogin(me, round, seed, await opponentsOptedOut()), me);
 }

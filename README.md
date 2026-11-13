@@ -19,7 +19,7 @@
   <a href="#option-b-self-host-with-docker">Self-host</a>
 </p>
 
-- Type a GitHub username, no sign-in. The shop deals cards from that account's stars for the day.
+- Type a GitHub username, no sign-in. The shop deals cards from that account's stars, shuffled afresh for every run.
 - Buy cards onto your Drafts shelf, drag them onto your half of the board, then press **Fight**. Every card acts at once.
 - Cards that share a language or topic make a set, ticked off like a pull request's checks. After rounds 2 and 4 you pick one of three boosts.
 - 5 wins finishes a run, 3 losses ends one.

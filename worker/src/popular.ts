@@ -11,8 +11,8 @@ import { DAY, readThrough, type CacheDeps } from "./edge-cache.ts";
 // Only repos older than a year that were pushed to in the last year are asked for, so a
 // repo whose stars were bought last month, or one nobody keeps up, isn't dealt.
 
-/** Names asked for from each band. A pool tops up by at most 20 cards. */
-const PER_BAND = 10;
+/** Names asked for from each band. A pool tops up by at most 40 cards (an account with nothing of its own), with room for names it already has. */
+const PER_BAND = 15;
 const YEAR = 365 * DAY;
 const LIST: { fresh: number; keep: number } = { fresh: DAY, keep: 2 * DAY };
 
@@ -49,7 +49,8 @@ export async function readPopular(read: (query: string) => Promise<Record<string
  */
 export async function cachedPopular(read: (query: string) => Promise<Record<string, SearchNodes>>, origin: string, deps: CacheDeps): Promise<PopularList> {
   const day = new Date(deps.now).toISOString().slice(0, 10);
-  const key = new Request(new URL(`/api/run/popular?day=${day}`, origin));
+  // PER_BAND is in the key, so a list read for a smaller pool isn't served to a bigger one.
+  const key = new Request(new URL(`/api/run/popular?day=${day}&per=${PER_BAND}`, origin));
   const reply = await readThrough(
     key,
     async () => {

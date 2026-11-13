@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fight } from "./fight.ts";
-import { NEW_TALLY, boardLimit, costOf, countRound, snapshot, type RunFighter, type Unit } from "./rules.ts";
+import { NEW_TALLY, boardLimit, costOf, countRound, newRunSeed, shopFor, snapshot, type RunFighter, type Unit } from "./rules.ts";
 import { card, cityCollege } from "./testbed.ts";
 
 const unit = (name: string, col: number): Unit => ({ fighter: { fullName: `greendale/${name}`, card: card(`greendale/${name}`, { hp: 600 }) } as RunFighter, col, row: 0 });
@@ -19,6 +19,30 @@ describe("snapshot", () => {
     const events = fight(snapshot("greendale", 3, [unit("troy", 1)]), cityCollege, "greendale");
 
     expect(events.some((event) => event.kind === "ability" && event.side === 0 && event.ability.startsWith("boost:"))).toBe(false);
+  });
+});
+
+describe("shopFor", () => {
+  const pool = { login: "greendale", team: ["dreamatorium", ...Array.from({ length: 39 }, (_, i) => `study-room-${i}`)].map((name) => ({ fullName: `greendale/${name}` })) };
+  const names = (seed: string) => shopFor(pool, [], 1, 0, seed).map((card) => card.fullName);
+
+  // Regression guarded: every run on one day dealt the same first shop, because it was seeded with the date.
+  it("deals two run seeds two first shops from the same pool", () => {
+    expect(names("greendale-run-1")).not.toEqual(names("greendale-run-2"));
+  });
+
+  it("deals the same shop for the same run seed, round and reroll, without the ace", () => {
+    expect(names("greendale-run-1")).toEqual(names("greendale-run-1"));
+    expect(names("greendale-run-1")).toHaveLength(5);
+    expect(names("greendale-run-1")).not.toContain("greendale/dreamatorium");
+  });
+});
+
+describe("newRunSeed", () => {
+  it("gives a new 32-character hex seed each time", () => {
+    const seeds = Array.from({ length: 20 }, () => newRunSeed());
+    expect(new Set(seeds).size).toBe(20);
+    expect(seeds.every((seed) => /^[0-9a-f]{32}$/.test(seed))).toBe(true);
   });
 });
 

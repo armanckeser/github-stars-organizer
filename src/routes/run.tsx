@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, CircleHelp, Coins, Crosshair, RotateCw, Layers, Maximize, Minimize, SkipForward, Star, Swords, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InspectOverlay } from "@/components/battle/arena";
@@ -7,7 +7,7 @@ import { FightClock } from "@/components/battle/fight-clock";
 import { FightInspect } from "@/components/battle/fight-inspect";
 import { Figure } from "@/components/battle/figure";
 import { RunStart } from "@/components/battle/run-start";
-import type { BoardFight, BoardUnit, Spot } from "@/components/battle/three/board";
+import type { BoardUnit } from "@/components/battle/three/board";
 import { FpsMeter } from "@/components/run/fps-meter";
 import { TeamSlots } from "@/components/run/team-slots";
 import { BarButton } from "@/components/run/bar-button";
@@ -19,16 +19,14 @@ import { RunEnd } from "@/components/run/run-end";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
 import { countEvent } from "@/lib/events";
-import type { RoundResult } from "@/lib/challenge";
 import { validLogin } from "@/lib/published-list";
-import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, newRunSeed, opponentUnits, rangeOf, shopFor, snapshot, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
-import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
+import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, fetchOpponent, fetchPlayer, newRunSeed, opponentUnits, rangeOf, type Player, type RunFighter, type Unit } from "@/lib/run";
+import { NO_RUN, idOf, runReducer, sceneOf, type Fought, type Run, type RunAction } from "@/lib/run-state";
+import { openTeam, savedRound, type SavedTeam } from "@/lib/saved-team";
 import { CLASSES } from "../../server/character";
-import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
-import { benchToBoard, boardToBench, cardsOf, emptyBench, swapBench, toBench, without, type Roster } from "../../server/run/roster";
-import { SLOT_COST, boardLimit } from "../../server/run/rules";
-import { fight as playFight } from "../../server/run/fight";
-import { cellOf, type Side, type Snapshot } from "../../server/run/types";
+import { cardsOf, emptyBench, type Roster } from "../../server/run/roster";
+import { boardLimit } from "../../server/run/rules";
+import { cellOf, type Side } from "../../server/run/types";
 
 // The Play screen: a run, played on one board. The player buys cards from the shop
 // along the bottom, drags them around their half, and presses Fight; every creature
@@ -46,13 +44,14 @@ export const Route = createFileRoute("/run")({
 });
 
 const Board3D = lazy(() => import("@/components/battle/board3d"));
-const idOf = (side: Side, fighter: RunFighter) => `${side}:${fighter.fullName}`;
 /** The shop's tab, which stays on screen when the shop folds down. */
 const SHOP_TAB = 34;
 const PANEL = "rounded-lg border border-white/15 bg-[#0c1014]/90 shadow-lg backdrop-blur-sm";
 
-type Round = { number: number; opponent: Player; theirs: Unit[] };
-type Played = { fight: BoardFight; winner: Side | null; over: boolean };
+// The board before a run has one: one array each, so the board's memo holds between renders.
+const NO_UNITS: Unit[] = [];
+const NO_BENCH: (RunFighter | null)[] = emptyBench();
+const NO_BOOSTS: string[] = [];
 
 function Pips({ filled, total, tone, label }: { filled: number; total: number; tone: string; label: string }) {
   return (
@@ -94,236 +93,127 @@ function useFullscreen(): [boolean, ((element: HTMLElement | null) => void), (()
   return [full, setElement, able ? () => void toggle() : null];
 }
 
+/** The message a failed read shows: the Worker's own words, or `otherwise` when the network failed. */
+const messageOf = (cause: unknown, otherwise: string) => (cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : otherwise);
+
+/** A round's opponent: the saved team's owner on a challenge run, else an account read from the Worker. */
+async function readRound(player: Player, number: number, seed: string, against: SavedTeam | null): Promise<{ opponent: Player; theirs: Unit[] }> {
+  if (against) return savedRound(against, number);
+  const opponent = await fetchOpponent(player.login, number, seed);
+  // The next opponent follows from the name, the seed and the round, not from how this
+  // round goes, so it is read while this one is played and Continue finds it waiting.
+  // A failed read is dropped from the cache (src/lib/run.ts), and Continue reads it again.
+  fetchOpponent(player.login, number + 1, seed).catch(() => {});
+  return { opponent, theirs: opponentUnits(opponent, number, seed) };
+}
+
+/** The player's cards, the saved team on a challenge run, and round 1, as the action that ends the run's loading. */
+async function readRun(login: string, seed: string, againstToken: string | undefined): Promise<RunAction> {
+  try {
+    // Round 1's opponent is known from the name and the seed alone, so both teams are read at once.
+    if (!againstToken) fetchOpponent(login, 1, seed).catch(() => {});
+    const [player, against] = await Promise.all([fetchPlayer(login), againstToken ? openTeam(againstToken) : null]);
+    return { type: "run-read", seed, player, against, ...(await readRound(player, 1, seed, against)) };
+  } catch (cause) {
+    return { type: "read-failed", seed, message: messageOf(cause, "The cards couldn't be read. Check the connection and try again.") };
+  }
+}
+
+async function readNextRound(run: Run, number: number, seed: string): Promise<RunAction> {
+  try {
+    return { type: "round-read", seed, number, ...(await readRound(run.player, number, seed, run.against)) };
+  } catch (cause) {
+    return { type: "read-failed", seed, message: messageOf(cause, "The next team couldn't be read. Check the connection and try again.") };
+  }
+}
+
 function RunPage() {
   const search = Route.useSearch();
   const [login, setLogin] = useState(search.me ?? search.name ?? demoUser.current ?? "");
-  const [player, setPlayer] = useState<Player | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [state, dispatch] = useReducer(runReducer, NO_RUN);
+  const { phase, seed, selected, viewing } = state;
+  const { player, run, round, fight } = sceneOf(phase);
+  const units = run?.units ?? NO_UNITS;
+  const bench = run?.bench ?? NO_BENCH;
+  const boosts = run?.boosts ?? NO_BOOSTS;
+  const { wins, losses } = run?.tally ?? NEW_TALLY;
+  const gold = run?.gold ?? 0;
 
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [bench, setBench] = useState<(RunFighter | null)[]>(emptyBench);
-  // Board slots bought on top of the round's limit, for the rest of the run.
-  const [bought, setBought] = useState(0);
-  const [round, setRound] = useState<Round | null>(null);
-  const [tally, setTally] = useState(NEW_TALLY);
-  const { wins, losses } = tally;
-  const [gold, setGold] = useState(START_GOLD);
-  const [rerolls, setRerolls] = useState(0);
-  const [shop, setShop] = useState<(RunFighter | null)[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [played, setPlayed] = useState<Played | null>(null);
   const [fast, setFast] = useState(false);
   const [skips, setSkips] = useState(0);
-  // The card being looked at: one in the shop, one of the player's on the board, or one of the other team's.
-  const [viewing, setViewing] = useState<{ fighter: RunFighter; slot?: number; unit?: Unit; bench?: number } | null>(null);
   const [profile, setProfile] = useState<Player | null>(null);
   const [help, setHelp] = useState(false);
   // A phone folds its own checks too: a full list covers the board (docs/GAME-UI.md §7).
   const phone = useMediaQuery("(max-width: 639px), (max-height: 540px)");
-  const [boosts, setBoosts] = useState<string[]>([]);
-  // Three boosts to pick one from, after rounds 2 and 4; null the rest of the time.
-  const [offer, setOffer] = useState<{ round: number; ids: string[] } | null>(null);
-  // The team as fought at each round, for the end screen's share link.
-  const [history, setHistory] = useState<Snapshot[]>([]);
-  const [against, setAgainst] = useState<SavedTeam | null>(null);
-  // Drawn at each start, so every run deals its own shops, rerolls, opponents and boosts.
-  const [seed, setSeed] = useState("");
-  // Each round's opponent and how it went, for the end screen's "You beat".
-  const [results, setResults] = useState<RoundResult[]>([]);
 
-  // A link with ?me= starts the run on load, so opening the link is all it takes.
+  const start = (who: string) => {
+    if (validLogin(who)) dispatch({ type: "start", seed: newRunSeed(), login: who.trim() });
+  };
+
+  // A link with ?me= starts the run on load, so opening the link is all it takes. StrictMode
+  // runs this twice in development: the second start's seed wins and the first one's read is dropped.
   const linked = search.me && validLogin(search.me) ? search.me.trim() : null;
   useEffect(() => {
-    if (linked) void start(linked);
+    if (linked) start(linked);
     // Once, for the address the page was opened with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Each loading phase reads what it waits for; the answer names its run's seed, so a newer run drops it.
+  const loadingRun = phase.kind === "loading-run" ? phase : null;
+  useEffect(() => {
+    if (loadingRun) void readRun(loadingRun.login, seed, search.against).then(dispatch);
+  }, [loadingRun, seed, search.against]);
+  const loadingRound = phase.kind === "loading-round" ? phase : null;
+  useEffect(() => {
+    if (loadingRound) void readNextRound(loadingRound.run, loadingRound.number, seed).then(dispatch);
+  }, [loadingRound, seed]);
+
+  // The counters (server/events.ts): a round counts once it opens, a run once it ends.
+  const openedRound = phase.kind === "shop" || phase.kind === "boost-pick" ? phase.round.number : null;
+  useEffect(() => {
+    if (openedRound === null) return;
+    if (openedRound === 1) countEvent("run_started");
+    if (openedRound === 1 && search.against) countEvent("challenge_started");
+    countEvent("round_reached", openedRound);
+  }, [seed, openedRound, search.against]);
+  const endedRound = phase.kind === "end" ? phase.round.number : null;
+  useEffect(() => {
+    if (endedRound !== null) countEvent("run_finished", endedRound);
+  }, [seed, endedRound]);
+
   const [drawer, drawerRef] = useHeight();
   // The shop rises at the start of each round and folds down to its tab when the player wants the board.
   const [shopOpen, setShopOpen] = useState(true);
+  useEffect(() => setShopOpen(true), [round?.number]);
   const [full, arenaRef, toggleFull] = useFullscreen();
   // For screenshots of the boost pick: `stardOffer(2)` in the console, development builds only.
   useEffect(() => {
-    if (!import.meta.env.DEV || !player) return;
-    (window as unknown as { stardOffer?: (round: number) => void }).stardOffer = (number) => setOffer({ round: number, ids: boostOffer(`${player.login}|${seed}|${number}`, boosts) });
-  }, [player, seed, boosts]);
-  const finished = wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END;
-  const cap = round ? boardLimit(round.number, bought) : 0;
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { stardOffer?: (round: number) => void }).stardOffer = (number) => dispatch({ type: "offer", round: number });
+  }, []);
+
+  const building = phase.kind === "shop" || phase.kind === "boost-pick" ? phase : null;
+  // The boost pick covers the shop until the player folds it away to look at the board.
+  const shopUsable = building !== null && (building.kind === "shop" || building.peeking);
+  const shopShown = shopOpen && shopUsable;
+  const cap = round && run ? boardLimit(round.number, run.bought) : 0;
   const roster: Roster = { board: units, bench };
-  const fighting = played !== null && !played.over;
+  const fighting = phase.kind === "fighting";
+  // Stable, because the creature panel restarts its close-after-fainting timer when this changes.
+  const look = useCallback((id: string | null) => dispatch({ type: "look", id }), []);
   // The tick the board's fight has reached, for the creature panel beside it (fight-inspect.tsx).
   const [clock] = useState(() => new FightClock());
   const [covered, setCovered] = useState(0);
   const fightTeams = useMemo<[RunFighter[], RunFighter[]]>(() => [units.map((unit) => unit.fighter), (round?.theirs ?? []).map((unit) => unit.fighter)], [units, round]);
-
-  async function openRound(me: Player, owned: RunFighter[], number: number, run = seed, saved = against) {
-    setLoading(true);
-    setError("");
-    try {
-      if (saved) setRound({ number, ...savedRound(saved, number) });
-      else {
-        const opponent = await fetchOpponent(me.login, number, run);
-        setRound({ number, opponent, theirs: opponentUnits(opponent, number, run) });
-      }
-      setRerolls(0);
-      setShop(shopFor(me, owned, number, 0, run));
-      setPlayed(null);
-      setSelected(null);
-      countEvent("round_reached", number);
-    } catch (cause) {
-      setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The next team couldn't be read. Check the connection and try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function start(who = login.trim()) {
-    if (!validLogin(who)) return;
-    setLoading(true);
-    setError("");
-    const run = newRunSeed();
-    try {
-      // Round 1's opponent is known from the name and the seed alone, so both teams are read at once.
-      if (!search.against) fetchOpponent(who, 1, run).catch(() => {});
-      const [me, saved] = await Promise.all([fetchPlayer(who), search.against ? openTeam(search.against) : null]);
-      const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
-      setAgainst(saved);
-      setSeed(run);
-      setHistory([]);
-      setResults([]);
-      setPlayer(me);
-      setUnits(team);
-      setBench(emptyBench());
-      setBought(0);
-      setTally(NEW_TALLY);
-      setGold(START_GOLD);
-      setBoosts([]);
-      setOffer(null);
-      countEvent("run_started");
-      if (saved) countEvent("challenge_started");
-      await openRound(me, team.map((unit) => unit.fighter), 1, run, saved);
-    } catch (cause) {
-      setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The cards couldn't be read. Check the connection and try again.");
-      setLoading(false);
-    }
-  }
-
-  /** Takes a change to the board and bench. False when the rules refused it. */
-  function settle(next: Roster | null): boolean {
-    if (!next) return false;
-    setUnits(next.board);
-    setBench(next.bench);
-    return true;
-  }
-
-  function buy(slot: number) {
-    const fighter = shop[slot];
-    if (!fighter || gold < costOf(fighter) || !settle(toBench(roster, fighter))) return;
-    setGold(gold - costOf(fighter));
-    setShop(shop.map((item, i) => (i === slot ? null : item)));
-  }
-
-  function sell(fighter: RunFighter) {
-    if (!settle(without(roster, fighter.fullName))) return;
-    setGold(gold + costOf(fighter));
-    // The card goes back on an empty shelf, so a purchase can be taken back.
-    const empty = shop.indexOf(null);
-    if (empty !== -1) setShop(shop.map((item, i) => (i === empty ? fighter : item)));
-    setSelected(null);
-  }
-
-  function buySlot() {
-    if (gold < SLOT_COST || cap >= boardLimit(round?.number ?? 0, bought + 1)) return;
-    setGold(gold - SLOT_COST);
-    setBought(bought + 1);
-  }
-
-  /** One of the player's creatures put down on a cell, a Drafts slot or the Archive, by the roster's rules. */
-  function move(id: string, spot: Spot) {
-    const onBoard = units.find((unit) => idOf(0, unit.fighter) === id);
-    const slot = bench.findIndex((fighter) => fighter !== null && idOf(0, fighter) === id);
-    const fighter = onBoard?.fighter ?? bench[slot];
-    if (!fighter) return;
-    if (spot.kind === "archive") return sell(fighter);
-    if (onBoard) return spot.kind === "cell" ? place(id, spot.col, spot.row) : settle(boardToBench(roster, fighter.fullName, spot.slot));
-    if (spot.kind === "bench") settle(swapBench(roster, slot, spot.slot));
-    else settle(benchToBoard(roster, slot, spot.col, spot.row, cap));
-  }
-
-  function reroll() {
-    if (!player || !round || gold < REROLL_COST) return;
-    setGold(gold - REROLL_COST);
-    setRerolls(rerolls + 1);
-    setShop(shopFor(player, cardsOf(roster), round.number, rerolls + 1, seed));
-  }
-
-  // A creature dropped on a taken cell trades places with the one standing there.
-  function place(id: string, col: number, row: number) {
-    const moved = units.find((unit) => idOf(0, unit.fighter) === id);
-    if (!moved || !inHalf(col, row)) return;
-    setUnits(units.map((unit) => (unit === moved ? { ...unit, col, row } : unit.col === col && unit.row === row ? { ...unit, col: moved.col, row: moved.row } : unit)));
-  }
-
-  function fight() {
-    if (!player || !round || units.length === 0) return;
-    const fightSeed = `${player.login}|${round.opponent.login}|${round.number}|${seed}`;
-    const mine = snapshot(player.login, round.number, units, boosts);
-    // A saved team fights with the boosts it had at that round, as the Worker replays it (worker/src/team.ts).
-    const theirs = against ? savedSnapshotAt(against, round.number) : snapshot(round.opponent.login, round.number, round.theirs);
-    const events = playFight(mine, theirs, fightSeed);
-    const winner = winnerOf(events);
-    setHistory([...history, mine]);
-    setResults([...results, { round: round.number, opponent: round.opponent.login, outcome: winner === 0 ? "won" : winner === 1 ? "lost" : "draw" }]);
-    setSelected(null);
-    setPlayed({ fight: { key: `${fightSeed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner, over: false });
-  }
-
-  function next() {
-    // While the next round opens, a second press would open it twice.
-    if (!player || !round || !played || loading) return;
-    // Counted once per round, so pressing Continue again after the next round failed to open only retries the opening.
-    const counted = countRound(tally, round.number, played.winner);
-    setTally(counted.tally);
-    if (counted.tally.wins >= WINS_TO_FINISH || counted.tally.losses >= LOSSES_TO_END) {
-      countEvent("run_finished", round.number);
-      return setPlayed(null);
-    }
-    setGold(gold + counted.earned);
-    // The same seed as the Worker's offer (worker/src/run.ts), so both offer the same three.
-    if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${seed}|${round.number}`, boosts) });
-    void openRound(player, cardsOf(roster), round.number + 1);
-  }
-
-  useEffect(() => setShopOpen(true), [round?.number]);
-  // The boost pick folds the shop away, so nothing of it shows through the medallions; looking at the board brings it back.
-  const [peeking, setPeeking] = useState(false);
+  const viewingTeam = viewing?.kind === "theirs" ? (round?.theirs ?? []) : units;
+  const close = () => dispatch({ type: "close" });
 
   const boardUnits = useMemo<BoardUnit[]>(() => {
     const side = (which: Side, team: Unit[]) => team.map((unit) => ({ id: idOf(which, unit.fighter), side: which, fighter: unit.fighter, ...cellOf(which, unit), ranged: rangeOf(unit.fighter) > 1 }));
     const drafts = bench.flatMap((fighter, slot) => (fighter ? [{ id: idOf(0, fighter), side: 0 as Side, fighter, x: 0, y: 0, ranged: rangeOf(fighter) > 1, bench: slot }] : []));
     return [...side(0, units), ...drafts, ...side(1, round?.theirs ?? [])];
   }, [units, bench, round]);
-
-  function look(id: string | null) {
-    setSelected(id);
-    if (!id || fighting) return;
-    const mine = units.find((unit) => idOf(0, unit.fighter) === id);
-    const theirs = round?.theirs.find((unit) => idOf(1, unit.fighter) === id);
-    const slot = bench.findIndex((fighter) => fighter !== null && idOf(0, fighter) === id);
-    if (mine) setViewing({ fighter: mine.fighter, unit: mine });
-    else if (slot !== -1) setViewing({ fighter: bench[slot]!, bench: slot });
-    else if (theirs) setViewing({ fighter: theirs.fighter });
-  }
-  const close = () => {
-    setViewing(null);
-    setSelected(null);
-  };
-  const building = player !== null && round !== null && !finished && played === null;
-  const picking = Boolean(offer) && building && !peeking;
-  const shopShown = shopOpen && !picking;
-  const viewingTeam = viewing && viewing.slot === undefined && !viewing.unit ? (round?.theirs ?? []) : units;
 
   return (
     <div ref={arenaRef} data-full={full ? "" : undefined} className="arena relative h-dvh w-full overflow-hidden bg-[#080b0f] text-white">
@@ -333,18 +223,15 @@ function RunPage() {
           near={player ? { look: player.character.look, supporter: player.supporter === true } : null}
           far={round ? { look: round.opponent.character.look, supporter: round.opponent.supporter === true } : null}
           selected={selected}
-          fight={played?.fight ?? null}
+          fight={fight}
           clock={clock}
           speed={fast ? 2 : 1}
           skips={skips}
           room={Math.max(0, cap - units.length)}
           inset={building ? SHOP_TAB + (shopShown ? drawer : 0) : fighting ? covered : 0}
           onSelect={look}
-          onFightEnd={(key) => {
-            setPlayed((current) => (current?.fight.key === key ? { ...current, over: true } : current));
-            setSelected(null);
-          }}
-          onMove={move}
+          onFightEnd={(key) => dispatch({ type: "fight-ended", key })}
+          onMove={(id, spot) => dispatch({ type: "move", id, spot })}
           sellPrice={(id) => {
             const fighter = cardsOf(roster).find((card) => idOf(0, card) === id);
             return fighter ? costOf(fighter) : null;
@@ -384,15 +271,28 @@ function RunPage() {
         </div>
       )}
 
-      {offer && building && <BoostPick offer={offer.ids} round={offer.round} onPeek={setPeeking} onPick={(id) => { setBoosts([...boosts, id]); setOffer(null); setPeeking(false); }} />}
+      {phase.kind === "boost-pick" && <BoostPick offer={phase.offer.ids} round={phase.offer.round} peeking={phase.peeking} onPeek={(peeking) => dispatch({ type: "peek", peeking })} onPick={(id) => dispatch({ type: "pick", id })} />}
 
       {!player && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 p-4">
-          <RunStart login={login} onLogin={setLogin} onStart={(who) => void start(who)} loading={loading} error={error} starting={linked} intro={`Build a team from your stars. ${WINS_TO_FINISH} wins finishes a run, ${LOSSES_TO_END} losses ends one.`} className={`${PANEL} w-full max-w-sm p-5`} />
+          <RunStart login={login} onLogin={setLogin} onStart={start} loading={phase.kind === "loading-run"} error={phase.kind === "failed" ? phase.message : ""} starting={linked} intro={`Build a team from your stars. ${WINS_TO_FINISH} wins finishes a run, ${LOSSES_TO_END} losses ends one.`} className={`${PANEL} w-full max-w-sm p-5`} />
         </div>
       )}
 
-      {player && error && <p className={`${PANEL} absolute inset-x-3 top-16 z-20 px-3 py-2 text-sm`} role="alert">{error}</p>}
+      {player && phase.kind === "loading-run" && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+          <p className={`${PANEL} px-4 py-3 text-sm`} role="status">Dealing a new run...</p>
+        </div>
+      )}
+
+      {player && phase.kind === "failed" && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+          <div className={`${PANEL} w-full max-w-sm space-y-3 p-4 text-sm`}>
+            <p role="alert">{phase.message}</p>
+            <Button className="w-full" onClick={() => (phase.retry.kind === "run" ? start(phase.retry.login) : dispatch({ type: "retry-round" }))}><RotateCw /> Try again</Button>
+          </div>
+        </div>
+      )}
 
       {building && (
         <>
@@ -406,19 +306,19 @@ function RunPage() {
             <div ref={drawerRef} id="shop-drawer" className="shop-bar" inert={!shopShown}>
               <div className="shop-layout">
                 <div className="shop-controls">
-                  <BarButton label="Reroll" cost={REROLL_COST} icon={<RotateCw className="size-4" strokeWidth={2.6} />} disabled={gold < REROLL_COST} onClick={reroll} aria-label={`Reroll for ${REROLL_COST} gold`} />
-                  <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={buySlot} />
+                  <BarButton label="Reroll" cost={REROLL_COST} icon={<RotateCw className="size-4" strokeWidth={2.6} />} disabled={gold < REROLL_COST} onClick={() => dispatch({ type: "reroll" })} aria-label={`Reroll for ${REROLL_COST} gold`} />
+                  <TeamSlots count={units.length} limit={cap} gold={gold} onBuy={() => dispatch({ type: "buy-slot" })} />
                 </div>
-                <div className="shop-cards"><Shop shop={shop} held={cardsOf(roster)} gold={gold} draftsFull={!bench.includes(null)} onOpen={(slot) => shop[slot] && setViewing({ fighter: shop[slot]!, slot })} /></div>
+                <div className="shop-cards"><Shop shop={building.shelf.cards} held={cardsOf(roster)} gold={gold} draftsFull={!bench.includes(null)} onOpen={(slot) => dispatch({ type: "look-shop", slot })} /></div>
               </div>
             </div>
           </div>
-          {/* Fight: the only filled button, in the bar's corner, and in the screen's corner when the bar folds. */}
-          <button type="button" className="shop-fight hud-fight" data-open={shopShown ? "" : undefined} style={{ "--drawer": `${drawer}px` } as React.CSSProperties} onClick={fight} disabled={loading || units.length === 0}><Swords className="size-5" /> Fight</button>
+          {/* Fight: the only filled button, in the bar's corner, and in the screen's corner when the bar folds. A boost is picked before the fight. */}
+          <button type="button" className="shop-fight hud-fight" data-open={shopShown ? "" : undefined} style={{ "--drawer": `${drawer}px` } as React.CSSProperties} onClick={() => dispatch({ type: "fight" })} disabled={building.kind !== "shop" || units.length === 0}><Swords className="size-5" /> Fight</button>
         </>
       )}
 
-      {fighting && round && <FightInspect fight={played.fight} teams={fightTeams} opponent={round.opponent.login} clock={clock} selected={selected} onSelect={look} onCover={setCovered} />}
+      {fighting && fight && round && <FightInspect fight={fight} teams={fightTeams} opponent={round.opponent.login} clock={clock} selected={selected} onSelect={look} onCover={setCovered} />}
       {fighting && (
         <div className="absolute bottom-3 right-3 z-10 flex gap-1.5">
           <Button variant="outline" size="sm" aria-pressed={fast} onClick={() => setFast((f) => !f)}>{fast ? "2×" : "1×"}</Button>
@@ -426,16 +326,16 @@ function RunPage() {
         </div>
       )}
 
-      {played?.over && round && (
+      {(phase.kind === "round-result" || phase.kind === "loading-round") && (
         <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t border-white/15 bg-[#0c1014]/90 px-4 py-4 backdrop-blur-sm">
-          <p className="font-display text-lg font-bold tracking-tight sm:text-2xl" aria-live="polite">{played.winner === 0 ? `Round ${round.number} won` : played.winner === 1 ? `Round ${round.number} lost` : "A draw"}</p>
-          <Button onClick={next} disabled={loading}>{loading ? "Reading the next team..." : "Continue"}</Button>
+          <p className="font-display text-lg font-bold tracking-tight sm:text-2xl" aria-live="polite">{resultLine(phase.kind === "round-result" ? phase : phase.after)}</p>
+          {phase.kind === "round-result" ? <Button onClick={() => dispatch({ type: "continue" })}>Continue</Button> : <Button disabled>Reading the next team...</Button>}
         </div>
       )}
 
-      {player && finished && !played && (
+      {phase.kind === "end" && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 p-4">
-          <RunEnd login={player.login} seed={seed} rounds={history} results={results} team={units} wins={wins} losses={losses} against={against ? search.against : undefined} loading={loading} onNewRun={() => void start()} />
+          <RunEnd login={phase.run.player.login} seed={seed} rounds={phase.run.history} results={phase.run.results} team={phase.run.units} wins={wins} losses={losses} against={phase.run.against ? search.against : undefined} onNewRun={() => start(phase.run.player.login)} />
         </div>
       )}
 
@@ -478,17 +378,21 @@ function RunPage() {
       <FpsMeter />
 
       <InspectOverlay fighter={viewing?.fighter ?? null} onClose={close} card={viewing && <RunCard fighter={viewing.fighter} team={viewingTeam.map((unit) => unit.fighter)} />}>
-        {viewing && (
-          <>
-            {viewing.slot !== undefined && building && (
-              <Button className="w-full" disabled={gold < costOf(viewing.fighter) || !bench.includes(null)} onClick={() => { buy(viewing.slot!); close(); }}>
-                <Coins /> {!bench.includes(null) ? "Bench is full" : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}
-              </Button>
-            )}
-            {(viewing.unit || viewing.bench !== undefined) && building && <Button variant="outline" className="w-full" onClick={() => { sell(viewing.fighter); close(); }}><Coins /> Sell for {costOf(viewing.fighter)}</Button>}
-          </>
+        {viewing?.kind === "shop" && shopUsable && (
+          <Button className="w-full" disabled={gold < costOf(viewing.fighter) || !bench.includes(null)} onClick={() => { dispatch({ type: "buy", slot: viewing.slot }); close(); }}>
+            <Coins /> {!bench.includes(null) ? "Bench is full" : gold < costOf(viewing.fighter) ? `Costs ${costOf(viewing.fighter)}, you have ${gold}` : `Buy for ${costOf(viewing.fighter)}`}
+          </Button>
         )}
+        {(viewing?.kind === "board" || viewing?.kind === "drafts") && shopUsable && <Button variant="outline" className="w-full" onClick={() => dispatch({ type: "sell", id: idOf(0, viewing.fighter) })}><Coins /> Sell for {costOf(viewing.fighter)}</Button>}
       </InspectOverlay>
     </div>
   );
+}
+
+/** The result bar's line for a round just played; the next round's number when there is none (a retried read). */
+function resultLine(fought: Fought | null): string {
+  if (!fought) return "Next round";
+  if (fought.winner === 0) return `Round ${fought.round.number} won`;
+  if (fought.winner === 1) return `Round ${fought.round.number} lost`;
+  return "A draw";
 }

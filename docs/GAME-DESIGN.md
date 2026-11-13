@@ -315,6 +315,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Share pictures show creatures (flat stickers), fill the set hexes, title only. README GIF ends on the new end screen. | built (#71, #77) |
 | Front page: a normal-size Play button beside the title, no sample-account button. | built |
 | Characters for the 12 opponents: ship all 12 (and `armanckeser`), kind and plain (hair, glasses, top, colours; no beards or anything that could read as a caricature), drawn from their public avatars. Removal path in `OPPONENTS.md` and `characters/README.md`: their own `stard/character.md` wins, or ask and the file is deleted. An opted-out account (`stard/no-play` or the block list) never shows the file. One line on the privacy page, pending the owner's wording. | branch `characters` (#72) |
+| "My character is supposed to have a bun." And the owner's near-black jacket (`#1f2328`) sat close to the Rookie panel (`#3a4049`) on the trainer card and vanished into the board's floor. `characters/armanckeser.md`: hair `bun`, jacket denim `#2f5a94`, which stands apart from all 7 class panels and the board. Oxblood `#7a2e3b` and olive `#556b2f` were the other two shown; the owner chose denim on 2026-11-13. The bun reads as a small bump from the board's camera; the owner left its size as is. | branch `owner-bun` (#101) |
 | A white star patch on each upper arm of the trainer (board, trainer card, Play panel) for an account that starred Stard; "Starred Stard" in plain grey words in the Play panel. Opted-out and block-listed accounts get nothing. Chosen 2026-11-13 over a gold arm band, whose gold (`#d4a017`) sat close to the legendary tier gold (`#e3b341`) that GAME-UI §3 keeps for cards. GitHub lists a repo's stargazers only to its admins and collaborators, so the patch shows only if the Worker's `GITHUB_TOKEN` is the owner's. | built (#75) |
 
 **Demo and speed**
@@ -323,6 +324,8 @@ Everything the owner said while the Play run was built, in one place. Status: **
 |---|---|
 | Opponents take too long to load: a longer edge cache. | built (#80) |
 | The deployed app broke after a merge. Every change is checked on the live site, not only locally. | built (process) |
+| "Reading the next team takes some time": each round's opponent was read only when Continue was pressed. The next opponent follows from the name, the seed and the round alone, so it is now read while the round is played. | branch `run-prefetch-opponent` (#99) |
+| "I pressed New run after finishing, but that had the old characters on the screen for a while and then they switched." New run kept the last round's opponent, their creatures, the "Round N" HUD and the old shop (still buyable) until the new run's first opponent was read. The run is now one state machine (`src/lib/run-state.ts`): New run clears the board to the player's trainer at once, a read for an older run is dropped, and a failed read shows Try again instead of a Fight against the last opponent. | branch `run-phases` (#103) |
 
 **The journey after the first run**
 

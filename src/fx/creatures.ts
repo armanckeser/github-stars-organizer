@@ -32,7 +32,7 @@ function tile(fighter: RunFighter, caption: string, width: number): HTMLElement 
   const figure = document.createElement("figure");
   figure.style.cssText = `margin:0;width:${width}px;display:flex;flex-direction:column;gap:4px`;
   const image = document.createElement("img");
-  image.src = shopArt(fighter);
+  void shopArt(fighter).then((url) => (image.src = url));
   image.style.cssText = `width:${width}px;height:${Math.round((width * 300) / 480)}px;border-radius:6px`;
   const label = document.createElement("figcaption");
   label.textContent = caption;

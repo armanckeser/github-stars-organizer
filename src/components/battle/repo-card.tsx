@@ -57,7 +57,8 @@ export function useCreature(fighter: Fighter): string | null | false {
   useEffect(() => {
     let live = true;
     import("./three/portrait")
-      .then(({ portrait }) => live && setArt({ of: fighter, image: portrait(fighter) }))
+      .then(({ portrait }) => portrait(fighter))
+      .then((image) => live && setArt({ of: fighter, image }))
       .catch(() => live && setArt({ of: fighter, image: false }));
     return () => {
       live = false;

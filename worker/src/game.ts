@@ -1,6 +1,7 @@
 import { decodeOpening, encodeOpening, openingBody, readOpening, replay, type GameComment, type GameState, type Opening } from "../../server/game.ts";
 import { LOGIN, REPO } from "./cards.ts";
 import { NoSuchUser, evened, gql, teamFor, type Team } from "./battle.ts";
+import { SITE_ORIGIN } from "../../server/site.ts";
 
 // The async battle's referee (issue #47, rules in server/game.ts). A match is a GitHub
 // Discussion; this Worker stores none of it. It does three things:
@@ -14,7 +15,7 @@ import { NoSuchUser, evened, gql, teamFor, type Team } from "./battle.ts";
 
 export const GAME_PATH = /^\/api\/(game\/new|game|games)$/;
 
-const APP = "https://stars-demo.armanckeser.com/";
+const APP = `${SITE_ORIGIN}/`;
 export const TITLE = "Stard battle";
 const MAX_COMMENT_PAGES = 5;
 const LISTED = 12;

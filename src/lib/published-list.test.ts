@@ -149,7 +149,7 @@ describe("with a username: cards", () => {
       compose({ login: "octo", sections: [{ id: "t", kind: "topFour", repoIds: ["a", "b", "c", "d", "e"], heading: "" }] }),
       [repo("a", { usefulness_rating: 5 }), repo("b"), repo("c", { usefulness_rating: 3 }), repo("d"), repo("e")],
     );
-    expect(markdown).toMatch(/^\[!\[octo's top four repos on GitHub: me\/a, me\/b, me\/c, me\/d\]\(.*\)\]\(https:\/\/stars-demo\.armanckeser\.com\/\?user=octo\)\n$/);
+    expect(markdown).toMatch(/^\[!\[octo's top four repos on GitHub: me\/a, me\/b, me\/c, me\/d\]\(.*\)\]\(https:\/\/stard\.armanckeser\.com\/\?user=octo\)\n$/);
     const params = cardParams(markdown, "top4");
     expect(params.get("user")).toBe("octo");
     expect(params.get("repos")).toBe("me/a,me/b,me/c,me/d");
@@ -204,7 +204,7 @@ describe("with a username: cards", () => {
     const section = { id: "c", kind: "character" as const, heading: "", character: null };
     const plain = run(compose({ login: "octo", sections: [section] }), []).markdown;
     expect(plain).toContain("[![octo, a Rookie on Stard. Battle octo.](");
-    expect(plain).toContain(")](https://stars-demo.armanckeser.com/battle?b=octo)");
+    expect(plain).toContain(")](https://stard.armanckeser.com/battle?b=octo)");
     expect(cardParams(plain, "trainer").get("class")).toBe("rookie");
     expect(cardParams(plain, "trainer").has("name")).toBe(false);
 

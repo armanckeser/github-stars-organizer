@@ -1,4 +1,4 @@
-import { assemble, type Cluster, type Point, type Shape, type Vector } from "./creature-parts.ts";
+import { assemble, type Cluster, type Point, type Quad, type Shape, type Vector } from "./creature-parts.ts";
 import type { CreatureRecipe } from "./creature-recipe.ts";
 
 // A repo's creature drawn flat, for pictures made without a browser (the Worker's share
@@ -227,6 +227,17 @@ function drawShape(shape: Shape, placement: Placement): Drawn[] {
   }
 }
 
+/** The sash's pieces that face the viewer, each in its own flat paint, as the contribution graph's squares are. */
+function quadsDrawn(quads: Quad[], placement: Placement, lift: Vector): Drawn[] {
+  return quads.flatMap(({ corners, normal, paint }) => {
+    const facing = apply(placement.root, normal);
+    if (facing[2] <= 0) return [];
+    const world = corners.map((corner) => apply(placement.root, add(corner, lift)));
+    const depth = world.reduce((sum, [, , z]) => sum + z / world.length, 0);
+    return [{ depth, svg: `<polygon points="${pointsOf(world.map(placement.see))}" fill="${paint}"/>` }];
+  });
+}
+
 const shifted = (shapes: Shape[], by: Vector): Shape[] => shapes.map((shape) => ({ ...shape, at: add(shape.at, by) }));
 const unclustered = (cluster: Cluster) => shifted(cluster.shapes, cluster.at);
 
@@ -240,7 +251,7 @@ export function creatureSticker(recipe: CreatureRecipe, place: { x: number; y: n
   const draw = (shapes: Shape[]) => shifted(shapes, lift).flatMap((shape) => drawShape(shape, placement));
   const onBody = assembly.body.filter((shape) => shape.layer !== "face");
   const onFace = assembly.body.filter((shape) => shape.layer === "face");
-  const body = draw([...onBody, ...(assembly.emblem ? unclustered(assembly.emblem) : [])]).sort((a, b) => a.depth - b.depth);
+  const body = [...draw([...onBody, ...(assembly.emblem ? unclustered(assembly.emblem) : [])]), ...quadsDrawn(assembly.sash, placement, lift)].sort((a, b) => a.depth - b.depth);
   // The face sits on the body's surface toward the viewer; sorting it by depth against
   // whole parts would put a wide part's middle over it, so it is drawn last.
   const face = draw([...assembly.eyes.flatMap(unclustered), assembly.mouth, ...onFace]);

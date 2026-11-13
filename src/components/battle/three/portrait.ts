@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { Fighter } from "../../../../server/battle";
+import { creatureRecipe } from "../../../../server/creature-recipe";
+import type { RunFighter } from "../../../../server/run/rules";
 import { buildCreature } from "./creature";
 import { dispose, INK } from "./kit";
 
@@ -32,8 +34,11 @@ function open() {
 }
 
 /** A PNG of the fighter's creature as a data URL. Throws when the browser has no WebGL. */
-export function portrait(fighter: Fighter): string {
-  const key = [fighter.fullName.toLowerCase(), fighter.type, fighter.color, fighter.level, fighter.retired, fighter.description].join("|");
+// A picture is kept by everything its creature is made of, its role and cost included.
+const keyOf = (kind: string, fighter: Fighter | RunFighter) => `${kind}|${JSON.stringify(creatureRecipe(fighter))}`;
+
+export function portrait(fighter: Fighter | RunFighter): string {
+  const key = keyOf("card", fighter);
   const kept = drawn.get(key);
   if (kept) return kept;
   const { renderer, scene, camera } = open();
@@ -209,8 +214,8 @@ function frame(camera: THREE.PerspectiveCamera, creature: ReturnType<typeof buil
  * warm key and a cool rim against a slate wall, set right of the middle so the card's left
  * side holds its sets. A 16:10 PNG as a data URL. Throws when the browser has no WebGL.
  */
-export function shopArt(fighter: Fighter): string {
-  const key = ["shop", fighter.fullName.toLowerCase(), fighter.type, fighter.color, fighter.level, fighter.retired, fighter.description].join("|");
+export function shopArt(fighter: Fighter | RunFighter): string {
+  const key = keyOf("shop", fighter);
   const kept = drawn.get(key);
   if (kept) return kept;
   const { renderer, scene, camera, wall, key: keyLight, sun, pool, rim } = openStage();

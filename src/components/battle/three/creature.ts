@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { Fighter } from "../../../../server/battle";
-import { assemble, type Cluster, type Shape } from "../../../../server/creature-parts";
+import type { RunFighter } from "../../../../server/run/rules";
+import { assemble, type Cluster, type Quad, type Shape } from "../../../../server/creature-parts";
 import { creatureRecipe } from "../../../../server/creature-recipe";
 import { box, cone, cylinder, part, sphere, toon } from "./kit";
 
@@ -76,7 +77,31 @@ function clusterOf(cluster: Cluster, paints: Paints): THREE.Group {
   return group;
 }
 
-export function buildCreature(fighter: Fighter): Creature {
+/** The sash's band, ink edges and squares as one mesh, so it costs one draw however many squares it has. */
+function sashOf(quads: Quad[]): THREE.Mesh {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colors: number[] = [];
+  const color = new THREE.Color();
+  for (const { corners: [a, b, c, d], normal, paint } of quads) {
+    color.set(paint);
+    for (const corner of [a, b, c, a, c, d]) {
+      positions.push(...corner);
+      normals.push(...normal);
+      colors.push(color.r, color.g, color.b);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const material = toon("#ffffff");
+  material.vertexColors = true;
+  material.side = THREE.DoubleSide;
+  return part(geometry, material, { outline: false });
+}
+
+export function buildCreature(fighter: Fighter | RunFighter): Creature {
   const recipe = creatureRecipe(fighter);
   const assembly = assemble(recipe);
   const { base, light, dark, accent } = recipe.paints;
@@ -101,6 +126,7 @@ export function buildCreature(fighter: Fighter): Creature {
     return group;
   });
   body.add(meshOf(assembly.mouth, paints));
+  if (assembly.sash.length) body.add(sashOf(assembly.sash));
 
   const root = new THREE.Group();
   root.add(body);

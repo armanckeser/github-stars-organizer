@@ -59,11 +59,24 @@ const cellSpot = (page: Page, col: number, row: number) => page.evaluate(({ x, y
 const boardCount = async (page: Page) => Number((await page.getByLabel(/ cards on the board$/).locator("visible=true").first().getAttribute("aria-label"))!.split(" ")[0]);
 const gold = async (page: Page) => Number((await page.getByLabel(/^\d+ gold$/).first().getAttribute("aria-label"))!.split(" ")[0]);
 
+/** How long one pointer step may take: Playwright's mouse has no timeout of its own, and a step Chromium never acknowledges once held a run for its whole 30 minutes. */
+const POINTER_LIMIT = 60_000;
+
+async function bounded(step: Promise<void>, what: string) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`${what} took over ${POINTER_LIMIT / 1000} s`)), POINTER_LIMIT)));
+  try {
+    await Promise.race([step, limit]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function drag(page: Page, from: Spot, to: Spot, steps = 8) {
-  await page.mouse.move(from.clientX, from.clientY);
-  await page.mouse.down();
-  for (let i = 1; i <= steps; i++) await page.mouse.move(from.clientX + ((to.clientX - from.clientX) * i) / steps, from.clientY + ((to.clientY - from.clientY) * i) / steps);
-  await page.mouse.up();
+  await bounded(page.mouse.move(from.clientX, from.clientY), "mouse.move");
+  await bounded(page.mouse.down(), "mouse.down");
+  for (let i = 1; i <= steps; i++) await bounded(page.mouse.move(from.clientX + ((to.clientX - from.clientX) * i) / steps, from.clientY + ((to.clientY - from.clientY) * i) / steps), "mouse.move");
+  await bounded(page.mouse.up(), "mouse.up");
 }
 
 /** Buys the cheapest card the gold allows, and puts it on a free cell if the board has room. */

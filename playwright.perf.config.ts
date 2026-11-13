@@ -12,9 +12,12 @@ import { defineConfig, devices } from "@playwright/test";
 // test-results/perf/<label>-<device>.json, and `npx tsx e2e/perf/compare.ts before after`
 // prints two labels side by side. look.perf.ts saves the same seeded frames and pictures
 // under test-results/perf/look/, so a change can show the screen did not change.
+// options.perf.ts runs on its own project, the phone on a GPU in software, and measures
+// what the visual trade-offs (pixel ratio, shadows, blur) would buy.
 // PERF_PROFILE=1 adds the hottest functions from a CPU profile, which slows the page, so
 // leave it off for the frame numbers.
 const PORT = Number(process.env.PERF_PORT ?? 5197);
+const PHONE = { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
 
 export default defineConfig({
   testDir: "e2e/perf",
@@ -28,8 +31,10 @@ export default defineConfig({
   projects: [
     // The full Chromium in its new headless mode draws WebGL on the machine's GPU; the headless shell only has SwiftShader.
     // A laptop's screen: two device pixels to the CSS pixel, as on every MacBook.
-    { name: "desktop", use: { ...devices["Desktop Chrome"], channel: "chromium", viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 } },
-    { name: "phone", use: { ...devices["Desktop Chrome"], channel: "chromium", viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true } },
+    { name: "desktop", testIgnore: "options.perf.ts", use: { ...devices["Desktop Chrome"], channel: "chromium", viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 } },
+    { name: "phone", testIgnore: "options.perf.ts", use: { ...PHONE, channel: "chromium" } },
+    // The phone on SwiftShader, a GPU in software, so the GPU's share of a frame shows in frame times (options.perf.ts).
+    { name: "phone-software", testMatch: "options.perf.ts", use: { ...PHONE, channel: "chromium", launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] } } },
   ],
   webServer: {
     command: `VITE_DEMO=1 VITE_PERF=1 npx vite build --sourcemap --outDir dist-perf --emptyOutDir && npx vite preview --outDir dist-perf --port ${PORT} --strictPort`,

@@ -19,7 +19,7 @@ import { demoUser } from "@/lib/demo";
 import { validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
-import { CLASSES, GOLD } from "../../server/character";
+import { CLASSES } from "../../server/character";
 import { BOOST_ROUNDS, boostOffer } from "../../server/run/boosts";
 import { benchToBoard, boardToBench, cardsOf, emptyBench, swapBench, toBench, without, type Roster } from "../../server/run/roster";
 import { SLOT_COST, boardLimit } from "../../server/run/rules";
@@ -433,11 +433,7 @@ function RunPage() {
             <div>
               <p className="font-display text-xl font-bold tracking-tight">{profile.character.name}</p>
               <p className="text-sm">{CLASSES[profile.character.klass].label} · Lv {profile.character.level}</p>
-              {profile.supporter && (
-                <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: GOLD }}>
-                  <span className="h-1.5 w-4 rounded-sm" style={{ background: GOLD }} aria-hidden /> Starred Stard
-                </p>
-              )}
+              {profile.supporter && <p className="text-xs text-white/70">Starred Stard</p>}
               {profile.character.klass !== "rookie" && <p className="text-xs text-white/70">{CLASSES[profile.character.klass].perk}</p>}
               {profile.character.motto && <p className="mt-1 text-xs text-white/70">“{profile.character.motto}”</p>}
             </div>

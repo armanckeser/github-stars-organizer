@@ -2,8 +2,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { GOLD } from "../../server/character.ts";
 import type { Opening } from "../../server/game.ts";
 import { battleResponse, poolResponse, trainerResponse } from "./battle.ts";
-import { GUEST, HOST, fakeGitHub, stargazerCalls } from "./fake-github.test-helper.ts";
+import { GUEST, HOST, LISTED_LEFT_OUT, fakeGitHub, stargazerCalls } from "./fake-github.test-helper.ts";
 import { gameResponse } from "./game.ts";
+import { callWorker, memoryCaches } from "./worker-host.test-helper.ts";
+
+// The share picture's assets are bundled by wrangler and can't load in Node; nothing here draws a picture.
+vi.mock("@resvg/resvg-wasm/index_bg.wasm", () => ({ default: new Uint8Array() }));
+vi.mock("./SpaceGrotesk-Bold.ttf", () => ({ default: new ArrayBuffer(0) }));
 
 // Each test starts a day after the last, so the hour-long list of stargazers from one
 // test is never still held in the next.
@@ -61,6 +66,33 @@ describe("the gold band for people who starred Stard", () => {
     const response = await poolResponse(new URLSearchParams({ login: HOST }), "token");
     expect(response.status).toBe(200);
     expect(((await response.json()) as Pool).supporter).toBe(true);
+  });
+
+  // Regression guarded: GitHub taking its time over the stargazers holds every cold
+  // pool read, the Play screen's first wait, until it answers.
+  test("poolResponse_answers_with_the_last_list_when_the_stargazer_read_hangs", async () => {
+    await pool(HOST);
+    vi.setSystemTime(Date.now() + 61 * 60_000);
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes("/stargazers") ? new Promise<Response>(() => {}) : fakeGitHub(input, init));
+    const response = await poolResponse(new URLSearchParams({ login: HOST }), "token");
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as Pool).supporter).toBe(true);
+  });
+
+  // Regression guarded: an account that asked to be left out of the game (a
+  // `stard/no-play` file) still has its starring shown on its figure.
+  test("poolResponse_leaves_the_flag_out_when_a_stargazer_opted_out_of_being_played", async () => {
+    expect("supporter" in (await pool(LISTED_LEFT_OUT))).toBe(false);
+  });
+
+  // Regression guarded: the trainer card of an account on the block list, or with a
+  // `stard/no-play` file, draws the band.
+  test("trainer_card_leaves_the_band_off_when_the_stargazer_asked_to_be_left_out", async () => {
+    vi.stubGlobal("caches", memoryCaches());
+    const card = async (user: string, blocked: string) => (await callWorker(`/api/card/trainer.svg?user=${user}`, undefined, { NO_PLAY: blocked })).text;
+    expect(await card(HOST, "study-group-abed")).not.toContain(GOLD);
+    expect(await card(LISTED_LEFT_OUT, "")).not.toContain(GOLD);
   });
 
   test("battle_and_opening_post_carry_the_flag_when_one_side_starred_stard", async () => {

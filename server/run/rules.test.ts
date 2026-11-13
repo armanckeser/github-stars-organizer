@@ -51,13 +51,13 @@ describe("opponentUnits", () => {
 
   // Regression guarded: round 1's opponent fielded its ace and free pick at full strength,
   // so a player's ace and one card bought with the starting gold lost round 1 more often than not.
-  it("fields the ace and one card in round 1, the ace with 350 stat points", () => {
+  it("fields the ace and one card in round 1, the ace with 385 stat points", () => {
     expect(numbers(1)).toHaveLength(2);
-    expect(numbers(1)).toContainEqual({ fullName: "greendale/dreamatorium", hp: 206, attack: 88, guard: 88, speed: 88 });
+    expect(numbers(1)).toContainEqual({ fullName: "greendale/dreamatorium", hp: 214, attack: 96, guard: 96, speed: 96 });
   });
 
-  it("shrinks a common's 400 points to 350 in round 1, its HP above the floor only", () => {
-    expect(numbers(1).find((unit) => unit.fullName !== "greendale/dreamatorium")).toMatchObject({ hp: 148, attack: 88, guard: 88, speed: 88 });
+  it("shrinks a common's 400 points to 385 in round 1, its HP above the floor only", () => {
+    expect(numbers(1).find((unit) => unit.fullName !== "greendale/dreamatorium")).toMatchObject({ hp: 149, attack: 96, guard: 96, speed: 96 });
   });
 
   // Regression guarded: shrinking all of a card's HP turned a bruiser ace into an assassin in
@@ -65,8 +65,10 @@ describe("opponentUnits", () => {
   // rounding the shrunk stats tipped a card sitting on a role's cut into the next role.
   it.each([
     ["kentcdodds' rare ace", { rarity: 2, hp: 155, attack: 120, guard: 101, speed: 110 }, "bruiser"],
-    ["an uncommon on the assassin cut", { rarity: 1, hp: 152, attack: 116, guard: 102, speed: 109 }, "assassin"],
-    ["an uncommon on the tank cut", { rarity: 1, hp: 152, attack: 110, guard: 111, speed: 107 }, "bruiser"],
+    // Three real cards whose shrunk and rounded stats land on a role's cut at 385 points.
+    ["a rare tank on the tank cut", { rarity: 2, hp: 156, attack: 106, guard: 102, speed: 117 }, "tank"],
+    ["a rare bruiser on the assassin cut", { rarity: 2, hp: 154, attack: 113, guard: 101, speed: 118 }, "bruiser"],
+    ["a common bruiser on the assassin cut", { rarity: 0, hp: 150, attack: 101, guard: 103, speed: 114 }, "bruiser"],
   ] as const)("keeps %s in its role in round 1", (_, ace, role) => {
     expect(aceRole(2, ace)).toBe(role);
     expect(aceRole(1, ace)).toBe(role);

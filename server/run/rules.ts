@@ -104,10 +104,11 @@ export function opponentLogin(login: string, round: number, seed: string, optedO
 const FIRST_ROUND = 1;
 /**
  * The stat points each of the other account's cards fights with in round 1 (BUDGET gives a
- * common 400). armanckeser's ace and one card bought with the starting gold won round 1 in
- * 40% of 2,000 simulated runs against the full-strength ace and free pick, and in 73% at 350.
+ * common 400). Over 2,000 simulated round 1s, armanckeser's ace and the starting gold's buy
+ * won 43% against the full-strength ace and free pick buying the priciest card, 55% buying
+ * for live checks; at 385, 67% and 75% (scripts/balance/boards.ts's two buyers).
  */
-export const OPENING_STAT_POINTS = 350;
+export const OPENING_STAT_POINTS = 385;
 
 // Rounding four stats moves the lean roleOf reads by about 0.01, which tips a card sitting on
 // a role's cut into the next role (3 of 297 cards in the pools tried). Guard counts on the

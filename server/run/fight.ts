@@ -50,7 +50,11 @@ type Unit = {
   hp: number;
   /** Damage the card's shield takes before its HP does. */
   shield: number;
-  /** The tick of the card's next action. */
+  /**
+   * When the card next acts, in ticks, with the fraction kept: the card acts on the
+   * first whole tick at or after it, and its following wait counts from this, not from
+   * that tick, so a wait of 9.6 ticks gives 10, 9, 10, 10, 9 ... and speed always counts.
+   */
   next: number;
   hits: number;
   boost: Record<Scaled, number>;
@@ -71,11 +75,19 @@ const apart = (a: { x: number; y: number }, b: { x: number; y: number }) => Math
 const standing = (arena: Arena, side: Side) => arena.units.filter((unit) => unit.side === side && unit.hp > 0);
 const scaled = (unit: Unit, stat: Scaled) => unit.card[stat] * Math.max(0.1, unit.boost[stat]);
 
-/** Ticks between a card's hits: a faster card waits less. */
+/**
+ * Ticks between a card's hits, a fraction kept: a faster card waits less. Rounded to
+ * whole ticks, every card with a speed of 100 to 140 waited 10, so speed did nothing.
+ */
 function periodOf(unit: Unit): number {
   const limited = unit.condition?.name === "rate-limited" ? RATE_LIMITED : 1;
   const wait = limited * PERIOD * ((EVEN + CUSHION) / (scaled(unit, "speed") + CUSHION)) ** SPEED_EDGE;
-  return Math.max(MIN_PERIOD, Math.min(MAX_PERIOD, Math.round(wait)));
+  return Math.max(MIN_PERIOD, Math.min(MAX_PERIOD, wait));
+}
+
+/** Waits a card's period after its last action was due (Unit.next). */
+function rest(unit: Unit) {
+  unit.next += periodOf(unit);
 }
 
 /** A hit's damage before the critical and the dice: attack against guard. */
@@ -217,11 +229,11 @@ function fire(arena: Arena, unit: Unit, on: Trigger, foe: Unit | undefined) {
 function strike(arena: Arena, unit: Unit, target: Unit) {
   const condition = unit.condition?.name;
   if (condition === "flaky" && arena.random() < FLAKY_ODDS) {
-    unit.next = arena.t + periodOf(unit);
+    rest(unit);
     return;
   }
   if (condition === "merge-conflict" && arena.random() < MERGE_CONFLICT_ODDS) {
-    unit.next = arena.t + periodOf(unit);
+    rest(unit);
     changeHp(arena, unit, -Math.max(1, Math.round(baseHit(unit, unit))), condition);
     return;
   }
@@ -229,7 +241,7 @@ function strike(arena: Arena, unit: Unit, target: Unit) {
   const damage = Math.max(1, Math.round(baseHit(unit, target) * (critical ? unit.critical : 1) * (1 - VARIANCE / 2 + arena.random() * VARIANCE)));
   wound(arena, unit, target, damage, critical);
   unit.hits++;
-  unit.next = arena.t + periodOf(unit);
+  rest(unit);
   fire(arena, unit, "hit", target);
   if (target.hp > 0) fire(arena, target, "hurt", unit);
   if (unit.hits % THIRD === 0) fire(arena, unit, "third", target);

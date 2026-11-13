@@ -343,5 +343,6 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Feedback | Status |
 |---|---|
 | An ability firing shows as a slate text card over the creature (GAME-UI §9). It should be an animation on the board, stylized, readable without reading words. One look per effect kind (damage, shield, heal, stat, condition), so 23 abilities, the set bonuses and the boosts all share it. | built: a gold name under 1 s, a gold cast ring, and one look per kind in `src/components/battle/three/effects/` (GAME-UI §9). Shields also show on the HP bar. Owner approved from the before/after videos. |
+| "When I see something like rate limited, I want to press the character and see what rate limited means." In a fight, a tap on any creature (or on its condition badge) opens a panel beside the board, as TFT's unit panel does, and the fight plays on: live HP and shield, the condition as a sentence with the seconds left ("Rate limited: acts 1.5× slower, 2 s left"), the ability, and live set bonuses (GAME-UI §9). | branch `fight-inspect` (#PR) |
 
 The owner played a whole run on 2026-11-12: "it was actually fun".

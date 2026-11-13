@@ -267,6 +267,8 @@ Everything the owner said while the Play run was built, in one place. Status: **
 
 > "If I am going for a synergy I should be able to just look at the monster and kind of understand if that's one I might want to add ... I can read further in by pressing the card."
 
+> Asked again on 2026-11-12, about combining copies: "I am still unclear on what lets me tell if a card is ranged vs not, what colors mean etc." Today range shows only as the role chip on the card face (data, docs and scripts repos are Ranged), and the creature shows the language colour and the type trim, which nothing explains.
+
 - Stard makes its own rules, so the look must follow them. Every rule a player plans around gets one visible part of the creature. The details stay in the card face.
 - Today the creature mostly shows words from the repo's name, which mean nothing in a fight. Role, sets and cost don't show at all, and type shows only through colour.
 - **Decided 2026-11-12 (build after #71, #77 and creator cards):**
@@ -286,7 +288,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Every `armanckeser` repo is a creator card: legendary, 5 gold, the 460 budget (× 1.05 shiny). "github-stars-organizer" is a 1-gold common today; creator cards are the reason to star them. | branch `sell-every-card` |
 | Hovering a check (yours or theirs) names the board's cards in that set, beside the bonus. | branch `sell-every-card` |
 | Keep the bench, even though Stard cards never combine. | built |
-| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub. | open (path not chosen) |
+| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | open (balance check first) |
 | A friend's idea: buying the same repo three times combines it into a stronger one, as in TFT. Today each repo is in the pool once, so copies never meet. | idea |
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |

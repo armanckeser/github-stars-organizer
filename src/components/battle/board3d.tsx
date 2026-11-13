@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Look } from "../../../server/character";
+import type { Wearer } from "../../../server/character";
 import { BoardWorld, type BoardFight, type BoardUnit, type Spot } from "./three/board";
 
 declare global {
@@ -11,8 +11,8 @@ declare global {
 
 export type BoardProps = {
   units: BoardUnit[];
-  near: Look | null;
-  far: Look | null;
+  near: Wearer | null;
+  far: Wearer | null;
   selected: string | null;
   /** The fight to play, or null between fights. */
   fight: BoardFight | null;

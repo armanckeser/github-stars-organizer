@@ -186,8 +186,22 @@ export function decodeLook(code: string | null | undefined, fallback: Look): Loo
 }
 
 const INK = "#1b1d21";
+/** The patch worn by someone who starred Stard: white, because GAME-UI §3 keeps the tier colours for cards. */
+export const STAR_PATCH = "#ffffff";
+
+/** The 10 corners of a five-pointed star around 0,0, with its top point up on screen (y down). */
+export function starCorners(outer: number, inner: number): [number, number][] {
+  return Array.from({ length: 10 }, (_, corner) => {
+    const radius = corner % 2 === 0 ? outer : inner;
+    const angle = -Math.PI / 2 + (corner * Math.PI) / 5;
+    return [Math.cos(angle) * radius, Math.sin(angle) * radius];
+  });
+}
 
 export type Character = { name: string; klass: ClassId; look: Look; motto: string };
+
+/** A figure as it stands on the board: the look, and the star patch when the person starred Stard. */
+export type Wearer = { look: Look; supporter: boolean };
 
 export const MAX_NAME = 24;
 export const MAX_MOTTO = 70;
@@ -319,7 +333,7 @@ export function shade(color: string, by: number): string {
  * The figure, as SVG shapes for a 120 by 170 box: flat colour, no outlines, the same
  * plain style as the cards. The caller wraps it in an <svg> or a <g>.
  */
-export function figureSvg(look: Look): string {
+export function figureSvg(look: Look, supporter = false): string {
   const skin = look.skin;
   const skinDark = shade(skin, 0.86);
   const hair = look.hairColor;
@@ -338,10 +352,14 @@ export function figureSvg(look: Look): string {
   if (look.hair === "long") out.push(`<rect x="31" y="20" width="58" height="66" rx="22" fill="${hair}"/>`);
   if (look.hair === "medium") out.push(`<rect x="33" y="20" width="54" height="46" rx="20" fill="${hair}"/>`);
   if (look.top === "hoodie") out.push(`<ellipse cx="60" cy="52" rx="31" ry="30" fill="${topDark}"/>`);
-  // Arms, then hands.
-  out.push(`<rect x="23" y="70" width="15" height="46" rx="7.5" fill="${top}"/><rect x="82" y="70" width="15" height="46" rx="7.5" fill="${top}"/>`);
+  // Arms, then hands. A supporter's arms get an edge, so the patch sits on an arm even
+  // when the top is the colour of the panel behind it.
+  const armEdge = supporter ? ` stroke="${shade(top, 0.6)}" stroke-width="1.6"` : "";
+  out.push(`<rect x="23" y="70" width="15" height="46" rx="7.5" fill="${top}"${armEdge}/><rect x="82" y="70" width="15" height="46" rx="7.5" fill="${top}"${armEdge}/>`);
   if (look.top === "tee") out.push(`<rect x="23" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/><rect x="82" y="90" width="15" height="26" rx="7.5" fill="${sleeves}"/>`);
   out.push(`<circle cx="30.5" cy="118" r="6.5" fill="${skin}"/><circle cx="89.5" cy="118" r="6.5" fill="${skin}"/>`);
+  // Someone who starred Stard wears a star patch on each upper arm, as the 3D figure does.
+  if (supporter) for (const x of [30.5, 89.5]) out.push(starPatchAt(x, 85));
   // Torso.
   out.push(`<rect x="36" y="66" width="48" height="54" rx="13" fill="${top}"/>`);
   if (look.top === "hoodie") {
@@ -412,9 +430,15 @@ function hairTop(style: Hair, hair: Hex): string {
   }
 }
 
+/** The star patch centred on `x`, `y` of the 120 by 170 figure. */
+function starPatchAt(x: number, y: number): string {
+  const points = starCorners(5.4, 2.3).map(([dx, dy]) => `${(x + dx).toFixed(2)},${(y + dy).toFixed(2)}`).join(" ");
+  return `<polygon points="${points}" fill="${STAR_PATCH}"/>`;
+}
+
 /** The figure as a whole image, for an <img> or a background. */
-export function figureImage(look: Look): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 170">${figureSvg(look)}</svg>`;
+export function figureImage(look: Look, supporter = false): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 170">${figureSvg(look, supporter)}</svg>`;
 }
 
 /** A character's level, from what GitHub knows about the person: followers and stars on their own repos. */

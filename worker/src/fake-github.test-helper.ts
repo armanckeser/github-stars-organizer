@@ -122,8 +122,24 @@ function foundBy(search: string): string[] {
     .sort((a, b) => REPOS[b].stars - REPOS[a].stars);
 }
 
-/** A stand-in for `fetch` that answers GitHub's GraphQL endpoint and nothing else. */
-export async function fakeGitHub(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+// Who starred this repo: 150 made-up students, then the host and the Dean (who opted
+// out of being played), so the list takes two pages of 100.
+const STARGAZERS = [...Array.from({ length: 150 }, (_, i) => `greendale-student-${i + 1}`), "Study-Group-Abed", "Study-Group-Dean"];
+
+/** The REST calls made for this repo's stargazers, one per page asked for. */
+export const stargazerCalls: string[] = [];
+
+function stargazers(url: URL): Response {
+  stargazerCalls.push(url.search);
+  const perPage = Number(url.searchParams.get("per_page") ?? 30);
+  const page = Number(url.searchParams.get("page") ?? 1);
+  return Response.json(STARGAZERS.slice((page - 1) * perPage, page * perPage).map((login) => ({ login })));
+}
+
+/** A stand-in for `fetch` that answers GitHub's GraphQL endpoint and this repo's stargazers. */
+export async function fakeGitHub(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  if (url.pathname === "/repos/armanckeser/github-stars-organizer/stargazers") return stargazers(url);
   const { query } = JSON.parse(String(init?.body)) as { query: string };
   const user = /user\(login: "([^"]+)"\)/.exec(query);
   if (user) {
@@ -156,6 +172,7 @@ export function fakeGitHubWhere(options: { noPlay: readonly string[] }): FakeGit
   const usersRead: string[] = [];
   const noPlay = new Set(options.noPlay.map((login) => login.toLowerCase()));
   const answer = async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (init?.body === undefined) return fakeGitHub(_input, init);
     const { query } = JSON.parse(String(init?.body)) as { query: string };
     const user = /user\(login: "([^"]+)"\)/.exec(query);
     if (user) {

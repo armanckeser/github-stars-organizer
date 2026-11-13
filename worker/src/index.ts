@@ -169,7 +169,7 @@ export default {
         : versus
         ? await versusResponse(url.searchParams, env.GITHUB_TOKEN)
         : trainer
-        ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN)
+        ? await trainerResponse(url.searchParams, env.GITHUB_TOKEN, blocked)
         : fight
           ? await battleResponse(fight[1], url.searchParams, env.GITHUB_TOKEN)
           : await cardResponse(card![1], url.searchParams, env.GITHUB_TOKEN);

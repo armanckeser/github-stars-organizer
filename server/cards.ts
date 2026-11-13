@@ -241,7 +241,7 @@ export function listCard(login: string, title: string, count: number, repos: Car
 export type TrainerFacts = { level: number; since: number | null; followers: number; ownStars: number };
 
 /** A player's character: the figure, the class and its perk, and what GitHub knows about the person. */
-export function trainerCard(login: string, character: Character, facts: TrainerFacts): string {
+export function trainerCard(login: string, character: Character, facts: TrainerFacts, supporter = false): string {
   const klass = CLASSES[character.klass];
   const panel = 180;
   const x = PAD + panel + 28;
@@ -252,7 +252,7 @@ export function trainerCard(login: string, character: Character, facts: TrainerF
     `${compact(facts.ownStars)} ${facts.ownStars === 1 ? "star" : "stars"} on their repos`,
   ].filter(Boolean).join(" · ");
   let body = `<rect x="${PAD}" y="${PAD}" width="${panel}" height="190" rx="10" fill="${klass.color}"/>`;
-  body += `<g transform="translate(${PAD + 27}, ${PAD + 8}) scale(1.05)">${figureSvg(character.look)}</g>`;
+  body += `<g transform="translate(${PAD + 27}, ${PAD + 8}) scale(1.05)">${figureSvg(character.look, supporter)}</g>`;
   body += `<text x="${x}" y="${PAD + 34}" font-size="30" font-weight="800" letter-spacing="-0.6" fill="${TEXT}">${escapeXml(truncate(character.name, 30))}</text>`;
   body += `<text x="${x}" y="${PAD + 62}" font-size="15" font-weight="700" fill="${accent}">${escapeXml(klass.label)} · Lv ${facts.level}</text>`;
   body += `<text x="${x}" y="${PAD + 86}" font-size="14" fill="${BODY}">${escapeXml(klass.perk)}</text>`;

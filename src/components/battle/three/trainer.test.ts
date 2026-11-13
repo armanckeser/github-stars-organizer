@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { COLOR_PARTS, STYLE_PARTS, type Look, type StylePart } from "../../../../server/character";
+import { COLOR_PARTS, STAR_PATCH, STYLE_PARTS, type Look, type StylePart } from "../../../../server/character";
 import { buildTrainer } from "./trainer";
 
 const plain: Look = {
@@ -9,8 +9,8 @@ const plain: Look = {
 };
 
 /** Every visible part of the model: its shape, where it sits, and its colour. */
-function shapeOf(look: Look): string[] {
-  const { root } = buildTrainer(look);
+function shapeOf(look: Look, supporter = false): string[] {
+  const { root } = buildTrainer(look, supporter);
   root.updateMatrixWorld(true);
   const parts: string[] = [];
   root.traverse((node) => {
@@ -36,6 +36,14 @@ describe("the 3D figure", () => {
   test.each(Object.keys(COLOR_PARTS) as (keyof typeof COLOR_PARTS)[])("buildTrainer_paints_with_the_%s_colour_when_the_colour_changes", (key) => {
     expect(shapeOf({ ...plain, [key]: "#123456" }).join("|")).toContain("#123456");
     expect(shapeOf(plain).join("|")).not.toContain("#123456");
+  });
+
+  // Regression guarded: the arena drops the star patch a supporter wears on their card,
+  // or wears it only on the arm the board's camera can't see.
+  test("buildTrainer_adds_a_star_patch_on_each_arm_only_when_the_player_starred_stard", () => {
+    const patches = (supporter: boolean) => shapeOf(plain, supporter).filter((shape) => shape.startsWith("ExtrudeGeometry") && shape.includes(STAR_PATCH));
+    expect(patches(true)).toHaveLength(2);
+    expect(patches(false)).toHaveLength(0);
   });
 
   test("buildTrainer_hides_the_top_of_the_hair_when_a_hat_is_on", () => {

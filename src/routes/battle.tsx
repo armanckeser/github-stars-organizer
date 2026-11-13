@@ -21,7 +21,7 @@ import { CLASSES, defaultCharacter, readLook, type Character } from "../../serve
 // over a GitHub thread (routes/game.tsx), and see the matches they are in.
 
 type Player = Character & { level: number; custom: boolean };
-type Team = { login: string; avatarUrl: string | null; source: "profile" | "pinned" | "stars" | "repos"; character: Player; team: Fighter[] };
+type Team = { login: string; avatarUrl: string | null; supporter?: true; source: "profile" | "pinned" | "stars" | "repos"; character: Player; team: Fighter[] };
 type Battle = { a: Team; b: Team; seed: string; result: BattleResult };
 
 export const Route = createFileRoute("/battle")({
@@ -93,7 +93,7 @@ function TeamRow({ team, onInspect, delay }: { team: Team; onInspect: (fighter: 
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <div className="shrink-0 rounded-md" style={{ background: klass.color }}>
-          <Figure look={team.character.look} className="h-20 w-auto" />
+          <Figure look={team.character.look} supporter={team.supporter === true} className="h-20 w-auto" />
         </div>
         <div className="min-w-0">
           <h2 className="truncate font-display text-xl font-bold tracking-tight">{team.character.name}</h2>
@@ -258,7 +258,7 @@ function BattlePage() {
   const sideOf = (side: Side): SideView | null => {
     if (!battle || !scene) return null;
     const hit = scene.last && scene.last.side !== side ? { damage: scene.last.damage, critical: scene.last.critical } : undefined;
-    return { fighter: battle[side].team[scene[side].index], look: battle[side].character.look, stance: scene[side].stance, hit, special: scene.last?.side === side && scene.last.special, won: done && battle.result.winner === side };
+    return { fighter: battle[side].team[scene[side].index], look: battle[side].character.look, supporter: battle[side].supporter === true, stance: scene[side].stance, hit, special: scene.last?.side === side && scene.last.special, won: done && battle.result.winner === side };
   };
   const plateOf = (side: Side) => {
     if (!battle || !scene) return null;

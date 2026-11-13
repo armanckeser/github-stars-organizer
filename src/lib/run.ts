@@ -8,7 +8,8 @@ import { CARD_ORIGIN } from "./published-list";
 
 export * from "../../server/run/rules";
 
-export type Player = { login: string; avatarUrl: string | null; character: Character & { level: number }; team: RunFighter[] };
+/** `supporter` is there, and true, when the player starred Stard. */
+export type Player = { login: string; avatarUrl: string | null; supporter?: true; character: Character & { level: number }; team: RunFighter[] };
 
 // One read per account and day for the page, so the first opponent can be read while
 // the player's own cards are (a cold read is several seconds each), and a new run reads

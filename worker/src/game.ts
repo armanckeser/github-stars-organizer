@@ -39,6 +39,7 @@ export async function sign(key: string, text: string): Promise<string> {
 
 const playerOf = (team: Team) => ({
   login: team.login, name: team.character.name, klass: team.character.klass, look: team.character.look, level: team.character.level, avatarUrl: team.avatarUrl,
+  ...(team.supporter ? { supporter: true as const } : {}),
 });
 
 async function newGame(params: URLSearchParams, token: string, key: string): Promise<Response> {

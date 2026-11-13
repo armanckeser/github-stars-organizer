@@ -8,6 +8,7 @@ import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 import { pickPopular, type PopularList } from "./popular.ts";
+import { supporterMark, supporters } from "./supporters.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
 // a fight decided by server/battle.ts.
@@ -57,7 +58,8 @@ type FactsNode = {
 // `custom` says the character was written down somewhere, not made from the username.
 type Player = Character & TrainerFacts & { custom: boolean };
 // `facts` is what GitHub said that `team` was worked out from; `evened` cuts `team` only.
-export type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[]; facts: SideFacts };
+// `supporter` is there, and true, when the player starred this repo.
+export type Team = { login: string; avatarUrl: string | null; supporter?: true; source: TeamSource; character: Player; team: Fighter[]; facts: SideFacts };
 
 // What GitHub knows about a person that their character shows.
 const PLAYER = `createdAt followers { totalCount }
@@ -150,6 +152,7 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
 // short; `evened` then trims the other side to match.
 export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE, popular?: () => Promise<PopularList>): Promise<Team> {
   const name = JSON.stringify(login);
+  const starred = supporters(token, now);
   const data = await gql<{
     here?: { character: { text?: string } | null } | null;
     user: (PlayerNode & {
@@ -240,7 +243,8 @@ export async function teamFor(token: string, login: string, now: number, size = 
   }));
   const team = fieldTeam(repos, user.login, character.klass, now).map((fighter, i) => (repos[i].wildcard ? { ...fighter, wildcard: true } : repos[i].popular ? { ...fighter, popular: true } : fighter));
   const facts: SideFacts = { readAt: new Date(now).toISOString(), character: built, ace: aceNodes[0]?.nameWithOwner ?? null, source, repos };
-  return { login: user.login, avatarUrl: user.avatarUrl, source, character, team, facts };
+  const mark = supporterMark(await starred.soFar(), user.login, user.stard?.noPlay ? "left-out" : "in");
+  return { login: user.login, avatarUrl: user.avatarUrl, ...mark, source, character, team, facts };
 }
 
 /** Both teams cut to the size of the smaller one, so nobody plays five cards against two. */
@@ -272,13 +276,20 @@ async function cardRepo(fighter: Fighter): Promise<CardRepo> {
 
 // A trainer card is drawn from its own address, so a card shows what its builder chose
 // even before the README is saved. Only the facts come from GitHub.
-export async function trainerResponse(params: URLSearchParams, token: string): Promise<Response> {
+// `blocked` is the block list (worker/src/no-play.ts): an account on it never wears the star patch.
+export async function trainerResponse(params: URLSearchParams, token: string, blocked: ReadonlySet<string> = new Set()): Promise<Response> {
   const login = params.get("user") ?? "";
   if (!LOGIN.test(login)) return svg(messageCard("This card needs a GitHub username."), 400, CACHE_SECONDS);
   try {
-    const data = await gql<{ user: (PlayerNode & { login: string }) | null }>(token, `query { user(login: ${JSON.stringify(login)}) { login ${PLAYER} } }`);
+    const starred = supporters(token, Date.now());
+    const data = await gql<{ user: (PlayerNode & { login: string; stard: { noPlay: { oid: string } | null } | null }) | null }>(
+      token,
+      `query { user(login: ${JSON.stringify(login)}) { login ${PLAYER} stard: repository(name: "stard") { noPlay: object(expression: ${JSON.stringify(`HEAD:${NO_PLAY_FILE}`)}) { oid } } } }`,
+    );
     if (!data.user) return svg(messageCard(`No GitHub user called ${login}.`), 404, CACHE_SECONDS);
-    return svg(trainerCard(data.user.login, characterFrom(params, data.user.login), trainerFacts(data.user)), 200, CACHE_SECONDS);
+    const leftOut = data.user.stard?.noPlay || blocked.has(data.user.login.toLowerCase());
+    const mark = supporterMark(await starred.soFar(), data.user.login, leftOut ? "left-out" : "in");
+    return svg(trainerCard(data.user.login, characterFrom(params, data.user.login), trainerFacts(data.user), mark.supporter === true), 200, CACHE_SECONDS);
   } catch (error) {
     console.error(error);
     return svg(messageCard("GitHub didn't answer. This card will be back shortly."), 502, 0);

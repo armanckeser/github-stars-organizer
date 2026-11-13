@@ -4,7 +4,7 @@ Rules for every Play screen: the shop, Drafts, Archive, the checks, the boost pi
 
 ## 0. Read the creature at a glance
 
-A player picks cards for a synergy or a need by looking at the creature, and opens the card face for the details. So every rule a player plans around (role, sets, type, cost) gets one visible part of the creature, the same part on every creature. The mapping is in `docs/GAME-DESIGN.md`, "Added 2026-11-12".
+A player picks cards for a synergy or a need by looking at the creature, and opens the card face for the details. So every rule a player plans around (role, sets, type, cost) gets one visible part of the creature, the same part on every creature. The mapping is in `docs/GAME-DESIGN.md`, "Added 2026-11-12". Built so far: the body's silhouette is the role (each role has its own three bodies), and the sash across the body is the cost.
 
 ## 1. The game owns the screen
 
@@ -22,12 +22,17 @@ A player picks cards for a synergy or a need by looking at the creature, and ope
 
 | Color | Means | Used on |
 |---|---|---|
-| Tier: grey `#8b949e`, green `#3fb950`, blue `#4a90d9`, purple `#a371f7`, gold `#e3b341` | The card's cost, which is its rarity (1 to 5 gold) | The card's 2px border, a tint on its name strip, the cost gem. Nowhere else. |
+| Tier: grey `#8b949e`, green `#3fb950`, blue `#4a90d9`, purple `#a371f7`, gold `#e3b341` | The card's cost, which is its rarity (1 to 5 gold) | The card's 2px border, a tint on its name strip, the cost gem, and the lit squares of the creature's sash. Nowhere else. |
+| Empty square `#ebedf0` | A cost the card doesn't reach | The sash's unlit squares, GitHub's empty contribution square |
+| The language's own color | The repo's language | The creature's body |
+| Type color | The card's type | The creature's trim |
 | Coin gold `#f2c94c` | Gold you own or spend | The coin icon and gold numbers |
 | Green / red | Your side / their side | Board halves, HP bars |
 | Check green / amber ring | A set is live / pending | The checks list only |
 
-Language colors, type colors and set colors are not used in the game UI. A set is shown by its icon and its name.
+Language and type colors appear only on the creature: language is its body, type its trim, tier its sash. No panel, text or chip uses them. Set colors are not used in the game UI: a set is shown by its icon and its name.
+
+**The sash** is a white band across the creature with five squares in the GitHub contribution graph's style, as many lit as the card costs. A flat-fronted body (a block or a book) wears its five on its front and again on its back. A round body wears one row on the flank its sash rises to, 60° round from the front, where the board's camera sees it from above and a card's three-quarter view sees all five. The flat sticker draws the same squares.
 
 ## 4. The shop card (the TFT anatomy)
 
@@ -123,3 +128,6 @@ Each change below is a rule that made the screen look worse as first written.
 | Archive, trainers on phone | the same spots as wide | 72% Archive, trainers stepped in | An upright phone's narrow view cut off the trainers and pushed the Archive over the shelf. |
 | Card rim light | a light from behind right | the same light, plus a blue outline on the rim side | Toon bands rounded the back light down to nothing, and a box's edges have no surface turned toward it. The outline shows the rim without lighting the body. |
 | Card wall pool | faint, narrow | brighter and wider, to about 45% behind the head | The cards averaged 83 against TFT's 90. A brighter wall closes the gap without changing the creature's colors. |
+| Tier color | the card's border, name strip and cost gem | also the creature's sash | On the board a card is only its creature, so its cost didn't show anywhere a player looks while placing. |
+| Language and type colors | not used in the game UI | the creature's body and trim | They were already the creature's colors; the rule now says so and keeps them off the panels. |
+| Sash squares on a round body | front and back, low on the waist | one row on the raised flank | The bulge of a round body hid a low front row from the board's camera. A second row for the back would overlap the first: most round bodies' bands are under three rows' length around. |

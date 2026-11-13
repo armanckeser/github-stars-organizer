@@ -3,6 +3,7 @@ import { LOSSES_TO_END, OPPONENTS, ROUND_GOLD, SLOT_COST, START_GOLD, WINS_TO_FI
 import { SAVED_TEAM_VERSION, finalUnits, recordOf, type SavedRound, type SavedTeam } from "../../server/run/saved-team.ts";
 import type { Snapshot } from "../../server/run/types.ts";
 import { LOGIN } from "./cards.ts";
+import type { CountEvent } from "./events.ts";
 import type { OptOuts } from "./no-play.ts";
 import { seal } from "./sealed.ts";
 import {
@@ -124,7 +125,9 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
     fighters: fielded.map((index) => player.team[index]),
     rounds: rounds.map((round) => ({ ...round, units: round.units.map((unit) => ({ ...unit, fighter: fielded.indexOf(unit.fighter) })) })),
   };
-  return { token: await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING), team: saved };
+  const token = await seal(saved, key, TEAM_PURPOSE, TEAM_PACKING);
+  deps.count?.("team_saved");
+  return { token, team: saved };
 }
 
 export async function teamResponse(request: Request, url: URL, deps: RunDeps): Promise<Response> {
@@ -164,7 +167,7 @@ export function teamPreview(saved: SavedTeam): { title: string; description: str
  * The app's own page for /team, with the link-preview tags of the team in its address
  * (as /battle's in worker/src/share.ts). A team whose owner opted out gets the plain page.
  */
-export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts): Promise<Response> {
+export async function teamPage(request: Request, url: URL, key: string | undefined, optOuts: OptOuts, count: CountEvent): Promise<Response> {
   const page = await fetch(request);
   if (!(page.headers.get("Content-Type") ?? "").includes("text/html")) return page;
   // The static host answers a deep link with its fallback page and a 404; the page is the app, so it is a 200.
@@ -178,6 +181,7 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
   } catch {
     return new Response(page.body, { status: 200, headers });
   }
+  count("team_opened");
 
   const query = `t=${encodeURIComponent(token)}`;
   const { title, description: says, alt } = teamPreview(saved);

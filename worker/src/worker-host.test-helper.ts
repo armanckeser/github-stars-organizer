@@ -24,8 +24,14 @@ const ORIGIN = "https://stars-demo.example";
 /** A fresh edge cache, for `vi.stubGlobal("caches", ...)`. */
 export const memoryCaches = () => ({ default: new MemoryCache() });
 
-/** The Worker's secrets, as `wrangler secret put` sets them. */
-type Secrets = { GITHUB_TOKEN: string; BATTLE_KEY?: string; NO_PLAY?: string };
+/** The Worker's secrets, as `wrangler secret put` sets them, and its bindings (wrangler.toml). */
+type Secrets = { GITHUB_TOKEN: string; BATTLE_KEY?: string; NO_PLAY?: string; EVENTS?: AnalyticsEngineDataset };
+
+/** The counters' Analytics Engine dataset, in memory: every data point written, in order. */
+export function memoryDataset(): AnalyticsEngineDataset & { points: AnalyticsEngineDataPoint[] } {
+  const points: AnalyticsEngineDataPoint[] = [];
+  return { points, writeDataPoint: (point) => void points.push(point ?? {}) };
+}
 const SECRETS: Secrets = { GITHUB_TOKEN: "a-token", BATTLE_KEY: KEY };
 
 /**

@@ -16,6 +16,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { RunEnd } from "@/components/run/run-end";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
+import { countEvent } from "@/lib/events";
 import { validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
@@ -157,6 +158,7 @@ function RunPage() {
       setShop(shopFor(me, owned, number, 0));
       setPlayed(null);
       setSelected(null);
+      countEvent("round_reached", number);
     } catch (cause) {
       setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The next team couldn't be read. Check the connection and try again.");
     } finally {
@@ -183,6 +185,8 @@ function RunPage() {
       setGold(START_GOLD);
       setBoosts([]);
       setOffer(null);
+      countEvent("run_started");
+      if (saved) countEvent("challenge_started");
       await openRound(me, team.map((unit) => unit.fighter), 1, saved);
     } catch (cause) {
       setError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The cards couldn't be read. Check the connection and try again.");
@@ -264,7 +268,10 @@ function RunPage() {
     // Counted once per round, so pressing Continue again after the next round failed to open only retries the opening.
     const counted = countRound(tally, round.number, played.winner);
     setTally(counted.tally);
-    if (counted.tally.wins >= WINS_TO_FINISH || counted.tally.losses >= LOSSES_TO_END) return setPlayed(null);
+    if (counted.tally.wins >= WINS_TO_FINISH || counted.tally.losses >= LOSSES_TO_END) {
+      countEvent("run_finished", round.number);
+      return setPlayed(null);
+    }
     setGold(gold + counted.earned);
     // The same seed as the Worker's offer (worker/src/run.ts), so both offer the same three.
     if ((BOOST_ROUNDS as readonly number[]).includes(round.number)) setOffer({ round: round.number, ids: boostOffer(`${player.login}|${today()}|${round.number}`, boosts) });

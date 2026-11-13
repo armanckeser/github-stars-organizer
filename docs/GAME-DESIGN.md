@@ -175,7 +175,7 @@ Taking turns with public dice leaves nothing to guess. In each turn both players
 Built:
 
 - A floor of contribution-graph tiles that ripples when a hit lands.
-- Each repo is a creature: its name picks one of six bodies and the details, its language picks the colour, its type picks the trim. Bigger repos are bigger. Shiny ones sparkle.
+- Each repo is a creature: in a run, its role picks one of four body families (three bodies each) and words in its name pick one body of that family; outside a run (the one-on-one battle) its words pick from all twelve. Its language picks the colour, its type the trim, its cost the lit squares of its sash. Bigger repos are bigger. Shiny ones sparkle.
 - Each player's character stands behind their creature, built from the same choices as the README trainer card. The character throws a card and the creature comes out of it.
 - Attacks lunge, specials charge and fire, a critical holds the frame and shakes the camera, a knocked-out creature falls and bursts.
 
@@ -204,7 +204,7 @@ Ideas and open items from the design conversations that the sections above don't
 
 - Take the creature's colours, or a picture it carries, from the image at the top of the repo's README. Needs the Worker to fetch the README and the image.
 - A flat SVG drawing of each creature, so the cards served for READMEs (top four, list, battle result) show creatures too.
-- More bodies than six, and more things to carry than nine. Each new word list makes more repos look like themselves.
+- More things to carry than nine. Twelve bodies now (branch `creature-look-bodies`); each new word list makes more repos look like themselves.
 - Creatures that change with level: a small, a middle and a large form at star milestones.
 - A card back and a pack-opening moment for the daily pull.
 
@@ -263,7 +263,7 @@ Ideas and open items from the design conversations that the sections above don't
 
 Everything the owner said while the Play run was built, in one place. Status: **built** (on main), **branch** (built, not merged yet), **open** (decided, not built), **idea** (not decided).
 
-**The principle: read the creature at a glance (open)**
+**The principle: read the creature at a glance (role and cost: branch `creature-look-bodies`; sets: open)**
 
 > "If I am going for a synergy I should be able to just look at the monster and kind of understand if that's one I might want to add ... I can read further in by pressing the card."
 
@@ -275,7 +275,12 @@ Everything the owner said while the Play run was built, in one place. Status: **
   - Body shape = role: Tank golem, Bruiser critter, Assassin bird, Ranged wisp, orb or tome.
   - Body colour = the language's own colour, with no random shift.
   - The emblem over the head = the topic set's icon, the same one as in the card's hex.
-  - Trim = type. Size = cost, in 5 steps. Gold foil = creator card.
+  - Trim = type. Gold foil = creator card.
+  - Cost = a thin ring at the creature's feet in the tier colour (grey to gold), the card border's colour. Changed 2026-11-12 from "size = cost": every creature keeps one size, so size stays free for star levels if copies ever combine (TFT grows a unit when it stars up).
+- Owner, 2026-11-12: the cost mark should feel "more GitHub" than a ring, sash or tattoo. And the creatures are "cute but maybe a bit repetitive". Measured on the 12 opponents' live pools: 236 cards, 6 bodies, 18 body-and-top looks, golem 26%. Body = role would cut that to 4 silhouettes. Open: show the role another way (a held prop), and add bodies.
+- **Decided 2026-11-12 (supersedes body = role and the cost ring):**
+  - Body family per role: each role gets its own 2 to 3 bodies (8 to 12 in all), so the silhouette says the role and the creatures stop repeating. **Branch `creature-look-bodies`:** 12 bodies, 3 per role. Tank (wide and low): golem, turtle, warden. Bruiser (upright, with fists): critter, brawler, rhino. Assassin (small and sharp): bird, fox, imp. Ranged (floating): wisp, orb, tome. Words in the name pick one within the role, else a seeded draw.
+  - Cost = a contribution sash: a sash with 5 commit-graph squares, as many lit as the card costs, in the tier colour. Reads by count and by colour. **Branch `creature-look-bodies`:** on the 3D model and the flat sticker, both drawn from one list of parts (`server/creature-parts.ts`). White band, GitHub's empty square `#ebedf0` for the unlit ones (GAME-UI §3).
 - A balance study across real repos is optional. The owner thinks it is likely not needed.
 - **2026-11-12: build it before Sunday's launch**, right after the never-empty shop.
 
@@ -289,8 +294,10 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Every `armanckeser` repo is a creator card: legendary, 5 gold, the 460 budget (× 1.05 shiny). "github-stars-organizer" is a 1-gold common today; creator cards are the reason to star them. | branch `sell-every-card` |
 | Hovering a check (yours or theirs) names the board's cards in that set, beside the bonus. | branch `sell-every-card` |
 | Keep the bench, even though Stard cards never combine. | built |
-| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | branch `shop-never-empty`: a few from each star band (2 to 5 gold), chosen 2026-11-12 |
+| The shop is never empty, even after rerolls. Today the shop is the player's pool of up to 21 cards minus the ones held, so an account with few stars and repos gets fewer than 5 cards, and an account with one card gets none. Fill a short pool from popular repos on GitHub, only if they are balanced: the owner worries popular repos are too strong. | built (#92): a few from each star band (2 to 5 gold) |
 | A friend's idea: buying the same repo three times combines it into a stronger one, as in TFT. Today each repo is in the pool once, so copies never meet. | idea |
+| Every run on one day dealt the same shops, rerolls and opponents (the seed was username + date). Free play: a new seed every run, and a pool of about 40 stars. | open, decided 2026-11-12 |
+| A daily mode next to free play: everyone gets the same deck (the day's popular repos), the same shops and opponents, and a result line to share. "Daily only means something if everyone gets the same draw." | idea, after the launch numbers |
 | Sets from language and topics, shown on shop tiles. "The current system sounds good." | built |
 | A round's fight runs 18 to 29 s. Keep it. | built |
 | A resent run token can retry a round. Accepted for now. | built |

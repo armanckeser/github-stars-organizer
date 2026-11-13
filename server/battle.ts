@@ -70,6 +70,8 @@ export type Fighter = {
   perk: boolean;
   /** Drawn from the player's stars for the day, not chosen by them. */
   wildcard?: boolean;
+  /** A popular repo on GitHub, topping up a pool with too few stars, not one of the player's stars. */
+  popular?: boolean;
 };
 
 export type Side = "a" | "b";

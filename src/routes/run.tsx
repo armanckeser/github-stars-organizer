@@ -160,6 +160,10 @@ function RunPage() {
       else {
         const opponent = await fetchOpponent(me.login, number, run);
         setRound({ number, opponent, theirs: opponentUnits(opponent, number, run) });
+        // The next opponent follows from the name, the seed and the round, not from how this
+        // round goes, so it is read while this one is played and Continue finds it waiting.
+        // A failed read is dropped from the cache (src/lib/run.ts), and Continue reads it again.
+        fetchOpponent(me.login, number + 1, run).catch(() => {});
       }
       setRerolls(0);
       setShop(shopFor(me, owned, number, 0, run));

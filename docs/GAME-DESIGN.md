@@ -323,6 +323,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 |---|---|
 | Opponents take too long to load: a longer edge cache. | built (#80) |
 | The deployed app broke after a merge. Every change is checked on the live site, not only locally. | built (process) |
+| "Reading the next team takes some time": each round's opponent was read only when Continue was pressed. The next opponent follows from the name, the seed and the round alone, so it is now read while the round is played. | branch `run-prefetch-opponent` (#PR1) |
 
 **The journey after the first run**
 

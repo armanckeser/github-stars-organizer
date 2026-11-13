@@ -325,6 +325,7 @@ Everything the owner said while the Play run was built, in one place. Status: **
 | Opponents take too long to load: a longer edge cache. | built (#80) |
 | The deployed app broke after a merge. Every change is checked on the live site, not only locally. | built (process) |
 | "Reading the next team takes some time": each round's opponent was read only when Continue was pressed. The next opponent follows from the name, the seed and the round alone, so it is now read while the round is played. | branch `run-prefetch-opponent` (#99) |
+| "I pressed New run after finishing, but that had the old characters on the screen for a while and then they switched." New run kept the last round's opponent, their creatures, the "Round N" HUD and the old shop (still buyable) until the new run's first opponent was read. The run is now one state machine (`src/lib/run-state.ts`): New run clears the board to the player's trainer at once, a read for an older run is dropped, and a failed read shows Try again instead of a Fight against the last opponent. | branch `run-phases` (#103) |
 
 **The journey after the first run**
 

@@ -386,3 +386,34 @@ test("a challenge goes from one run's end to the friend's own run against that t
   expect(friends).toMatchObject({ login: "annie", against: TOKEN, seed: expect.stringMatching(/^[0-9a-f]{32}$/) });
   expect(friends.seed).not.toBe(mine.seed);
 });
+
+test("New run clears the last run's opponent, round and shop before the new run is read", async ({ page }) => {
+  // Regression guarded: New run left the last opponent, their creatures, the "Round N" HUD and the
+  // old shop on screen, with its Buy buttons live, until the new run's first opponent was read.
+  test.setTimeout(360_000);
+  await startRun(page);
+  await fightToEnd(page);
+  const logins = await page.getByRole("button", { name: /^About / }).evaluateAll((all) => all.map((button) => button.getAttribute("aria-label")!.slice("About ".length)));
+  const lastOpponent = logins.find((login) => login !== "abed")!;
+  await expect(page.getByText(/^Round \d+$/)).toBeVisible();
+
+  // A day later, so the new run's reads miss the page's one-read-per-day cache (src/lib/run.ts) and wait here.
+  await page.clock.setFixedTime(Date.now() + 86_400_000);
+  let release = () => {};
+  const held = new Promise<void>((done) => (release = done));
+  await page.route("**/api/run/pool?*", async (route) => {
+    await held;
+    await route.fulfill({ json: poolFor(new URL(route.request().url()).searchParams.get("login") ?? "abed") });
+  });
+  await page.getByRole("button", { name: "New run" }).click();
+
+  await expect(page.getByRole("button", { name: `About ${lastOpponent}` })).toHaveCount(0);
+  await expect(page.getByText(/^Round \d+$/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Look at / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Fight" })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Dealing a new run..." })).toBeVisible();
+
+  release();
+  await expect(page.getByText("Round 1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Dealing a new run..." })).toHaveCount(0);
+});

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Clover, Crosshair, Droplets, Eye, Flame, Gauge, HeartHandshake, Repeat, Rocket, RotateCcw, Shield, ShieldHalf, ShieldPlus, Snail, Sparkles, Swords, Target, Timer, TriangleAlert, Wind, type LucideProps } from "lucide-react";
 import { medallion } from "@/components/battle/three/medallion";
@@ -78,27 +78,36 @@ function enamelsOf(boosts: Boost[]): Map<string, string> {
 
 const reduced = () => typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-type Props = { offer: string[]; round: number; onPick: (id: string) => void; /** Told when the player folds the pick away to look at the board, and when they bring it back. */ onPeek: (peeking: boolean) => void };
+// How long the chosen medallion plays its pick before the pick closes.
+const PICKED_FOR = 420;
 
-export function BoostPick({ offer, round, onPick, onPeek }: Props) {
-  const [peek, setPeekState] = useState(false);
-  const setPeek = (peeking: boolean) => {
-    setPeekState(peeking);
-    onPeek(peeking);
-  };
+type Props = {
+  offer: string[];
+  round: number;
+  /** Folded away to look at the board; the run's phase holds it (src/lib/run-state.ts). */
+  peeking: boolean;
+  onPick: (id: string) => void;
+  /** Told when the player folds the pick away to look at the board, and when they bring it back. */
+  onPeek: (peeking: boolean) => void;
+};
+
+export function BoostPick({ offer, round, peeking, onPick, onPeek }: Props) {
   const [picked, setPicked] = useState<string | null>(null);
   const boosts = offer.flatMap((id) => boostById(id) ?? []);
   const enamels = enamelsOf(boosts);
+  // A pick that closes with the run (New run, leaving the page) never lands on the run after it.
+  const closing = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(closing.current), []);
 
   const pick = (id: string) => {
     if (picked) return;
     setPicked(id);
-    window.setTimeout(() => onPick(id), reduced() ? 0 : 420);
+    closing.current = window.setTimeout(() => onPick(id), reduced() ? 0 : PICKED_FOR);
   };
 
-  if (peek) {
+  if (peeking) {
     return (
-      <button type="button" className="boost-return" onClick={() => setPeek(false)}>
+      <button type="button" className="boost-return" onClick={() => onPeek(false)}>
         <Sparkles className="size-4 text-[#ffd84d]" /> Pick a boost
       </button>
     );
@@ -114,7 +123,7 @@ export function BoostPick({ offer, round, onPick, onPeek }: Props) {
           <Medal key={boost.id} boost={boost} enamel={enamels.get(boost.id) ?? ENAMELS[0]} index={index} state={picked === null ? "open" : picked === boost.id ? "chosen" : "passed"} onPick={() => pick(boost.id)} />
         ))}
       </div>
-      <button type="button" className="boost-peek" onClick={() => setPeek(true)} disabled={picked !== null}>
+      <button type="button" className="boost-peek" onClick={() => onPeek(true)} disabled={picked !== null}>
         <Eye className="size-4" /> See the board
       </button>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Link2, RotateCcw, Swords } from "lucide-react";
 import { StarStard } from "@/components/star-stard";
 import { TeamTiles } from "@/components/run/team-tiles";
@@ -24,7 +24,7 @@ const COPIED_FOR = 1500;
  * to beat that team. The Worker plays the run's fights again before it hands back the
  * team's link (worker/src/team.ts).
  */
-export function RunEnd({ login, seed, rounds, results, team, wins, losses, against, loading, onNewRun }: {
+export function RunEnd({ login, seed, rounds, results, team, wins, losses, against, onNewRun }: {
   login: string;
   /** The run's seed, which the Worker replays the fights with. */
   seed: string;
@@ -37,7 +37,6 @@ export function RunEnd({ login, seed, rounds, results, team, wins, losses, again
   losses: number;
   /** The saved team's token, when the run was played against one. */
   against?: string;
-  loading: boolean;
   onNewRun: () => void;
 }) {
   const [saving, setSaving] = useState<Saving>({ state: "saving" });
@@ -53,7 +52,7 @@ export function RunEnd({ login, seed, rounds, results, team, wins, losses, again
   }, [login, seed, rounds, against]);
   const beaten = beatenIn(results);
   const lead = beatLine(beaten);
-  const newRun = <button type="button" className="hud-button run-panel-link" onClick={onNewRun} disabled={loading}><RotateCcw className="size-4" /> New run</button>;
+  const newRun = <button type="button" className="hud-button run-panel-link" onClick={onNewRun}><RotateCcw className="size-4" /> New run</button>;
 
   return (
     <section className="run-panel run-end" aria-labelledby="run-end-title">
@@ -68,7 +67,7 @@ export function RunEnd({ login, seed, rounds, results, team, wins, losses, again
       </div>
       {saving.state === "failed" ? (
         // With no team link there is nothing to challenge with, so starting again leads.
-        <button type="button" className="hud-button hud-fight run-panel-primary" onClick={onNewRun} disabled={loading}><RotateCcw className="size-4" /> New run</button>
+        <button type="button" className="hud-button hud-fight run-panel-primary" onClick={onNewRun}><RotateCcw className="size-4" /> New run</button>
       ) : (
         <Challenge beaten={beaten} link={saving.state === "saved" ? saving.link : null} />
       )}
@@ -88,6 +87,7 @@ type Copying = { state: "ready" } | { state: "copied" } | { state: "failed"; lin
 function Challenge({ beaten, link }: { beaten: string[]; link: string | null }) {
   const [friend, setFriend] = useState("");
   const [copying, setCopying] = useState<Copying>({ state: "ready" });
+  const reset = useResetTimer();
   const named = friend.trim();
   const nameOk = named === "" || validLogin(named);
 
@@ -101,7 +101,7 @@ function Challenge({ beaten, link }: { beaten: string[]; link: string | null }) 
     }
     countEvent("challenge_copied");
     setCopying({ state: "copied" });
-    setTimeout(() => setCopying({ state: "ready" }), COPIED_FOR);
+    reset(() => setCopying({ state: "ready" }));
   }
 
   return (
@@ -125,14 +125,25 @@ function Challenge({ beaten, link }: { beaten: string[]; link: string | null }) 
 
 function CopyLink({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
+  const reset = useResetTimer();
   async function copy() {
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), COPIED_FOR);
+    reset(() => setCopied(false));
   }
   return (
     <button type="button" className="hud-button run-panel-link" onClick={() => void copy()}>
       {copied ? <Check className="size-4" /> : <Link2 className="size-4" />} {copied ? "Copied" : label}
     </button>
   );
+}
+
+/** Runs a reset COPIED_FOR after the last call; a second copy restarts it, and leaving the end screen cancels it. */
+function useResetTimer(): (reset: () => void) => void {
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return (reset) => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(reset, COPIED_FOR);
+  };
 }

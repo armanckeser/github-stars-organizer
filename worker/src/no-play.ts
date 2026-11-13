@@ -17,7 +17,7 @@ import { LOGIN } from "./cards.ts";
 
 export const OPPONENTS_PATH = /^\/api\/run\/opponents$/;
 const NO_PLAY_REPO = "stard";
-const NO_PLAY_FILE = "no-play";
+export const NO_PLAY_FILE = "no-play";
 const FORBIDDEN = 403;
 
 /** Which of `logins` opted out, in lower case. */
@@ -78,6 +78,21 @@ export async function checkPoolRead(params: URLSearchParams, optOuts: OptOuts, b
   if (!LOGIN.test(login) || forRun === login) return;
   const [opted] = await optOuts([login]);
   if (opted) throw new OptedOut(asked, "as-opponent");
+}
+
+/** The query parameters that name an account whose team is read: both sides of a battle or challenge, a run picture's player. */
+const TEAM_LOGIN_PARAMS = ["a", "b", "me"] as const;
+
+/**
+ * Refuses a battle, challenge or picture that names an account on the block list, so
+ * neither its stars nor its character are read for anyone. Comes before the cache, so
+ * nothing read before the account asked is served after.
+ */
+export function checkTeamRead(params: URLSearchParams, blocked: ReadonlySet<string>): void {
+  for (const name of TEAM_LOGIN_PARAMS) {
+    const asked = params.get(name);
+    if (asked !== null && blocked.has(asked.toLowerCase())) throw new OptedOut(asked, "at-all");
+  }
 }
 
 /** The body of GET /api/run/opponents. */

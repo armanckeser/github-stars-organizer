@@ -1,6 +1,8 @@
 import { battle, drawFromStars, fieldTeam, instantSeed, type Fighter, type RepoFacts } from "../../server/battle.ts";
 import { battleCard, messageCard, trainerCard, type CardRepo, type TrainerFacts } from "../../server/cards.ts";
-import { characterFrom, characterIn, characterLevel, defaultCharacter, type Character } from "../../server/character.ts";
+import { characterFrom, characterLevel, chosenCharacter, defaultCharacter, listedCharacterPath, type Character } from "../../server/character.ts";
+import { SELF_REPO } from "../../server/self-repo.ts";
+import { NO_PLAY_FILE } from "./no-play.ts";
 import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
 import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
@@ -52,7 +54,7 @@ type FactsNode = {
   repositoryTopics: { nodes: { topic: { name: string } }[] };
 };
 
-// `custom` says the character came from a trainer card in the README, not the default.
+// `custom` says the character was written down somewhere, not made from the username.
 type Player = Character & TrainerFacts & { custom: boolean };
 // `facts` is what GitHub said that `team` was worked out from; `evened` cuts `team` only.
 export type Team = { login: string; avatarUrl: string | null; source: TeamSource; character: Player; team: Fighter[]; facts: SideFacts };
@@ -149,11 +151,12 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
 export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE, popular?: () => Promise<PopularList>): Promise<Team> {
   const name = JSON.stringify(login);
   const data = await gql<{
+    here?: { character: { text?: string } | null } | null;
     user: (PlayerNode & {
       login: string;
       avatarUrl: string;
       profile: { readme: { text?: string } | null } | null;
-      stard: { readme: { text?: string } | null } | null;
+      stard: { readme: { text?: string } | null; character?: { text?: string } | null; noPlay?: { oid: string } | null } | null;
       pinnedItems: { nodes: ({ nameWithOwner: string } | Record<string, never>)[] };
       repositories: { nodes: { nameWithOwner: string }[] };
       starredRepositories: { nodes: { nameWithOwner: string; isPrivate: boolean }[] };
@@ -165,10 +168,17 @@ export async function teamFor(token: string, login: string, now: number, size = 
       avatarUrl(size: 96)
       ${PLAYER}
       profile: repository(name: ${name}) { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
-      stard: repository(name: "stard") { readme: object(expression: "HEAD:README.md") { ... on Blob { text } } }
+      stard: repository(name: "stard") {
+        readme: object(expression: "HEAD:README.md") { ... on Blob { text } }
+        character: object(expression: "HEAD:character.md") { ... on Blob { text } }
+        noPlay: object(expression: ${JSON.stringify(`HEAD:${NO_PLAY_FILE}`)}) { oid }
+      }
       pinnedItems(first: ${TEAM_SIZE}, types: REPOSITORY) { nodes { ... on Repository { nameWithOwner } } }
       repositories(first: ${TEAM_SIZE}, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC, orderBy: { field: STARGAZERS, direction: DESC }) { nodes { nameWithOwner } }
       starredRepositories(first: 100, orderBy: { field: STARRED_AT, direction: DESC }) { nodes { nameWithOwner isPrivate } }
+    }
+    here: repository(owner: ${JSON.stringify(SELF_REPO.owner)}, name: ${JSON.stringify(SELF_REPO.name)}) {
+      character: object(expression: ${JSON.stringify(`HEAD:${listedCharacterPath(login)}`)}) { ... on Blob { text } }
     } }`,
   );
   if (!data.user) throw new NoSuchUser(login);
@@ -177,7 +187,10 @@ export async function teamFor(token: string, login: string, now: number, size = 
   // Nobody has to give their profile README over to the game: a repo called `stard`
   // is read first, and the two are read together so a part can live in either.
   const readme = `${user.stard?.readme?.text ?? ""}\n${user.profile?.readme?.text ?? ""}`;
-  const built = characterIn(readme, user.login);
+  // The file kept here was drawn by someone else, so an account that opted out of being
+  // played (OPPONENTS.md) never shows it; its own file and README card still count.
+  const listedFile = user.stard?.noPlay ? null : (data.here?.character?.text ?? null);
+  const built = chosenCharacter({ ownFile: user.stard?.character?.text ?? null, readme, listedFile }, user.login);
   const character: Player = { ...(built ?? defaultCharacter(user.login)), ...trainerFacts(user), custom: built !== null };
 
   // The pinned and top repos are read by name only here, and their facts later in the

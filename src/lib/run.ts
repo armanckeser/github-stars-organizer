@@ -1,4 +1,4 @@
-import type { Character } from "../../server/character";
+import { readLook, type Character } from "../../server/character";
 import { RESPONSE_SHAPE } from "../../server/response-shape";
 import { opponentLogin, type RunFighter } from "../../server/run/rules";
 import { CARD_ORIGIN } from "./published-list";
@@ -35,7 +35,8 @@ async function readPlayer(login: string, forRun?: string): Promise<Player> {
   const response = await fetch(url);
   const body = (await response.json()) as Player & { error?: string };
   if (!response.ok) throw new Error(body.error ?? "The cards couldn't be read.");
-  return body;
+  // A copy of the Worker from before the parts were separate sends the old six-number look.
+  return { ...body, character: { ...body.character, look: readLook(body.character.look) } };
 }
 
 let optedOut: Promise<string[]> | null = null;

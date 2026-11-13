@@ -18,7 +18,7 @@
 //   with GitHub out of the picture (teamsFromFacts).
 
 import { fieldTeam, matchup, seededRandom, type Fighter, type RepoFacts, type Side } from "./battle.ts";
-import { defaultCharacter, type Character, type ClassId, type Look } from "./character.ts";
+import { defaultCharacter, readLook, type Character, type ClassId, type LegacyLook, type Look } from "./character.ts";
 
 export type Action = { kind: "attack" } | { kind: "special" } | { kind: "guard" } | { kind: "switch"; to: number };
 
@@ -40,7 +40,7 @@ export type FrozenRepo = RepoFacts & {
 export type SideFacts = {
   /** When GitHub was read, as an ISO time. A card's freshness and age are measured from here. */
   readAt: string;
-  /** The character as read from the README's trainer card. Null when the README has none. */
+  /** The character as read from GitHub: a character file or the README's trainer card. Null when none had one. */
   character: Character | null;
   /** The ace's full name, and where it was found. */
   ace: string | null;
@@ -164,14 +164,30 @@ export function encodeOpening(opening: Opening): string {
   return toBase64Url(JSON.stringify(opening));
 }
 
+// A post signed before glasses, beard, hat and headphones were separate parts holds
+// looks in the old six-number shape. The signature covers the text, so reading the
+// looks in today's shape changes nothing that was signed.
+const todaysLook = (stored: Look | LegacyLook): Look => readLook(stored);
+
+function withTodaysLooks<T extends Opening>(opening: T): T {
+  const player = (side: Side): GamePlayer => ({ ...opening.players[side], look: todaysLook(opening.players[side].look) });
+  const players = { a: player("a"), b: player("b") };
+  if (opening.v === 1) return { ...opening, players };
+  const facts = (side: Side): SideFacts => {
+    const held = opening.facts[side];
+    return { ...held, character: held.character && { ...held.character, look: todaysLook(held.character.look) } };
+  };
+  return { ...opening, players, facts: { a: facts("a"), b: facts("b") } };
+}
+
 export function decodeOpening(payload: string): Opening | null {
   try {
     const opening = JSON.parse(fromBase64Url(payload)) as Opening;
     const teamsHeld = opening?.players?.a && opening.players?.b && Array.isArray(opening.teams?.a) && Array.isArray(opening.teams?.b);
     if (!teamsHeld) return null;
-    if (opening.v === 1) return opening;
+    if (opening.v === 1) return withTodaysLooks(opening);
     const factsHeld = opening.v === 2 && Array.isArray(opening.facts?.a?.repos) && Array.isArray(opening.facts?.b?.repos);
-    return factsHeld ? opening : null;
+    return factsHeld ? withTodaysLooks(opening) : null;
   } catch {
     return null;
   }

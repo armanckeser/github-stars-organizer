@@ -53,6 +53,10 @@ describe("a stored opening post", () => {
 
     expect([a.readAt, a.ace, a.source, a.character?.name, a.character?.klass]).toEqual([READ_AT, "greendale/dreamatorium", "profile", "Abed", "specialist"]);
     expect([b.readAt, b.ace, b.source, b.character]).toEqual([READ_AT, "greendale/paintball-assassin", "pinned", null]);
+    // The post holds looks in the old six-number shape; they come back as today's parts.
+    expect(opening.players.a.look).toEqual({ skin: "#6b4429", hair: "side-part", hairColor: "#3f6fd8", top: "sweater", topColor: "#d9482b", beard: "full", glasses: "none", hat: "none", headphones: "no" });
+    expect(a.character?.look).toEqual(opening.players.a.look);
+    expect(opening.players.b.look).toEqual({ skin: "#ecc09c", hair: "bun", hairColor: "#1d1b1a", top: "sweater", topColor: "#3a4049", beard: "none", glasses: "round", hat: "none", headphones: "no" });
     expect(a.repos.map((r) => [r.fullName, r.stars, r.forks, r.language, r.topics, r.pushedAt])).toEqual([
       ["greendale/dreamatorium", 4200, 310, "TypeScript", ["simulation", "game"], "2026-11-01T09:00:00Z"],
       ["troy-barnes/blanket-fort", 260, 12, "JavaScript", ["web"], "2025-02-02T00:00:00Z"],

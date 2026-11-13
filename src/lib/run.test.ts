@@ -13,7 +13,7 @@ describe("fetchPlayer", () => {
     const asked: URL[] = [];
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       asked.push(new URL(String(input)));
-      return Response.json({ login: "study-group-abed", avatarUrl: null, character: {}, team: [] });
+      return Response.json({ login: "study-group-abed", avatarUrl: null, character: { look: { skin: 0, hair: 1, hairColor: 0, top: 0, topColor: 0, extra: 0 } }, team: [] });
     });
 
     await fetchPlayer("study-group-abed", "study-group-annie");

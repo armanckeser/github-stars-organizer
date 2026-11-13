@@ -5,7 +5,7 @@ import { CARD_PATH, cardResponse } from "./cards.ts";
 import { cacheKeyFor } from "./edge-cache.ts";
 import { EVENT_ROUTE, counterFor, eventResponse } from "./events.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
-import { OPPONENTS_PATH, OptedOut, blockListOf, checkPoolRead, opponentsBody, readOptOuts, withBlockList, type OptOuts } from "./no-play.ts";
+import { OPPONENTS_PATH, OptedOut, blockListOf, checkPoolRead, checkTeamRead, opponentsBody, readOptOuts, withBlockList, type OptOuts } from "./no-play.ts";
 import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
 import { RUN_PATH, runResponse, type RunDeps } from "./run.ts";
 import { RUN_PICTURE_PATH, RUN_SHARE_PATH, SHARE_PATH, VERSUS_PATH, runPictureResponse, runSharePage, sharePage, versusResponse } from "./share.ts";
@@ -128,6 +128,13 @@ export default {
         console.error(error);
         return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0, OPEN);
       }
+    }
+
+    try {
+      checkTeamRead(url.searchParams, blocked);
+    } catch (error) {
+      if (error instanceof OptedOut) return json({ error: error.message }, error.status, 0, OPEN);
+      throw error;
     }
 
     // A match changes with every comment, so its replies set their own short cache and skip this one.

@@ -8,7 +8,7 @@ import type { RunPool } from "./battle.ts";
 import { runResponse, type RunDeps } from "./run.ts";
 import { fakeGitHubWhere } from "./fake-github.test-helper.ts";
 import { teamPreview, teamResponse } from "./team.ts";
-import { callWorker, memoryCaches } from "./worker-host.test-helper.ts";
+import { callWorker, memoryCaches, memoryDataset } from "./worker-host.test-helper.ts";
 
 // The share picture's assets are bundled by wrangler and can't load in Node; nothing here draws a picture.
 vi.mock("@resvg/resvg-wasm/index_bg.wasm", () => ({ default: new Uint8Array() }));
@@ -44,11 +44,15 @@ const poolOf = (login: string, over: Partial<Fighter>): RunPool => ({
 const STRONG = { hp: 1000, attack: 400, defense: 100, speed: 100 };
 const WEAK = { hp: 50, attack: 5, defense: 5, speed: 5 };
 
-/** The player's cards are `strengths[login]`, everyone else's weak; every read is noted in `reads`; `optedOut` have a `stard/no-play` file. */
-function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = [], optedOut: string[] = []): RunDeps {
+/**
+ * The player's cards are `strengths[login]`, everyone else's weak; every read is noted in `reads`;
+ * `optedOut` have a `stard/no-play` file; every counted event is noted in `counted`.
+ */
+function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = [], optedOut: string[] = [], counted: string[] = []): RunDeps {
   return {
     key: KEY,
     now: NOW,
+    count: (event) => void counted.push(event),
     read: async (login) => {
       reads.push(login);
       return poolOf(login, strengths[login] ?? WEAK);
@@ -253,6 +257,64 @@ describe("Beat this team", () => {
     const { status, body } = await post({ login: CHALLENGER, rounds: [aceOnly(CHALLENGER)], against: "made.up" }, depsFor({}));
     expect(status).toBe(403);
     expect(body.error).toBe("This team link was changed, so the team can't be trusted.");
+  });
+});
+
+describe("the team counters", () => {
+  it("counts a saved team once the Worker has signed it", async () => {
+    // Regression guarded: no count of team links made, so the launch couldn't tell whether anyone shared a team.
+    const counted: string[] = [];
+    const { status } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }, [], [], counted));
+    expect(status).toBe(200);
+    expect(counted).toEqual(["team_saved"]);
+  });
+
+  it("doesn't count a team the Worker refused to save", async () => {
+    const counted: string[] = [];
+    const { status } = await post({ login: PLAYER, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: WEAK }, [], [], counted));
+    expect(status).toBe(422);
+    expect(counted).toEqual([]);
+  });
+
+  // The Workers runtime's HTMLRewriter, which Node lacks: it hands the page back as it is.
+  class PassThroughRewriter {
+    on() {
+      return this;
+    }
+    transform(response: Response) {
+      return response;
+    }
+  }
+  /** GitHub for the opt-out check, and the static host's page for everything else. */
+  function pagesAndGitHub(): typeof fetch {
+    const github = fakeGitHubWhere({ noPlay: [] }).fetch;
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const address = input instanceof Request ? input.url : String(input);
+      if (address.startsWith("https://api.github.com/")) return github(input, init);
+      return new Response("<html><head><title>Stard</title></head></html>", { headers: { "Content-Type": "text/html" } });
+    }) as typeof fetch;
+  }
+
+  it("counts a team link opened on its page", async () => {
+    const token = await savedStrongTeam();
+    vi.stubGlobal("fetch", pagesAndGitHub());
+    vi.stubGlobal("caches", memoryCaches());
+    vi.stubGlobal("HTMLRewriter", PassThroughRewriter);
+    const events = memoryDataset();
+    const { status } = await callWorker(`/team?t=${encodeURIComponent(token)}`, undefined, { EVENTS: events });
+    expect(status).toBe(200);
+    expect(events.points).toEqual([{ blobs: ["team_opened", "", "stars-demo.example"], doubles: [0], indexes: ["team_opened"] }]);
+  });
+
+  it("doesn't count a link whose team can't be opened", async () => {
+    // Regression guarded: counting every /team request, made-up links included, as an opened team.
+    vi.stubGlobal("fetch", pagesAndGitHub());
+    vi.stubGlobal("caches", memoryCaches());
+    vi.stubGlobal("HTMLRewriter", PassThroughRewriter);
+    const events = memoryDataset();
+    const { status } = await callWorker("/team?t=made.up", undefined, { EVENTS: events });
+    expect(status).toBe(200);
+    expect(events.points).toEqual([]);
   });
 });
 

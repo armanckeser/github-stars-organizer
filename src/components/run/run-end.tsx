@@ -20,8 +20,10 @@ const COPIED_FOR = 1500;
  * The end of a run: the team it ended with, the record, and a link to the team. The
  * Worker plays the run's fights again before it hands back the link (worker/src/team.ts).
  */
-export function RunEnd({ login, rounds, team, wins, losses, against, loading, onNewRun }: {
+export function RunEnd({ login, seed, rounds, team, wins, losses, against, loading, onNewRun }: {
   login: string;
+  /** The run's seed, which the Worker replays the fights with. */
+  seed: string;
   /** The team as fought at each round, round 1 first. */
   rounds: Snapshot[];
   team: Unit[];
@@ -36,13 +38,13 @@ export function RunEnd({ login, rounds, team, wins, losses, against, loading, on
   useEffect(() => {
     let live = true;
     setSaving({ state: "saving" });
-    saveTeam(login, rounds, against)
+    saveTeam(login, seed, rounds, against)
       .then(({ token }) => live && setSaving({ state: "saved", link: teamLink(token) }))
       .catch((cause: unknown) => live && setSaving({ state: "failed", message: cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : "The team couldn't be saved." }));
     return () => {
       live = false;
     };
-  }, [login, rounds, against]);
+  }, [login, seed, rounds, against]);
 
   return (
     <section className="run-panel run-end" aria-labelledby="run-end-title">

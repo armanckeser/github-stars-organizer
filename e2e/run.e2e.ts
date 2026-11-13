@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { poolFor } from "./pool.ts";
+import { poolFor, weakPoolFor } from "./pool.ts";
 
 // The Play screen in a real browser with the 3D board, against made-up accounts
 // (e2e/pool.ts). Drags are real mouse drags to where the board says a cell is drawn.
@@ -15,8 +15,12 @@ declare global {
 /** A player's cell as column and row (row 0 in front), and the board cell it is drawn on. */
 const boardCell = (col: number, row: number) => ({ x: col, y: 1 - row });
 
-async function startRun(page: Page, search = "") {
-  await page.route("**/api/run/pool?*", (route) => route.fulfill({ json: poolFor(new URL(route.request().url()).searchParams.get("login") ?? "abed") }));
+/** Starts a run as abed. `opponents` deals every other account's pool. */
+async function startRun(page: Page, search = "", opponents = poolFor) {
+  await page.route("**/api/run/pool?*", (route) => {
+    const login = new URL(route.request().url()).searchParams.get("login") ?? "abed";
+    return route.fulfill({ json: login === "abed" ? poolFor(login) : opponents(login) });
+  });
   await page.goto(`/run${search}`);
   await page.getByLabel("Your GitHub username").fill("abed");
   await page.getByRole("button", { name: "Start a run" }).click();
@@ -30,6 +34,7 @@ const archiveSpot = (page: Page) => page.evaluate(() => window.stardBoard!.scree
 const slotSpot = (page: Page, slot: number) => page.evaluate((index) => window.stardBoard!.screenOfSlot(index), slot);
 const unitSpot = (page: Page, fullName: string) => page.evaluate((id) => window.stardBoard!.screenOfUnit(id), `0:${fullName}`);
 const aceName = () => poolFor("abed").team[0].fullName;
+const shopNames = (page: Page) => page.getByRole("button", { name: /^Look at / }).evaluateAll((all) => all.map((card) => card.getAttribute("aria-label")));
 
 /** Waits until the camera has stopped moving: it dollies when the shop folds or opens, as after a boost pick. */
 async function settled(page: Page) {
@@ -163,14 +168,21 @@ test("a check's hover names the cards on the board that fill it", async ({ page 
 
 test("a reroll costs one gold and shows other cards", async ({ page }) => {
   await startRun(page);
-  const shopNames = () => page.getByRole("button", { name: /^Look at / }).evaluateAll((all) => all.map((card) => card.getAttribute("aria-label")));
-  const before = await shopNames();
+  const before = await shopNames(page);
   const goldBefore = await gold(page);
 
   await page.getByRole("button", { name: /^Reroll/ }).click();
 
   expect(await gold(page)).toBe(goldBefore - 1);
-  expect(await shopNames()).not.toEqual(before);
+  expect(await shopNames(page)).not.toEqual(before);
+});
+
+test("a second run for the same account deals another first shop", async ({ page }) => {
+  // Regression guarded: every run on one day dealt the same first shop, because the shops were seeded with the date.
+  await startRun(page);
+  const first = await shopNames(page);
+  await startRun(page);
+  expect(await shopNames(page)).not.toEqual(first);
 });
 
 test("a bought slot lets one more card on the board", async ({ page }) => {
@@ -185,7 +197,9 @@ test("a bought slot lets one more card on the board", async ({ page }) => {
 test("a whole run plays to its end, with the two boost picks", async ({ page }) => {
   // Seven rounds of software WebGL: about 40 s on a laptop and over 120 s on CI's runner.
   test.setTimeout(360_000);
-  await startRun(page);
+  // Each run draws its own opponents, so they are weak here: the run wins rounds 1 to 5 and meets both boost picks, whatever its seed.
+  await startRun(page, "", weakPoolFor);
+  const firstShop = await shopNames(page);
   const free = [[2, 0], [0, 0], [3, 0], [1, 1], [2, 1], [0, 1], [3, 1]];
   let picks = 0;
   for (let round = 1; round <= 7; round++) {
@@ -217,6 +231,11 @@ test("a whole run plays to its end, with the two boost picks", async ({ page }) 
   await expect(page.getByText(/^Run (finished|over)$/)).toBeVisible();
   await expect(page.getByText(/^\d wins?, \d loss(es)?$/)).toBeVisible();
   expect(picks).toBe(2);
+
+  // New run deals afresh: its first shop isn't the last run's.
+  await page.getByRole("button", { name: "New run" }).click();
+  await expect(page.getByLabel("1 of 2 cards on the board").locator("visible=true")).toBeVisible();
+  expect(await shopNames(page)).not.toEqual(firstShop);
 });
 
 test("?fps=1 shows a frame counter", async ({ page }) => {

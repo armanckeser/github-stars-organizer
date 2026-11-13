@@ -8,7 +8,8 @@ import type { Player } from "../src/lib/run.ts";
 // whole run with no network. Every repo here is invented; nothing is read from GitHub.
 
 const READ_AT = Date.parse("2026-11-11T12:00:00Z");
-const POOL_SIZE = 21;
+// As many as the Worker deals (POOL_SIZE in worker/src/battle.ts).
+const POOL_SIZE = 40;
 
 const LANGUAGES: [string | null, string][] = [
   ["TypeScript", "#3178c6"], ["JavaScript", "#f1e05a"], ["Python", "#3572a5"], ["Rust", "#dea584"], ["Go", "#00add8"],
@@ -23,7 +24,8 @@ function repoFor(login: string, index: number): CardFacts {
   const [language, color] = pick(LANGUAGES);
   const stars = Math.round(10 ** (1 + random() * 4.4));
   const facts: RepoFacts = {
-    fullName: `greendale-${login}/${WORDS[index % WORDS.length]}`,
+    // Past the last word the names go round again with a number, so no two cards share one.
+    fullName: `greendale-${login}/${WORDS[index % WORDS.length]}${index < WORDS.length ? "" : `-${Math.floor(index / WORDS.length) + 1}`}`,
     description: "Made up for the browser tests.",
     stars,
     forks: Math.round(stars * random() * 0.4),
@@ -50,4 +52,11 @@ export function poolFor(login: string): Player {
     return { ...fighter, hp: card.hp, attack: card.attack, defense: card.guard, speed: card.speed, shiny: card.shiny, card };
   });
   return { login, avatarUrl: null, character: { ...defaultCharacter(login), level: 3 }, team };
+}
+
+/** A made-up account's pool with 1 HP and 1 attack on every card: a team any player beats, for a run that has to reach its end. */
+export function weakPoolFor(login: string): Player {
+  const pool = poolFor(login);
+  const team = pool.team.map((fighter): RunFighter => ({ ...fighter, hp: 1, attack: 1, card: { ...fighter.card, hp: 1, attack: 1 } }));
+  return { ...pool, team };
 }

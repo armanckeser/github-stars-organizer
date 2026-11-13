@@ -1,4 +1,5 @@
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
+import { newRunSeed } from "../../server/run/rules.ts";
 import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
 import { CARD_PATH, cardResponse } from "./cards.ts";
 import { cacheKeyFor } from "./edge-cache.ts";
@@ -110,7 +111,7 @@ export default {
     const now = Date.now();
     const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN };
     const run = RUN_PATH.exec(url.pathname);
-    const runs: RunDeps = { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now };
+    const runs: RunDeps = { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now, newSeed: newRunSeed };
     if (run) return runResponse(run[1], request, runs);
     // A finished run's team: saved by replaying the run, and read back from its token.
     if (TEAM_PATH.test(url.pathname)) return teamResponse(request, url, runs);

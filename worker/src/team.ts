@@ -11,18 +11,19 @@ import {
 
 // A finished run's team, for its share link. The Play screen plays a run in the
 // browser, so before the Worker signs a team it plays the run's fights again itself:
-// every card has to be one of the player's cards for the day (numbers from the Worker,
+// every card has to be one of the player's cards (numbers from the Worker,
 // not the browser), each round's team has to fit that round's board, and the record is
 // the one these fights give. The link then carries the team, so it never needs storing.
 // An account that opted out of being played against (worker/src/no-play.ts) gets no
 // team link, and a link to its team stops opening once it opts out.
 //
-//   POST /api/run/team {login, rounds, against?}  the team's token, and the team
+//   POST /api/run/team {login, seed, rounds, against?}  the team's token, and the team
 //   GET  /api/run/team?t=<token>                  the team, once the token checks out
 //   GET  /team?t=<token>                          the app's page, with the team's link-preview tags
 //
 // `rounds` is the team as fought at each round, round 1 first:
 // `{units: [{repo: "owner/name", col, row}], boosts: [<boost id>]}`.
+// `seed` is the run's seed (newRunSeed), which picked its opponents and seeded its fights.
 // `against` is the token of the saved team the run was played against, if it was.
 
 export const TEAM_PATH = /^\/api\/run\/team$/;
@@ -32,6 +33,8 @@ export const TEAM_PAGE_PATH = /^\/team\/?$/;
 const MAX_ROUNDS = 20;
 // A token never changes what it says, so its team can be cached as long as anything.
 const CACHE_SECONDS = 86400;
+// newRunSeed's is 32 characters; this only bounds what a request may send.
+const MAX_SEED_CHARS = 64;
 
 /**
  * The most board slots a player could have bought by a round: every gold piece a run
@@ -68,7 +71,7 @@ function checkedRound(pool: RunFighter[], login: string, round: PlayedRound, num
   const cells = new Set<string>();
   const units = round.units.map((unit) => {
     const fighter = pool.findIndex((card) => card.fullName.toLowerCase() === unit.repo.toLowerCase());
-    if (fighter === -1) throw new RunRefused(`${unit.repo} isn't one of ${login}'s cards today.`, REFUSED);
+    if (fighter === -1) throw new RunRefused(`${unit.repo} isn't one of ${login}'s cards.`, REFUSED);
     if (seen.has(fighter)) throw new RunRefused(`${unit.repo} is on the team twice in round ${number}.`, REFUSED);
     const cell = `${unit.col},${unit.row}`;
     if (!inHalf(unit.col, unit.row) || cells.has(cell)) throw new RunRefused(`Two cards share a cell, or a card is off the board, in round ${number}.`, REFUSED);
@@ -86,6 +89,8 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
   const login = typeof body.login === "string" ? body.login : "";
   if (!LOGIN.test(login)) throw new RunRefused("A team needs its player's GitHub username.", BAD_REQUEST);
   if (body.against !== undefined && typeof body.against !== "string") throw new RunRefused("A team to play against is its link's token.", BAD_REQUEST);
+  const seed = typeof body.seed === "string" ? body.seed : "";
+  if (seed.length === 0 || seed.length > MAX_SEED_CHARS) throw new RunRefused("A team needs its run's seed.", BAD_REQUEST);
   const played = roundsIn(body.rounds);
   const against = typeof body.against === "string" ? await openTeam(body.against, key) : null;
   // Nobody else may play against an opted-out account, so its team gets no link to be played from.
@@ -103,8 +108,8 @@ async function saveTeam(body: Record<string, unknown>, deps: RunDeps, key: strin
     if (wins >= WINS_TO_FINISH || losses >= LOSSES_TO_END) throw new RunRefused(`The run was over before round ${number}.`, REFUSED);
     const checked = checkedRound(player.team, player.login, round, number, rounds.at(-1)?.boosts ?? []);
     const mine: Snapshot = { login: player.login, round: number, units: checked.units.map((unit) => ({ card: player.team[unit.fighter].card, col: unit.col, row: unit.row })), boosts: checked.boosts };
-    const opponent = await opponentAt(player.login, number, day, against, deps.read, optedOut);
-    const winner = winnerOf(fight(mine, opponent.snapshot, fightSeed(player.login, opponent.login, number, day)));
+    const opponent = await opponentAt(player.login, number, seed, against, deps.read, optedOut);
+    const winner = winnerOf(fight(mine, opponent.snapshot, fightSeed(player.login, opponent.login, number, seed)));
     if (winner === 0) wins++;
     if (winner === 1) losses++;
     rounds.push(checked);

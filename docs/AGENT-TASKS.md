@@ -43,7 +43,7 @@ Needs Task 1's types (not its engine: write against the contract).
 Needs Tasks 1 and 2 merged.
 
 - `worker/src/run.ts`, routes under `/api/run/`. The Worker stays stateless: the whole run travels in a token signed with `BATTLE_KEY` (the way match state is signed in `worker/src/game.ts`).
-- `GET /api/run/pool?login=` exists (`poolResponse` in `worker/src/battle.ts`): the ace and 20 cards drawn from the account's stars for the day. The Play screen runs the whole run in the browser from that today (`src/lib/run.ts`); this task moves the run behind signed tokens so a result can be trusted.
+- `GET /api/run/pool?login=` exists (`poolResponse` in `worker/src/battle.ts`): the ace and 39 more cards: drawn from the account's stars, then its own repos, then popular repos. Each run shuffles its shops and opponents with its own seed (`newRunSeed` in `server/run/rules.ts`). The Play screen runs the whole run in the browser from that today (`src/lib/run.ts`); this task moves the run behind signed tokens so a result can be trusted.
 - `POST /api/run/new {login}`: reads the account's stars once and freezes every card's numbers into the token. Returns the ace and the first shop.
 - `POST /api/run/act {token, buy | sell | reroll | place | fight, boost?}`: applies the choice, finds the opponent, runs `fight`, returns the events, the new token and the next shop. The run ends at 5 wins or 3 losses.
 - Opponents for now: a team drafted by a simple bot (`opponentUnits` in `src/lib/run.ts`) from the stars of an account in a fixed list of well-known public accounts, to the same round. Same account + round + day gives the same team. Saved teams from real players come later.

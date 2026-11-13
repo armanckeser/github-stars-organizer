@@ -9,9 +9,9 @@ import { RunRefused } from "./run.ts";
 //
 // A player's own stars should feel fresh, so their pool is read again after an hour.
 // The opponents are the same dozen accounts for every player, so their pools are kept
-// for a week and then served while a new one is read. An opponent's pool (its 21
-// drawn cards, and their numbers as of the read) so changes about weekly; which of
-// those cards it fields in a round still changes with the run's day (opponentUnits).
+// for a week and then served while a new one is read. An opponent's pool (its 40
+// cards, and their numbers as of the read) so changes about weekly; which of those
+// cards it fields in a round changes with each run's seed (opponentUnits).
 
 const PLAYER_POOL: Lifetime = { fresh: HOUR, keep: HOUR };
 const OPPONENT_POOL: Lifetime = { fresh: 7 * DAY, keep: 30 * DAY };

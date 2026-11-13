@@ -22,7 +22,10 @@ const KEY = "the-key-to-greendale";
 const NOW = Date.parse("2026-11-11T12:00:00Z");
 const PLAYER = "greendale";
 const CHALLENGER = "city-college";
-const POOL = 21;
+const POOL = 40;
+/** The seed a run in this file is played with, unless a test gives its own. */
+const RUN_SEED = "greendale-run-1";
+const WEEK = 7 * 86_400_000;
 
 const fighter = (fullName: string, over: Partial<Fighter>): RunFighter => {
   const base: Fighter = {
@@ -49,6 +52,7 @@ function depsFor(strengths: Record<string, Partial<Fighter>>, reads: string[] = 
   return {
     key: KEY,
     now: NOW,
+    newSeed: () => RUN_SEED,
     read: async (login) => {
       reads.push(login);
       return poolOf(login, strengths[login] ?? WEAK);
@@ -62,8 +66,9 @@ type Saved = { token: string; error: string; team: { login: string; day: string;
 /** A round where the team is just the ace, up close in the front row. */
 const aceOnly = (login = PLAYER) => ({ units: [{ repo: `${login}/repo-0`, col: 1, row: 0 }], boosts: [] });
 
-async function post(body: unknown, deps: RunDeps): Promise<{ status: number; body: Saved }> {
-  const request = new Request("https://stars-demo.example/api/run/team", { method: "POST", body: JSON.stringify(body) });
+/** Saves a team; the run's seed is RUN_SEED unless `body` names its own (or `seed: undefined`, for none). */
+async function post(body: Record<string, unknown>, deps: RunDeps): Promise<{ status: number; body: Saved }> {
+  const request = new Request("https://stars-demo.example/api/run/team", { method: "POST", body: JSON.stringify({ seed: RUN_SEED, ...body }) });
   const response = await teamResponse(request, new URL(request.url), deps);
   return { status: response.status, body: (await response.json()) as Saved };
 }
@@ -110,11 +115,44 @@ describe("POST /api/run/team", () => {
     expect(body.rounds[4]).toEqual({ units: [{ fighter: 0, col: 1, row: 0 }], boosts: [] });
   });
 
-  it("freezes each card's numbers as the Worker read them for the day", async () => {
+  it("freezes each card's numbers as the Worker read them, and reads the same team back a week later", async () => {
     // Regression guarded: a team link that read the repos again would change the team when the repos change.
     const token = await savedStrongTeam();
-    const later = await read(token, depsFor({ [PLAYER]: { attack: 1 } }));
+    const now = await read(token, depsFor({}));
+    const later = await read(token, { ...depsFor({ [PLAYER]: { attack: 1 } }), now: NOW + WEEK, newSeed: () => "greendale-run-2" });
     expect(later.body.fighters[0].card.attack).toBe(400);
+    expect(later.body).toEqual(now.body);
+  });
+
+  it("replays the fights against the opponents the run's seed picked", async () => {
+    // Regression guarded: the Play screen picks a run's opponents with the run's seed; a
+    // replay that picked them with the day met other teams and gave another record.
+    const deps = depsFor({ [PLAYER]: STRONG });
+    const runOpponents: string[] = [];
+    type Played = { token: string; run: { offer: string[] }; fight: { opponent: { login: string } } };
+    let run = (await (await runResponse("new", new Request("https://stars-demo.example/api/run/new", { method: "POST", body: JSON.stringify({ login: PLAYER }) }), deps)).json()) as Played;
+    const boosts: string[] = [];
+    for (let round = 1; round <= 5; round++) {
+      const boost = run.run.offer[0];
+      if (boost) boosts.push(boost);
+      const choice = { token: run.token, fight: true, ...(boost ? { boost } : {}) };
+      const fought = (await (await runResponse("act", new Request("https://stars-demo.example/api/run/act", { method: "POST", body: JSON.stringify(choice) }), deps)).json()) as Played;
+      runOpponents.push(fought.fight.opponent.login);
+      run = fought;
+    }
+
+    const reads: string[] = [];
+    // Each round's team as the run fought it: the ace, with the boosts picked before that round.
+    const rounds = [0, 0, 1, 1, 2].map((picked) => ({ ...aceOnly(), boosts: boosts.slice(0, picked) }));
+    const { status } = await post({ login: PLAYER, rounds }, depsFor({ [PLAYER]: STRONG }, reads));
+    expect(status).toBe(200);
+    expect(reads.slice(1)).toEqual(runOpponents);
+  });
+
+  it("refuses a team without its run's seed", async () => {
+    const { status, body } = await post({ login: PLAYER, seed: undefined, rounds: Array.from({ length: 5 }, () => aceOnly()) }, depsFor({ [PLAYER]: STRONG }));
+    expect(status).toBe(400);
+    expect(body.error).toBe("A team needs its run's seed.");
   });
 
   it("counts the record from the Worker's own replay of the fights", async () => {
@@ -124,12 +162,12 @@ describe("POST /api/run/team", () => {
     expect(weak.body.error).toBe("The run was over before round 4.");
   });
 
-  it("refuses a card that isn't one of the player's cards for the day", async () => {
+  it("refuses a card that isn't one of the player's cards", async () => {
     // Regression guarded: a forged legendary on a shared team.
     const rounds = [...Array.from({ length: 4 }, () => aceOnly()), { units: [{ repo: "torvalds/linux", col: 1, row: 0 }], boosts: [] }];
     const { status, body } = await post({ login: PLAYER, rounds }, depsFor({ [PLAYER]: STRONG }));
     expect(status).toBe(422);
-    expect(body.error).toBe("torvalds/linux isn't one of greendale's cards today.");
+    expect(body.error).toBe("torvalds/linux isn't one of greendale's cards.");
   });
 
   const cardsInFront = (count: number) => ({ units: Array.from({ length: count }, (_, i) => ({ repo: `${PLAYER}/repo-${i}`, col: i, row: 0 })), boosts: [] });
@@ -228,6 +266,21 @@ describe("Beat this team", () => {
     expect(played.fight.teams[1].units.map((unit) => unit.card.attack)).toEqual([400]);
     expect(played.run.losses).toBe(1);
     expect(reads.filter((login) => OPPONENTS.includes(login))).toEqual([]);
+  });
+
+  it("meets the same saved team in round 1 whatever the run's seed", async () => {
+    // Regression guarded: a run against a team link dealing the saved team's cards with the run's seed, so two players met two different teams.
+    const token = await savedStrongTeam();
+    const firstRound = async (seed: string) => {
+      const deps = { ...depsFor({}), newSeed: () => seed };
+      const start = new Request("https://stars-demo.example/api/run/new", { method: "POST", body: JSON.stringify({ login: CHALLENGER, against: token }) });
+      const started = (await (await runResponse("new", start, deps)).json()) as { token: string };
+      const fight = new Request("https://stars-demo.example/api/run/act", { method: "POST", body: JSON.stringify({ token: started.token, fight: true }) });
+      return ((await (await runResponse("act", fight, deps)).json()) as { fight: { teams: [unknown, unknown] } }).fight.teams[1];
+    };
+
+    expect(await firstRound("city-college-run-1")).toEqual(await firstRound("city-college-run-2"));
+    expect(await firstRound("city-college-run-1")).toMatchObject({ login: PLAYER, units: [{ card: { fullName: "greendale/repo-0" }, col: 1, row: 0 }] });
   });
 
   it("saves a run played against a saved team by replaying it against that team", async () => {

@@ -18,7 +18,9 @@ declare global {
 const boardCell = (col: number, row: number) => ({ x: col, y: 1 - row });
 
 async function startRun(page: Page, search = "", pool: (login: string) => Player = poolFor) {
-  await page.route("**/api/run/pool?*", (route) => route.fulfill({ json: pool(new URL(route.request().url()).searchParams.get("login") ?? "abed") }));
+  // No account has opted out, so the tests never read the live Worker's list.
+  await page.route("**/api/run/opponents", (route) => route.fulfill({ json: { optedOut: [] } }));
+  await page.route("**/api/run/pool?*",(route) => route.fulfill({ json: pool(new URL(route.request().url()).searchParams.get("login") ?? "abed") }));
   await page.goto(`/run${search}`);
   await page.getByLabel("Your GitHub username").fill("abed");
   await page.getByRole("button", { name: "Start a run" }).click();
@@ -197,6 +199,26 @@ test("a bought slot lets one more card on the board", async ({ page }) => {
   await expect(page.getByLabel("1 of 3 cards on the board").locator("visible=true")).toBeVisible();
   expect(await gold(page)).toBe(0);
   await expect(page.getByRole("button", { name: "One more board slot for 4 gold" }).locator("visible=true")).toBeDisabled();
+});
+
+test("round 2's opponent is read while round 1 is played, so Continue opens round 2 with no read", async ({ page }) => {
+  // Regression guarded: the next opponent was read only once Continue was pressed, so every
+  // round opened on "Reading the next team..." for as long as a cold read takes.
+  const read: string[] = [];
+  await startRun(page, "", (login) => {
+    read.push(login);
+    return poolFor(login);
+  });
+  // abed's own cards, round 1's opponent and round 2's.
+  await expect.poll(() => new Set(read).size, { message: "round 2's opponent is read before Continue" }).toBe(3);
+  await page.route("**/api/run/pool?*", (route) => route.abort());
+
+  await page.getByRole("button", { name: "Fight" }).locator("visible=true").click();
+  await page.getByRole("button", { name: "Skip" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByText("Round 2", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
 test("a whole run plays to its end, with the two boost picks", async ({ page }) => {

@@ -766,11 +766,27 @@ button.hud-chip:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 2px 6px 6px;
   font: 700 11px/1 var(--font-display);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgb(230 237 243 / 0.45);
+}
+/* Opens a folded list: tall enough for a thumb, quiet enough to read as the list's last line. */
+.checks-more {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 6px;
+  border-radius: 3px;
+  text-align: left;
+  font: 600 11px/1 var(--font-display);
+  color: rgb(230 237 243 / 0.55);
+  outline: none;
+}
+.checks-more:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
 }
 .check-row {
   position: relative;
@@ -901,17 +917,6 @@ button.hud-chip:hover {
   .check-mark {
     width: 13px;
     height: 13px;
-  }
-  /* The other team's checks fold to their count on a phone, where the board is narrow. */
-  .checks-right {
-    width: auto;
-  }
-  .checks-right ul {
-    display: none;
-  }
-  .checks-right .checks-head {
-    gap: 8px;
-    padding: 4px 5px;
   }
 }
 

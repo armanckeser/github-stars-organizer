@@ -71,7 +71,8 @@ The bar folds down under the gold plaque. It opens at the start of each round an
 - One row per set: a status icon, the name, and have/next (`2/3`).
 - Live sets come first. Sets at 1 show too, dimmed.
 - The bonus text shows on hover only.
-- The opponent's checks sit on the right and stay collapsed to their live sets, so they never cover their trainer.
+- The opponent's checks sit on the right under the opponent's GitHub login, never a word like "Theirs".
+- A folded list shows its live sets and the one closest to going live: at least 2 rows, at most 3, then "+n more", which opens the rest. The opponent's list is always folded, so it never covers their trainer and never reads as empty. On a phone (under 640px wide, or under 540px tall) the player's own list folds too: 7 cards can make 14 sets, which would cover the board.
 
 ## 8. Boost pick
 
@@ -117,6 +118,7 @@ Each change below is a rule that made the screen look worse as first written.
 | Narrow cards | same as wide | hexes only under 120px | A phone card has no room for set names beside the creature; the hex and the number still say what a buy advances. |
 | Boost text | one line | full text, up to 3 lines; rows under 560px | One line cut most boost texts off mid-word. A phone has no room for three medallions side by side. |
 | Medallion size | unspecified | from the short side | A landscape phone is 390px tall: medallions sized from the width pushed the text off the screen. |
+| Opponent's checks | live sets only, under "Theirs" | folded to at least 2 rows, under their login | With no live set the list was a bare "Theirs 0/6" and read as broken on a phone; "Theirs" named nobody. |
 | Ability pop | "When hit" | "Hit", name plus a grey line | "When" adds width and no meaning on a card shown for 1 s. The ability's name tells you which unit fired. |
 | Archive, trainers on phone | the same spots as wide | 72% Archive, trainers stepped in | An upright phone's narrow view cut off the trainers and pushed the Archive over the shelf. |
 | Card rim light | a light from behind right | the same light, plus a blue outline on the rim side | Toon bands rounded the back light down to nothing, and a box's edges have no surface turned toward it. The outline shows the rim without lighting the body. |

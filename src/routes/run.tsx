@@ -17,6 +17,7 @@ import { RunEnd } from "@/components/run/run-end";
 import { Shop } from "@/components/run/shop";
 import { demoUser } from "@/lib/demo";
 import { countEvent } from "@/lib/events";
+import type { RoundResult } from "@/lib/challenge";
 import { validLogin } from "@/lib/published-list";
 import { LOSSES_TO_END, NEW_TALLY, REROLL_COST, ROUND_GOLD, START_GOLD, WINS_TO_FINISH, WIN_GOLD, costOf, countRound, fetchOpponent, fetchPlayer, inHalf, opponentUnits, rangeOf, shopFor, snapshot, today, winnerOf, type Player, type RunFighter, type Unit } from "@/lib/run";
 import { openTeam, savedRound, savedSnapshotAt, type SavedTeam } from "@/lib/saved-team";
@@ -33,10 +34,12 @@ import { cellOf, type Side, type Snapshot } from "../../server/run/types";
 
 export const Route = createFileRoute("/run")({
   component: RunPage,
-  validateSearch: (search: Record<string, unknown>): { me?: string; against?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { me?: string; against?: string; name?: string } => ({
     me: typeof search.me === "string" ? search.me : undefined,
     // A finished run's team from its share link (/team): every round is played against that team.
     against: typeof search.against === "string" ? search.against : undefined,
+    // The friend a challenge named (/team?to=). It only fills in the form: whoever opened the link may be someone else.
+    name: typeof search.name === "string" && validLogin(search.name) ? search.name.trim() : undefined,
   }),
 });
 
@@ -91,7 +94,7 @@ function useFullscreen(): [boolean, ((element: HTMLElement | null) => void), (()
 
 function RunPage() {
   const search = Route.useSearch();
-  const [login, setLogin] = useState(search.me ?? demoUser.current ?? "");
+  const [login, setLogin] = useState(search.me ?? search.name ?? demoUser.current ?? "");
   const [player, setPlayer] = useState<Player | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -122,6 +125,8 @@ function RunPage() {
   // The team as fought at each round, for the end screen's share link.
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [against, setAgainst] = useState<SavedTeam | null>(null);
+  // Each round's opponent and how it went, for the end screen's "You beat".
+  const [results, setResults] = useState<RoundResult[]>([]);
 
   // A link with ?me= starts the run on load, so opening the link is all it takes.
   const linked = search.me && validLogin(search.me) ? search.me.trim() : null;
@@ -177,6 +182,7 @@ function RunPage() {
       const team: Unit[] = me.team.slice(0, 1).map((fighter) => ({ fighter, col: 1, row: 0 }));
       setAgainst(saved);
       setHistory([]);
+      setResults([]);
       setPlayer(me);
       setUnits(team);
       setBench(emptyBench());
@@ -257,9 +263,11 @@ function RunPage() {
     // A saved team fights with the boosts it had at that round, as the Worker replays it (worker/src/team.ts).
     const theirs = against ? savedSnapshotAt(against, round.number) : snapshot(round.opponent.login, round.number, round.theirs);
     const events = playFight(mine, theirs, seed);
+    const winner = winnerOf(events);
     setHistory([...history, mine]);
+    setResults([...results, { round: round.number, opponent: round.opponent.login, outcome: winner === 0 ? "won" : winner === 1 ? "lost" : "draw" }]);
     setSelected(null);
-    setPlayed({ fight: { key: `${seed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner: winnerOf(events), over: false });
+    setPlayed({ fight: { key: `${seed}|${wins}|${losses}`, ids: [units.map((unit) => idOf(0, unit.fighter)), round.theirs.map((unit) => idOf(1, unit.fighter))], events }, winner, over: false });
   }
 
   function next() {
@@ -412,7 +420,7 @@ function RunPage() {
 
       {player && finished && !played && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 p-4">
-          <RunEnd login={player.login} rounds={history} team={units} wins={wins} losses={losses} against={against ? search.against : undefined} loading={loading} onNewRun={() => void start()} />
+          <RunEnd login={player.login} rounds={history} results={results} team={units} wins={wins} losses={losses} against={against ? search.against : undefined} loading={loading} onNewRun={() => void start()} />
         </div>
       )}
 

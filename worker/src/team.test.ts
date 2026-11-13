@@ -260,6 +260,35 @@ describe("Beat this team", () => {
   });
 });
 
+// The Workers runtime's HTMLRewriter, which Node lacks: it hands the page back as it
+// is, and notes the title it set and the tags it added to the head.
+const rewritten: { title: string[]; head: string[] } = { title: [], head: [] };
+class RecordingRewriter {
+  private readonly handlers: [string, { element: (element: { remove: () => void; setInnerContent: (text: string) => void; append: (html: string) => void }) => void }][] = [];
+  on(selector: string, handler: RecordingRewriter["handlers"][number][1]) {
+    this.handlers.push([selector, handler]);
+    return this;
+  }
+  transform(response: Response) {
+    const element = (selector: string) => ({ remove: () => {}, setInnerContent: (text: string) => void rewritten.title.push(text), append: (html: string) => void (selector === "head" && rewritten.head.push(html)) });
+    for (const [selector, handler] of this.handlers) handler.element(element(selector));
+    return response;
+  }
+}
+beforeEach(() => {
+  rewritten.title = [];
+  rewritten.head = [];
+});
+/** GitHub for the opt-out check, and the static host's page for everything else. */
+function pagesAndGitHub(): typeof fetch {
+  const github = fakeGitHubWhere({ noPlay: [] }).fetch;
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const address = input instanceof Request ? input.url : String(input);
+    if (address.startsWith("https://api.github.com/")) return github(input, init);
+    return new Response("<html><head><title>Stard</title></head></html>", { headers: { "Content-Type": "text/html" } });
+  }) as typeof fetch;
+}
+
 describe("the team counters", () => {
   it("counts a saved team once the Worker has signed it", async () => {
     // Regression guarded: no count of team links made, so the launch couldn't tell whether anyone shared a team.
@@ -276,30 +305,11 @@ describe("the team counters", () => {
     expect(counted).toEqual([]);
   });
 
-  // The Workers runtime's HTMLRewriter, which Node lacks: it hands the page back as it is.
-  class PassThroughRewriter {
-    on() {
-      return this;
-    }
-    transform(response: Response) {
-      return response;
-    }
-  }
-  /** GitHub for the opt-out check, and the static host's page for everything else. */
-  function pagesAndGitHub(): typeof fetch {
-    const github = fakeGitHubWhere({ noPlay: [] }).fetch;
-    return (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const address = input instanceof Request ? input.url : String(input);
-      if (address.startsWith("https://api.github.com/")) return github(input, init);
-      return new Response("<html><head><title>Stard</title></head></html>", { headers: { "Content-Type": "text/html" } });
-    }) as typeof fetch;
-  }
-
   it("counts a team link opened on its page", async () => {
     const token = await savedStrongTeam();
     vi.stubGlobal("fetch", pagesAndGitHub());
     vi.stubGlobal("caches", memoryCaches());
-    vi.stubGlobal("HTMLRewriter", PassThroughRewriter);
+    vi.stubGlobal("HTMLRewriter", RecordingRewriter);
     const events = memoryDataset();
     const { status } = await callWorker(`/team?t=${encodeURIComponent(token)}`, undefined, { EVENTS: events });
     expect(status).toBe(200);
@@ -310,11 +320,39 @@ describe("the team counters", () => {
     // Regression guarded: counting every /team request, made-up links included, as an opened team.
     vi.stubGlobal("fetch", pagesAndGitHub());
     vi.stubGlobal("caches", memoryCaches());
-    vi.stubGlobal("HTMLRewriter", PassThroughRewriter);
+    vi.stubGlobal("HTMLRewriter", RecordingRewriter);
     const events = memoryDataset();
     const { status } = await callWorker("/team?t=made.up", undefined, { EVENTS: events });
     expect(status).toBe(200);
     expect(events.points).toEqual([]);
+  });
+});
+
+async function openedPage(path: string): Promise<{ title: string[]; head: string[] }> {
+  vi.stubGlobal("fetch", pagesAndGitHub());
+  vi.stubGlobal("caches", memoryCaches());
+  vi.stubGlobal("HTMLRewriter", RecordingRewriter);
+  const { status } = await callWorker(path);
+  expect(status).toBe(200);
+  return rewritten;
+}
+
+describe("a challenge link's page", () => {
+  it("names the challenger and the friend in the title and keeps the friend on the link", async () => {
+    // Regression guarded: a challenge pasted in a chat previews as any team, so the friend can't see it's for them.
+    const token = await savedStrongTeam();
+    const page = await openedPage(`/team?t=${encodeURIComponent(token)}&to=annie`);
+    expect(page.title).toEqual(["@greendale challenges @annie · Stard"]);
+    expect(page.head[0]).toContain('<meta property="og:title" content="@greendale challenges @annie · Stard" />');
+    expect(page.head[0]).toContain(`<meta property="og:url" content="https://stars-demo.example/team?t=${encodeURIComponent(token)}&amp;to=annie" />`);
+  });
+
+  it("ignores a friend that isn't a username", async () => {
+    // Regression guarded: markup in "to" written into the page's title and tags.
+    const token = await savedStrongTeam();
+    const page = await openedPage(`/team?t=${encodeURIComponent(token)}&to=${encodeURIComponent("<script>")}`);
+    expect(page.title).toEqual(["A team from @greendale's stars · Stard"]);
+    expect(page.head[0]).toContain(`<meta property="og:url" content="https://stars-demo.example/team?t=${encodeURIComponent(token)}" />`);
   });
 });
 

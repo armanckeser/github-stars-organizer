@@ -20,7 +20,7 @@ import {
 //
 //   POST /api/run/team {login, rounds, against?}  the team's token, and the team
 //   GET  /api/run/team?t=<token>                  the team, once the token checks out
-//   GET  /team?t=<token>                          the app's page, with the team's link-preview tags
+//   GET  /team?t=<token>[&to=<friend>]            the app's page, with the team's link-preview tags
 //
 // `rounds` is the team as fought at each round, round 1 first:
 // `{units: [{repo: "owner/name", col, row}], boosts: [<boost id>]}`.
@@ -151,13 +151,14 @@ const attribute = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&
 
 /**
  * What a team link's preview says. Anyone can type any username, so it names whose
- * stars the team was drafted from, never a person who played.
+ * stars the team was drafted from, never a person who played. A challenge link names
+ * the friend it was sent to (`to`, a username once checked).
  */
-export function teamPreview(saved: SavedTeam): { title: string; description: string; alt: string } {
+export function teamPreview(saved: SavedTeam, to: string | null = null): { title: string; description: string; alt: string } {
   const record = recordOf(saved.wins, saved.losses);
   const cards = finalUnits(saved).map((unit) => unit.fighter.fullName.split("/")[1] ?? unit.fighter.fullName);
   return {
-    title: `A team from @${saved.login}'s stars · Stard`,
+    title: to ? `@${saved.login} challenges @${to} · Stard` : `A team from @${saved.login}'s stars · Stard`,
     description: `${record}, with ${cards.join(", ")}. Beat this team on Stard.`,
     alt: `A team of repo cards from @${saved.login}'s stars, ${record}`,
   };
@@ -183,12 +184,14 @@ export async function teamPage(request: Request, url: URL, key: string | undefin
   }
   count("team_opened");
 
+  const to = url.searchParams.get("to") ?? "";
+  const challenged = LOGIN.test(to) ? to : null;
   const query = `t=${encodeURIComponent(token)}`;
-  const { title, description: says, alt } = teamPreview(saved);
+  const { title, description: says, alt } = teamPreview(saved, challenged);
   const picture = `${url.origin}/api/card/team.png?${query}`;
   const tags = [
     ["property", "og:type", "website"],
-    ["property", "og:url", `${url.origin}/team?${query}`],
+    ["property", "og:url", `${url.origin}/team?${query}${challenged ? `&to=${challenged}` : ""}`],
     ["property", "og:title", title],
     ["property", "og:description", says],
     ["property", "og:image", picture],

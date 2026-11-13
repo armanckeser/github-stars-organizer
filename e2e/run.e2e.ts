@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { APP_URL } from "../src/lib/published-list.ts";
+import type { Player } from "../src/lib/run.ts";
 import { poolFor } from "./pool.ts";
 
 // The Play screen in a real browser with the 3D board, against made-up accounts
@@ -15,8 +17,8 @@ declare global {
 /** A player's cell as column and row (row 0 in front), and the board cell it is drawn on. */
 const boardCell = (col: number, row: number) => ({ x: col, y: 1 - row });
 
-async function startRun(page: Page, search = "") {
-  await page.route("**/api/run/pool?*", (route) => route.fulfill({ json: poolFor(new URL(route.request().url()).searchParams.get("login") ?? "abed") }));
+async function startRun(page: Page, search = "", pool: (login: string) => Player = poolFor) {
+  await page.route("**/api/run/pool?*", (route) => route.fulfill({ json: pool(new URL(route.request().url()).searchParams.get("login") ?? "abed") }));
   await page.goto(`/run${search}`);
   await page.getByLabel("Your GitHub username").fill("abed");
   await page.getByRole("button", { name: "Start a run" }).click();
@@ -227,4 +229,71 @@ test("?fps=1 shows a frame counter", async ({ page }) => {
 test("without ?fps=1 there is no frame counter", async ({ page }) => {
   await startRun(page);
   await expect(page.getByTestId("fps")).toHaveCount(0);
+});
+
+// A share link's token, as the Worker would hand one back; the browser never opens it.
+const TOKEN = "abeds-team-token";
+// Every card a hundred times as strong, so the run wins every round whatever the day's opponents.
+const STRENGTH = 100;
+const strongAbed = (login: string): Player => {
+  const pool = poolFor(login);
+  if (login !== "abed") return pool;
+  return { ...pool, team: pool.team.map((fighter) => ({ ...fighter, card: { ...fighter.card, hp: fighter.card.hp * STRENGTH, attack: fighter.card.attack * STRENGTH } })) };
+};
+
+test("the end screen names who the run beat, and copies a challenge with the friend on the link", async ({ page, context }) => {
+  // Regression guarded: a run's end was a dead end, with no one named and nothing to send a friend.
+  test.setTimeout(360_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.route("**/api/run/team", (route) => (route.request().method() === "POST" ? route.fulfill({ json: { token: TOKEN } }) : route.fallback()));
+  await startRun(page, "", strongAbed);
+  const beaten: string[] = [];
+  const ended = page.getByText(/^Run (finished|over)$/);
+  for (let round = 1; round <= 5 && !(await ended.isVisible()); round++) {
+    const about = await page.getByRole("button", { name: /^About / }).evaluateAll((all) => all.map((button) => button.getAttribute("aria-label")!.slice("About ".length)));
+    beaten.push(about.find((login) => login !== "abed")!);
+    await page.getByRole("button", { name: "Fight" }).locator("visible=true").click();
+    await page.getByRole("button", { name: "Skip" }).click();
+    await expect(page.getByText(`Round ${round} won`)).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+    const boost = page.getByRole("dialog", { name: "Pick a boost" });
+    const next = page.getByLabel(/ cards on the board$/).locator("visible=true");
+    await expect(ended.or(boost).or(next).first()).toBeVisible({ timeout: 30_000 });
+    if (await boost.isVisible()) await boost.getByRole("button").first().click();
+  }
+  await expect(page.getByText("Run finished")).toBeVisible();
+  expect(new Set(beaten).size).toBe(5);
+  const [first, second, third] = beaten;
+  await expect(page.getByText(`You beat @${first}, @${second}, @${third} and 2 more`)).toBeVisible();
+
+  await page.getByLabel("Friend's GitHub username").fill("@annie");
+  await page.getByRole("button", { name: "Challenge a friend" }).click();
+  await expect(page.getByRole("button", { name: "Copied" }).first()).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`I beat @${first}, @${second}, @${third} and 2 more with my GitHub stars on Stard. @annie, beat my team: ${APP_URL}team?t=${TOKEN}&to=annie`);
+});
+
+/** abed's saved team, as GET /api/run/team answers for a link. */
+function savedAbed() {
+  const pool = poolFor("abed");
+  return { v: 1, login: "abed", avatarUrl: null, character: pool.character, day: "2026-11-11", wins: 5, losses: 0, fighters: [pool.team[0]], rounds: [{ units: [{ fighter: 0, col: 1, row: 0 }], boosts: [] }] };
+}
+
+test("a challenge link greets the friend, and Beat this team fills in their name without starting", async ({ page }) => {
+  // Regression guarded: a challenged friend landing on a page that doesn't say it's for them, or a run started as someone else.
+  await page.route("**/api/run/team?t=*", (route) => route.fulfill({ json: savedAbed() }));
+  await page.goto(`/team?t=${TOKEN}&to=annie`);
+  await expect(page.getByText("@abed challenges you")).toBeVisible();
+  await page.getByRole("link", { name: "Beat this team" }).click();
+  await expect.poll(() => Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ against: TOKEN, name: "annie" });
+  await expect(page.getByLabel("Your GitHub username")).toHaveValue("annie");
+  await expect(page.getByRole("button", { name: "Start a run" })).toBeEnabled();
+});
+
+test("a team link without a friend, or with one that isn't a username, greets no one", async ({ page }) => {
+  await page.route("**/api/run/team?t=*", (route) => route.fulfill({ json: savedAbed() }));
+  await page.goto(`/team?t=${TOKEN}&to=${encodeURIComponent("<b>annie")}`);
+  await expect(page.getByRole("heading", { name: "A team from @abed's stars" })).toBeVisible();
+  await expect(page.getByText(/challenges you/)).toHaveCount(0);
+  await page.getByRole("link", { name: "Beat this team" }).click();
+  await expect.poll(() => Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ against: TOKEN });
 });

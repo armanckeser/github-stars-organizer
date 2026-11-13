@@ -1245,6 +1245,42 @@ button.hud-chip:hover {
   font-size: 13px;
   color: rgb(230 237 243 / 0.55);
 }
+/* Who the run beat: the end screen's lead, under the title. */
+.run-panel-beat {
+  margin-top: 6px;
+  font: 600 18px/1.3 var(--font-display);
+  color: rgb(230 237 243 / 0.95);
+}
+/* Challenge a friend: the friend's username over the panel's one filled button. */
+.run-challenge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.run-challenge-name {
+  position: relative;
+  width: min(100%, 18rem);
+}
+.run-challenge-name > span {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgb(230 237 243 / 0.5);
+  pointer-events: none;
+}
+.run-challenge-name > input {
+  height: 2.5rem;
+  padding-left: 26px;
+}
+.run-challenge-fallback {
+  display: flex;
+  width: min(100%, 28rem);
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
 /* A team's cards in the shop's anatomy, five to a row (three on a phone), centred when a row is short. They are shown, not bought, so they don't lift. */
 .team-cards {
   --gap: 6px;

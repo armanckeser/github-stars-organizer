@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RunPool } from "./battle.ts";
+import type { FactsNode, RunPool } from "./battle.ts";
 import { WRITTEN_AT, readThrough } from "./edge-cache.ts";
 import { HOST, RIVAL, fakeGitHub, unreachable } from "./fake-github.test-helper.ts";
 import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
+import type { FactsStore, KeptFacts } from "./repo-facts.ts";
 import { runResponse } from "./run.ts";
 
 // How long the edge keeps an account's pool, through the one way the Worker reads it
@@ -193,5 +194,64 @@ describe("an entry stored before entries carried their time", () => {
 
     expect(await stored?.text()).toBe("new");
     expect(stored?.headers.get(WRITTEN_AT)).toBe(String(START));
+  });
+});
+
+describe("repo facts kept for every pool", () => {
+  // A Map in place of the D1 table, keyed as the table is: owner/repo in lower case.
+  function mapStore(kept = new Map<string, KeptFacts>()): FactsStore {
+    return {
+      read: async (names) => names.flatMap((name) => kept.get(name.toLowerCase()) ?? []),
+      keep: async (nodes: FactsNode[], readAt) => void nodes.forEach((node) => kept.set(node.nameWithOwner.toLowerCase(), { node, readAt })),
+    };
+  }
+
+  // How many repos GitHub was asked the facts of: each is one ` r<i>: repository(owner:` in a query.
+  let reposAsked: number;
+  beforeEach(() => {
+    reposAsked = 0;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      reposAsked += (String(JSON.parse(String(init?.body)).query).match(/ r\d+: repository\(owner:/g) ?? []).length;
+      return fakeGitHub(input, init);
+    });
+  });
+
+  // Another data center has its own edge cache, so it reads the whole pool again.
+  async function readIn(dataCenter: EdgeCacheFake, login: string, at: number, facts: FactsStore) {
+    vi.setSystemTime(at);
+    const response = await poolReply(login, { ...poolDeps(), cache: dataCenter, facts });
+    await settled();
+    return { status: response.status, pool: (await response.json()) as RunPool };
+  }
+
+  // Regression guarded: every data center, and every player sharing a repo, asked
+  // GitHub for the same repo's facts again, at a point of the shared budget per 4 repos.
+  it("are not asked of GitHub again by another data center later that day", async () => {
+    const facts = mapStore();
+    await readIn(new EdgeCacheFake(), HOST, START, facts);
+    const first = reposAsked;
+    const again = await readIn(new EdgeCacheFake(), HOST, START + 6 * HOUR, facts);
+
+    expect(first).toBeGreaterThan(0);
+    expect(again.status).toBe(200);
+    expect(again.pool.team.length).toBeGreaterThan(0);
+    expect(reposAsked).toBe(first);
+  });
+
+  it("are asked of GitHub again once a day old", async () => {
+    const facts = mapStore();
+    await readIn(new EdgeCacheFake(), HOST, START, facts);
+    const first = reposAsked;
+    await readIn(new EdgeCacheFake(), HOST, START + DAY + MINUTE, facts);
+
+    expect(reposAsked).toBe(2 * first);
+  });
+
+  it("are read from GitHub when the table can't be read or written", async () => {
+    const broken: FactsStore = { read: () => Promise.reject(new Error("D1 is down")), keep: () => Promise.reject(new Error("D1 is down")) };
+    const read = await readIn(new EdgeCacheFake(), HOST, START, broken);
+
+    expect(read.status).toBe(200);
+    expect(read.pool.team.length).toBeGreaterThan(0);
   });
 });

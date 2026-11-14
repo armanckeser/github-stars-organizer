@@ -8,6 +8,7 @@ import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 import { pickPopular, type PopularList } from "./popular.ts";
+import type { FactsStore, KeptFacts } from "./repo-facts.ts";
 import { supporterMark, supporters } from "./supporters.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -37,7 +38,7 @@ const FACTS = `nameWithOwner description stargazerCount forkCount isArchived cre
   releases { totalCount } mentionableUsers { totalCount }
   defaultBranchRef { target { ... on Commit { history { totalCount } } } }`;
 
-type FactsNode = {
+export type FactsNode = {
   nameWithOwner: string;
   description: string | null;
   stargazerCount: number;
@@ -138,10 +139,21 @@ async function factsQuery(token: string, names: string[]): Promise<FactsNode[]> 
   return names.flatMap((_, i) => found[`r${i}`] ?? []);
 }
 
-async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
+// Facts kept longer than this are read from GitHub again: a card's numbers can be a day old.
+const FACTS_KEPT_FOR = 24 * 3600 * 1000;
+
+/** The facts of `names`, in their order: those kept in `store` under a day old, the rest read from GitHub and kept. */
+async function factsFor(token: string, names: string[], now: number, store?: FactsStore): Promise<FactsNode[]> {
+  const known = new Map<string, FactsNode>();
+  const kept = store ? await store.read(names).catch((error) => (console.error(error), [] as KeptFacts[])) : [];
+  for (const { node, readAt } of kept) if (now - readAt < FACTS_KEPT_FOR) known.set(node.nameWithOwner.toLowerCase(), node);
+  const missing = names.filter((name) => !known.has(name.toLowerCase()));
   const chunks: string[][] = [];
-  for (let i = 0; i < names.length; i += FACTS_PER_QUERY) chunks.push(names.slice(i, i + FACTS_PER_QUERY));
-  return (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
+  for (let i = 0; i < missing.length; i += FACTS_PER_QUERY) chunks.push(missing.slice(i, i + FACTS_PER_QUERY));
+  const read = (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
+  for (const node of read) known.set(node.nameWithOwner.toLowerCase(), node);
+  if (store && read.length > 0) await store.keep(read, now).catch((error) => console.error(error));
+  return names.flatMap((name) => known.get(name.toLowerCase()) ?? []);
 }
 
 // A team is four cards: one ace the player chose and three drawn from their stars for
@@ -150,7 +162,7 @@ async function factsFor(token: string, names: string[]): Promise<FactsNode[]> {
 // fills the rest from what they chose and then from their own repos, then from
 // `popular` when given (a run's pool, worker/src/popular.ts), and may still come up
 // short; `evened` then trims the other side to match.
-export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE, popular?: () => Promise<PopularList>): Promise<Team> {
+export async function teamFor(token: string, login: string, now: number, size = TEAM_SIZE, popular?: () => Promise<PopularList>, kept?: FactsStore): Promise<Team> {
   const name = JSON.stringify(login);
   const starred = supporters(token, now);
   const data = await gql<{
@@ -203,7 +215,7 @@ export async function teamFor(token: string, login: string, now: number, size = 
   const owned = user.repositories.nodes.map((node) => node.nameWithOwner);
 
   let source: TeamSource = "profile";
-  const fromProfile = await factsFor(token, topFourIn(readme));
+  const fromProfile = await factsFor(token, topFourIn(readme), now, kept);
   let chosen = fromProfile.map((node) => node.nameWithOwner);
   if (chosen.length === 0) {
     source = "pinned";
@@ -227,7 +239,7 @@ export async function teamFor(token: string, login: string, now: number, size = 
 
   const known = new Map(fromProfile.map((node) => [node.nameWithOwner, node]));
   const unread = [...ace, ...drawnNames, ...spares, ...fill].filter((name) => !known.has(name));
-  for (const node of await factsFor(token, unread)) known.set(node.nameWithOwner, node);
+  for (const node of await factsFor(token, unread, now, kept)) known.set(node.nameWithOwner, node);
   const read = (names: string[]) => names.flatMap((name) => known.get(name) ?? []);
   const aceNodes = read(ace);
   const drawn = read(drawnNames);
@@ -313,11 +325,11 @@ export function withRunCards(player: Team): RunPool {
 }
 
 /** A run's pool. `popular` tops up an account with few stars (worker/src/popular.ts). */
-export async function poolResponse(params: URLSearchParams, token: string, popular?: () => Promise<PopularList>): Promise<Response> {
+export async function poolResponse(params: URLSearchParams, token: string, popular?: () => Promise<PopularList>, facts?: FactsStore): Promise<Response> {
   const login = params.get("login") ?? "";
   if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
   try {
-    const player = await teamFor(token, login, Date.now(), POOL_SIZE, popular);
+    const player = await teamFor(token, login, Date.now(), POOL_SIZE, popular, facts);
     if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
     return json(withRunCards(player), 200, CACHE_SECONDS);
   } catch (error) {

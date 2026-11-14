@@ -2,6 +2,7 @@ import { OPPONENTS } from "../../server/run/rules.ts";
 import { gql, poolResponse, type RunPool } from "./battle.ts";
 import { DAY, HOUR, cacheKeyFor, readThrough, type CacheDeps, type Lifetime } from "./edge-cache.ts";
 import { cachedPopular, type SearchNodes } from "./popular.ts";
+import type { FactsStore } from "./repo-facts.ts";
 import { RunRefused } from "./run.ts";
 
 // An account's pool, as the Play screen (GET /api/run/pool) and a run's referee
@@ -17,8 +18,8 @@ const PLAYER_POOL: Lifetime = { fresh: HOUR, keep: HOUR };
 const OPPONENT_POOL: Lifetime = { fresh: 7 * DAY, keep: 30 * DAY };
 const OPPONENT_LOGINS = new Set<string>(OPPONENTS);
 
-/** What reading a pool needs: the edge cache, the Worker's origin, and the GitHub token. */
-export type PoolDeps = CacheDeps & { origin: string; token: string };
+/** What reading a pool needs: the edge cache, the Worker's origin, the GitHub token, and the repo facts every pool shares. */
+export type PoolDeps = CacheDeps & { origin: string; token: string; facts?: FactsStore };
 
 /** An account's pool as the reply to GET /api/run/pool, from the edge when it has one. */
 export function poolReply(login: string, deps: PoolDeps): Promise<Response> {
@@ -26,7 +27,7 @@ export function poolReply(login: string, deps: PoolDeps): Promise<Response> {
   url.searchParams.set("login", login);
   const lifetime = OPPONENT_LOGINS.has(login.toLowerCase()) ? OPPONENT_POOL : PLAYER_POOL;
   const popular = () => cachedPopular((query) => gql<Record<string, SearchNodes>>(deps.token, query), deps.origin, deps);
-  return readThrough(cacheKeyFor(url, true), () => poolResponse(url.searchParams, deps.token, popular), lifetime, deps);
+  return readThrough(cacheKeyFor(url, true), () => poolResponse(url.searchParams, deps.token, popular, deps.facts), lifetime, deps);
 }
 
 /**

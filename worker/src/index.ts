@@ -12,6 +12,7 @@ import { RUN_PATH, runResponse, type RunDeps } from "./run.ts";
 import { RUN_PICTURE_PATH, RUN_SHARE_PATH, SHARE_PATH, VERSUS_PATH, runPictureResponse, runSharePage, sharePage, versusResponse } from "./share.ts";
 import { TEAM_PAGE_PATH, TEAM_PATH, teamPage, teamResponse } from "./team.ts";
 import { TEAM_PICTURE_PATH, teamPictureResponse } from "./team-picture.ts";
+import { d1FactsStore } from "./repo-facts.ts";
 import { d1TeamLinks } from "./team-links.ts";
 
 // BATTLE_KEY signs the teams in a battle's opening post (worker/src/game.ts), a run's token (worker/src/run.ts)
@@ -19,8 +20,9 @@ import { d1TeamLinks } from "./team-links.ts";
 //   npx wrangler secret put BATTLE_KEY   # any long random text
 // NO_PLAY is the block list of accounts that asked not to be played (worker/src/no-play.ts).
 // EVENTS is the Analytics Engine dataset the counters go to (worker/src/events.ts), bound in wrangler.toml.
-// TEAMS is the D1 database that keeps short team links (worker/src/team-links.ts), bound in wrangler.toml.
-type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string; NO_PLAY?: string; EVENTS?: AnalyticsEngineDataset; TEAMS?: D1Database };
+// DB is the D1 database that keeps short team links (worker/src/team-links.ts) and repo facts
+// (worker/src/repo-facts.ts), bound in wrangler.toml.
+type Env = { GITHUB_TOKEN: string; BATTLE_KEY?: string; NO_PLAY?: string; EVENTS?: AnalyticsEngineDataset; DB?: D1Database };
 
 // GitHub's own rule for logins: alphanumerics and single inner hyphens, at most 39.
 // Anything else is rejected before it reaches GitHub, so this stays a fixed query
@@ -112,7 +114,7 @@ export default {
     const blocked = blockListOf(env.NO_PLAY);
     const optOuts = withBlockList(cachedOptOuts(url.origin, env, context), blocked);
     const count = counterFor(env.EVENTS, url.host);
-    const links = env.TEAMS ? d1TeamLinks(env.TEAMS) : undefined;
+    const links = env.DB ? d1TeamLinks(env.DB) : undefined;
     // The app's own page: anything but a plain read goes straight to the site.
     if (SHARE_PATH.test(url.pathname)) return request.method === "GET" ? sharePage(request, url) : fetch(request);
     if (RUN_SHARE_PATH.test(url.pathname)) return request.method === "GET" ? runSharePage(request, url) : fetch(request);
@@ -121,7 +123,7 @@ export default {
     if (!url.pathname.startsWith("/api/")) return fetch(request);
     if (EVENT_ROUTE.test(url.pathname)) return eventResponse(request, count);
     const now = Date.now();
-    const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN };
+    const pools: PoolDeps = { cache: caches.default, now, waitUntil: (work) => context.waitUntil(work), origin: url.origin, token: env.GITHUB_TOKEN, facts: env.DB ? d1FactsStore(env.DB) : undefined };
     const run = RUN_PATH.exec(url.pathname);
     const runs: RunDeps = { key: env.BATTLE_KEY, read: (login) => cachedPool(login, pools), optedOut: optOuts, now, newSeed: newRunSeed, count, links };
     if (run) return runResponse(run[1], request, runs);

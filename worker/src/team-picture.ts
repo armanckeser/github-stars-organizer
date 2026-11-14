@@ -3,6 +3,7 @@ import { finalUnits } from "../../server/run/saved-team.ts";
 import { cacheKeyFor } from "./edge-cache.ts";
 import type { OptOuts } from "./no-play.ts";
 import { RunRefused, openTeam, playableTeam } from "./run.ts";
+import type { TeamLinks } from "./team-links.ts";
 import { png, shelfPlayer } from "./share.ts";
 
 // The share picture of a finished run's team, drawn the way the run's picture is (worker/src/share.ts).
@@ -26,10 +27,10 @@ function image(bytes: Uint8Array): Response {
  * The picture, from the edge cache when it was drawn before. The owner's opt-out is
  * checked first, so a cached picture stops being served once they opt out.
  */
-export async function teamPictureResponse(url: URL, key: string | undefined, optOuts: OptOuts, waitUntil: (work: Promise<unknown>) => void): Promise<Response> {
+export async function teamPictureResponse(url: URL, key: string | undefined, optOuts: OptOuts, waitUntil: (work: Promise<unknown>) => void, links?: TeamLinks): Promise<Response> {
   if (!key) return new Response("Runs aren't set up on this server yet.", { status: 503 });
   try {
-    const saved = await openTeam(url.searchParams.get("t") ?? "", key);
+    const saved = await openTeam(url.searchParams.get("t") ?? "", key, links);
     await playableTeam(saved, "", optOuts);
     // A token is case-sensitive, so its picture is keyed exactly as asked.
     const cacheKey = cacheKeyFor(url, false);

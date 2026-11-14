@@ -23,3 +23,11 @@ rules = [{ type = "Data", globs = ["**/*.ttf"], fallthrough = true }]
 [[analytics_engine_datasets]]
 binding = "EVENTS"
 dataset = "stard_events"
+# Short team links (src/team-links.ts). Created once with:
+#   npx wrangler d1 create stard
+#   npx wrangler d1 migrations apply stard --remote
+[[d1_databases]]
+binding = "TEAMS"
+database_name = "stard"
+database_id = "71ec2736-6bdd-43c2-8481-40b2c6547fd4"
+migrations_dir = "migrations"

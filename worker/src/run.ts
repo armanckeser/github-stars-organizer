@@ -12,9 +12,10 @@ import type { CountEvent } from "./events.ts";
 import { LOGIN } from "./cards.ts";
 import type { OptOuts } from "./no-play.ts";
 import { BrokenSeal, seal, unseal, type Packing } from "./sealed.ts";
+import { tokenFor, type TeamLinks } from "./team-links.ts";
 
 // A run, refereed here so its result can be trusted (rules in server/run/rules.ts).
-// The Worker stores nothing: the whole run travels in a token signed with BATTLE_KEY,
+// The Worker stores no run: the whole run travels in a token signed with BATTLE_KEY,
 // the way a match's opening post is signed (worker/src/game.ts).
 //
 //   POST /api/run/new {login, against?}       the ace, the first shop and the token
@@ -124,7 +125,7 @@ const CHOICES = ["buy", "sell", "reroll", "place", "fight"] as const;
  * new run's seed comes from (newRunSeed, or a fixed one in a test), and the counters
  * (worker/src/events.ts), which a test or a Worker without the dataset leaves out.
  */
-export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; optedOut: OptOuts; now: number; newSeed: () => string; count?: CountEvent };
+export type RunDeps = { key: string | undefined; read: (login: string) => Promise<RunPool>; optedOut: OptOuts; now: number; newSeed: () => string; count?: CountEvent; links?: TeamLinks };
 
 /** A choice the rules don't allow, or a request that can't be read. The message is shown to the player. */
 export class RunRefused extends Error {
@@ -162,8 +163,9 @@ async function opened(token: string, key: string, purpose: string, says: { notTo
 }
 
 /** A finished run's team from its share link (worker/src/team.ts signs one). */
-export async function openTeam(token: string, key: string): Promise<SavedTeam> {
-  const saved = (await opened(token, key, TEAM_PURPOSE, { notToken: "That isn't a team link.", changed: "This team link was changed, so the team can't be trusted." }, TEAM_PACKING)) as SavedTeam;
+/** The team a link's `t` holds: a sealed token, or a short id kept in `links` (worker/src/team-links.ts). */
+export async function openTeam(t: string, key: string, links?: TeamLinks): Promise<SavedTeam> {
+  const saved = (await opened(await tokenFor(t, links), key, TEAM_PURPOSE, { notToken: "That isn't a team link.", changed: "This team link was changed, so the team can't be trusted." }, TEAM_PACKING)) as SavedTeam;
   if (saved.v !== SAVED_TEAM_VERSION) throw new RunRefused("This team is from an older version of the game.", BAD_REQUEST);
   return saved;
 }
@@ -349,7 +351,7 @@ async function newRun(body: Record<string, unknown>, deps: RunDeps, key: string)
   const login = typeof body.login === "string" ? body.login : "";
   if (!LOGIN.test(login)) throw new RunRefused("A run needs a GitHub username.", BAD_REQUEST);
   if (body.against !== undefined && typeof body.against !== "string") throw new RunRefused("A team to play against is its link's token.", BAD_REQUEST);
-  const against = typeof body.against === "string" ? await openTeam(body.against, key) : null;
+  const against = typeof body.against === "string" ? await openTeam(body.against, key, deps.links) : null;
   const [player, optedOut] = await Promise.all([deps.read(login), deps.optedOut(OPPONENTS), against ? playableTeam(against, login, deps.optedOut) : null]);
   if (player.team.length === 0) throw new RunRefused(`${player.login} has no public repos to play with.`, NOT_FOUND);
   const pool = player.team.map(cardOf);

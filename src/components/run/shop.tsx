@@ -31,7 +31,8 @@ function useShopArt(fighter: RunFighter): string | null | false {
   useEffect(() => {
     let live = true;
     import("@/components/battle/three/portrait")
-      .then(({ shopArt }) => live && setArt({ of: fighter, image: shopArt(fighter) }))
+      .then(({ shopArt }) => shopArt(fighter))
+      .then((image) => live && setArt({ of: fighter, image }))
       .catch(() => live && setArt({ of: fighter, image: false }));
     return () => {
       live = false;

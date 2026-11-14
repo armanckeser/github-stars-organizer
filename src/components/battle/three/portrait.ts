@@ -3,25 +3,17 @@ import type { Fighter } from "../../../../server/battle";
 import { creatureRecipe } from "../../../../server/creature-recipe";
 import type { RunFighter } from "../../../../server/run/rules";
 import { buildCreature } from "./creature";
+import { Darkroom } from "./darkroom";
 import { dispose, INK } from "./kit";
 
 // A creature's picture for its card: the same model the arena uses, drawn once and
-// kept as an image. The renderer is made when a picture is asked for and let go a
-// moment after the last one, so a page of cards doesn't hold a WebGL context open.
+// kept as an image, in a darkroom (darkroom.ts) that lets its renderer go a moment
+// after the last picture, so a page of cards doesn't hold a WebGL context open.
 
 const SIZE = 320;
-const drawn = new Map<string, string>();
-let studio: { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera } | null = null;
-let closing: ReturnType<typeof setTimeout> | undefined;
+type Studio = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera };
 
-function open() {
-  clearTimeout(closing);
-  closing = setTimeout(() => {
-    studio?.renderer.dispose();
-    studio?.renderer.forceContextLoss();
-    studio = null;
-  }, 1500);
-  if (studio) return studio;
+function openStudio(): Studio {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setSize(SIZE, SIZE, false);
   const scene = new THREE.Scene();
@@ -29,32 +21,37 @@ function open() {
   const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.position.set(-3, 5, 6);
   scene.add(sun);
-  studio = { renderer, scene, camera: new THREE.PerspectiveCamera(30, 1, 0.1, 40) };
-  return studio;
+  return { renderer, scene, camera: new THREE.PerspectiveCamera(30, 1, 0.1, 40) };
 }
 
-/** A PNG of the fighter's creature as a data URL. Throws when the browser has no WebGL. */
-// A picture is kept by everything its creature is made of, its role and cost included.
-const keyOf = (kind: string, fighter: Fighter | RunFighter) => `${kind}|${JSON.stringify(creatureRecipe(fighter))}`;
+function closeStudio({ renderer }: Studio) {
+  renderer.dispose();
+  renderer.forceContextLoss();
+}
 
-export function portrait(fighter: Fighter | RunFighter): string {
-  const key = keyOf("card", fighter);
-  const kept = drawn.get(key);
-  if (kept) return kept;
-  const { renderer, scene, camera } = open();
-  const creature = buildCreature(fighter);
-  creature.root.rotation.y = 0.5;
-  if (creature.floats) creature.body.position.y = 0.3;
-  scene.add(creature.root);
-  // Room for the body, whatever stands on its head, and whatever floats over that.
-  const tall = creature.height + 0.75;
-  camera.position.set(0, tall * 0.52, tall / 0.5);
-  camera.lookAt(0, tall * 0.48, 0);
-  renderer.render(scene, camera);
-  const image = renderer.domElement.toDataURL("image/png");
-  dispose(creature.root);
-  drawn.set(key, image);
-  return image;
+const cards = new Darkroom(openStudio, closeStudio);
+
+// A picture is kept by everything its creature is made of, its role and cost included.
+const keyOf = (fighter: Fighter | RunFighter) => JSON.stringify(creatureRecipe(fighter));
+
+/** A PNG of the fighter's creature, as a URL. Rejects when the browser has no WebGL. */
+export function portrait(fighter: Fighter | RunFighter): Promise<string> {
+  return cards.picture(keyOf(fighter), async ({ renderer, scene, camera }) => {
+    const creature = buildCreature(fighter);
+    creature.root.rotation.y = 0.5;
+    if (creature.floats) creature.body.position.y = 0.3;
+    scene.add(creature.root);
+    // Room for the body, whatever stands on its head, and whatever floats over that.
+    const tall = creature.height + 0.75;
+    camera.position.set(0, tall * 0.52, tall / 0.5);
+    camera.lookAt(0, tall * 0.48, 0);
+    try {
+      await renderer.compileAsync(scene, camera);
+      renderer.render(scene, camera);
+    } finally {
+      dispose(creature.root);
+    }
+  });
 }
 
 // --- the shop's picture: the creature as a lit portrait ---
@@ -79,20 +76,9 @@ const FEET = -1.5;
 /** The creature turned a three-quarter view toward the light. */
 const THREE_QUARTER = 0.6;
 type Stage = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; wall: THREE.Mesh; key: THREE.DirectionalLight; sun: THREE.DirectionalLight; pool: THREE.SpotLight; rim: THREE.DirectionalLight };
-let stage: Stage | null = null;
-let striking: ReturnType<typeof setTimeout> | undefined;
 
 /** A portrait studio: a warm key from the top left, a cool rim from behind right, a slate wall behind. */
 function openStage(): Stage {
-  clearTimeout(striking);
-  striking = setTimeout(() => {
-    if (!stage) return;
-    dispose(stage.scene);
-    stage.renderer.dispose();
-    stage.renderer.forceContextLoss();
-    stage = null;
-  }, 1500);
-  if (stage) return stage;
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(WIDE, HIGH, false);
   // No shadows: the feet are cropped away, and a cast shadow on the wall reads as a dark second creature.
@@ -121,9 +107,16 @@ function openStage(): Stage {
   scene.add(rim, rim.target);
   const wall = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), new THREE.MeshStandardMaterial({ color: WALL, roughness: 0.95 }));
   scene.add(wall);
-  stage = { renderer, scene, camera: new THREE.PerspectiveCamera(28, WIDE / HIGH, 0.1, 40), wall, key, sun, pool, rim };
-  return stage;
+  return { renderer, scene, camera: new THREE.PerspectiveCamera(28, WIDE / HIGH, 0.1, 40), wall, key, sun, pool, rim };
 }
+
+function closeStage({ renderer, scene }: Stage) {
+  dispose(scene);
+  renderer.dispose();
+  renderer.forceContextLoss();
+}
+
+const shop = new Darkroom(openStage, closeStage);
 
 /**
  * The rim light, drawn on the ink outline: a toon shader's bands round a light from behind down to
@@ -214,31 +207,30 @@ function frame(camera: THREE.PerspectiveCamera, creature: ReturnType<typeof buil
  * warm key and a cool rim against a slate wall, set right of the middle so the card's left
  * side holds its sets. A 16:10 PNG as a data URL. Throws when the browser has no WebGL.
  */
-export function shopArt(fighter: Fighter | RunFighter): string {
-  const key = keyOf("shop", fighter);
-  const kept = drawn.get(key);
-  if (kept) return kept;
-  const { renderer, scene, camera, wall, key: keyLight, sun, pool, rim } = openStage();
-  const creature = buildCreature(fighter);
-  creature.root.rotation.y = THREE_QUARTER;
-  if (creature.floats) creature.body.position.y = 0.3;
-  const giveBack = lendOutline(creature.root);
-  scene.add(creature.root);
-  const middle = frame(camera, creature);
-  // The wall faces the camera, behind the creature, so the key's pool lands behind its head.
-  wall.position.copy(middle).addScaledVector(camera.getWorldDirection(new THREE.Vector3()), WALL_BEHIND);
-  wall.lookAt(camera.position);
-  keyLight.target.position.copy(middle);
-  sun.target.position.copy(middle);
-  rim.target.position.copy(middle);
-  pool.position.copy(middle).add(POOL_LAMP);
-  pool.target.position.copy(wall.position).add(POOL);
-  renderer.render(scene, camera);
-  const image = renderer.domElement.toDataURL("image/png");
-  camera.clearViewOffset();
-  scene.remove(creature.root);
-  giveBack();
-  dispose(creature.root);
-  drawn.set(key, image);
-  return image;
+export function shopArt(fighter: Fighter | RunFighter): Promise<string> {
+  return shop.picture(keyOf(fighter), async ({ renderer, scene, camera, wall, key, sun, pool, rim }) => {
+    const creature = buildCreature(fighter);
+    creature.root.rotation.y = THREE_QUARTER;
+    if (creature.floats) creature.body.position.y = 0.3;
+    const giveBack = lendOutline(creature.root);
+    scene.add(creature.root);
+    const middle = frame(camera, creature);
+    // The wall faces the camera, behind the creature, so the key's pool lands behind its head.
+    wall.position.copy(middle).addScaledVector(camera.getWorldDirection(new THREE.Vector3()), WALL_BEHIND);
+    wall.lookAt(camera.position);
+    key.target.position.copy(middle);
+    sun.target.position.copy(middle);
+    rim.target.position.copy(middle);
+    pool.position.copy(middle).add(POOL_LAMP);
+    pool.target.position.copy(wall.position).add(POOL);
+    try {
+      await renderer.compileAsync(scene, camera);
+      renderer.render(scene, camera);
+    } finally {
+      camera.clearViewOffset();
+      scene.remove(creature.root);
+      giveBack();
+      dispose(creature.root);
+    }
+  });
 }

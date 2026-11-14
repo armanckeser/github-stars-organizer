@@ -24,6 +24,8 @@ export type Spot = { kind: "cell"; col: number; row: number } | { kind: "bench";
 export type BoardFight = { key: string; ids: [string[], string[]]; events: FightEvent[] };
 /** A point on screen, in CSS pixels from the top left of the page. */
 export type Point = { clientX: number; clientY: number };
+/** What the renderer holds and what its last frame drew, for the perf harness (e2e/perf/). */
+export type RenderInfo = { calls: number; triangles: number; geometries: number; textures: number; programs: number; objects: number; pixelRatio: number };
 
 type Actor = {
   unit: BoardUnit;
@@ -409,6 +411,13 @@ export class BoardWorld {
   screenOfUnit(id: string): Point | null {
     const actor = this.actors.get(id);
     return actor && !actor.out ? this.toScreen(actor.at.clone().setY(actor.creature.height * SIZE * 0.4)) : null;
+  }
+
+  renderInfo(): RenderInfo {
+    const { memory, render, programs } = this.renderer.info;
+    let objects = 0;
+    this.scene.traverse(() => (objects += 1));
+    return { calls: render.calls, triangles: render.triangles, geometries: memory.geometries, textures: memory.textures, programs: programs?.length ?? 0, objects, pixelRatio: this.renderer.getPixelRatio() };
   }
 
   private toScreen(at: THREE.Vector3): Point {

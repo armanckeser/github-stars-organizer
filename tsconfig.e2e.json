@@ -15,5 +15,5 @@
     "noEmit": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["e2e/*.ts", "playwright.config.ts"]
+  "include": ["e2e/*.ts", "e2e/perf/*.ts", "playwright.config.ts", "playwright.perf.config.ts"]
 }

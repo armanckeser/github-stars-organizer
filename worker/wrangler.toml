@@ -30,7 +30,7 @@ dataset = "stard_events"
 #   npx wrangler d1 create stard
 #   npx wrangler d1 migrations apply stard --remote
 [[d1_databases]]
-binding = "TEAMS"
+binding = "DB"
 database_name = "stard"
 database_id = "71ec2736-6bdd-43c2-8481-40b2c6547fd4"
 migrations_dir = "migrations"

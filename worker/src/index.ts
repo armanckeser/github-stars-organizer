@@ -6,6 +6,7 @@ import { CARD_PATH, cardResponse } from "./cards.ts";
 import { cacheKeyFor } from "./edge-cache.ts";
 import { EVENT_ROUTE, counterFor, eventResponse } from "./events.ts";
 import { GAME_PATH, gameResponse } from "./game.ts";
+import { askGitHub } from "./github-budget.ts";
 import { OPPONENTS_PATH, OptedOut, blockListOf, checkPoolRead, checkTeamRead, opponentsBody, readOptOuts, withBlockList, type OptOuts } from "./no-play.ts";
 import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
 import { RUN_PATH, runResponse, type RunDeps } from "./run.ts";
@@ -43,15 +44,7 @@ const RETRIED_STATUSES = new Set([502, 503, 504]);
 
 function githubGraphQL(token: string): GraphQL {
   const request = async <T>(query: string, variables: Record<string, unknown>, attempt: number): Promise<T> => {
-    const response = await fetch("https://api.github.com/graphql", {
-      method: "POST",
-      headers: {
-        Authorization: `bearer ${token}`,
-        "Content-Type": "application/json",
-        "User-Agent": "stars-demo-lists",
-      },
-      body: JSON.stringify({ query, variables }),
-    });
+    const response = await askGitHub(token, { query, variables });
     if (RETRIED_STATUSES.has(response.status) && attempt === 1) {
       return request<T>(query, variables, attempt + 1);
     }

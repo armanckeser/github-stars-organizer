@@ -1,4 +1,5 @@
 import { listCard, messageCard, reviewCard, topFourCard, type CardRepo } from "../../server/cards.ts";
+import { askGitHub } from "./github-budget.ts";
 
 // The SVGs a profile README embeds (server/cards.ts draws them):
 //
@@ -54,11 +55,7 @@ async function fetchRepos(token: string, names: string[]): Promise<CardRepo[]> {
       return ` r${i}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(repo)}) { ${fields} }`;
     })
     .join("")} }`;
-  const response = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json", "User-Agent": "stars-demo-lists" },
-    body: JSON.stringify({ query }),
-  });
+  const response = await askGitHub(token, { query });
   const json = (await response.json().catch(() => ({}))) as { data?: Record<string, RepoNode | null> };
   if (!json.data) throw new Error(`GitHub returned ${response.status}`);
   const nodes = names.flatMap((_, i) => json.data![`r${i}`] ?? []);

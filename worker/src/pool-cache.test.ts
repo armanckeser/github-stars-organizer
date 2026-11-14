@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { FactsNode, RunPool } from "./battle.ts";
+import type { FactsNode, FactsStore, KeptFacts, RunPool } from "./battle.ts";
 import { WRITTEN_AT, readThrough } from "./edge-cache.ts";
-import { HOST, RIVAL, fakeGitHub, unreachable } from "./fake-github.test-helper.ts";
+import { GUEST, HOST, RIVAL, fakeGitHub, unreachable } from "./fake-github.test-helper.ts";
+import { RESERVE, askGitHub } from "./github-budget.ts";
 import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
-import type { FactsStore, KeptFacts } from "./repo-facts.ts";
 import { runResponse } from "./run.ts";
 
 // How long the edge keeps an account's pool, through the one way the Worker reads it
@@ -238,11 +238,22 @@ describe("repo facts kept for every pool", () => {
     expect(reposAsked).toBe(first);
   });
 
-  it("are asked of GitHub again once a day old", async () => {
+  // A pool stays 7 days at the edge (worker/src/pool.ts), so its cards are up to a week old anyway.
+  it("are not asked of GitHub again when kept 6 days ago", async () => {
+    const kept = new Map<string, KeptFacts>();
+    await readIn(new EdgeCacheFake(), HOST, START, mapStore(kept));
+    const first = reposAsked;
+    for (const [name, entry] of kept) kept.set(name, { ...entry, readAt: START - 6 * DAY });
+    await readIn(new EdgeCacheFake(), HOST, START + HOUR, mapStore(kept));
+
+    expect(reposAsked).toBe(first);
+  });
+
+  it("are asked of GitHub again once a week old", async () => {
     const facts = mapStore();
     await readIn(new EdgeCacheFake(), HOST, START, facts);
     const first = reposAsked;
-    await readIn(new EdgeCacheFake(), HOST, START + DAY + MINUTE, facts);
+    await readIn(new EdgeCacheFake(), HOST, START + 7 * DAY + MINUTE, facts);
 
     expect(reposAsked).toBe(2 * first);
   });
@@ -253,5 +264,66 @@ describe("repo facts kept for every pool", () => {
 
     expect(read.status).toBe(200);
     expect(read.pool.team.length).toBeGreaterThan(0);
+  });
+});
+
+describe("a new player's pool when GitHub's hourly points run low", () => {
+  const RESET = START + 25 * MINUTE;
+
+  /** fakeGitHub, with each reply saying `points` are left until RESET. */
+  const withPoints =
+    (points: number, answer: typeof fetch = fakeGitHub): typeof fetch =>
+    async (input, init) => {
+      const reply = await answer(input, init);
+      const headers = new Headers(reply.headers);
+      headers.set("x-ratelimit-remaining", String(points));
+      headers.set("x-ratelimit-reset", String(RESET / 1000));
+      return new Response(reply.body, { status: reply.status, headers });
+    };
+
+  // Each isolate remembers the last reply's points, so give the next test a full hour.
+  afterEach(async () => {
+    github(withPoints(5000));
+    await askGitHub("a-token", { query: "" });
+  });
+
+  // Regression guarded: the Worker read new players until GitHub refused every query,
+  // and then the cards in people's READMEs broke along with the game.
+  it("isn't read, and says when to come back, once fewer than the reserve are left", async () => {
+    github(withPoints(RESERVE - 1));
+    await getPool(HOST, START);
+    await settled();
+
+    const guest = await getPool(GUEST, START);
+
+    expect(guest.status).toBe(503);
+    expect((guest.pool as unknown as { error: string }).error).toContain("Try again in 25 minutes, or play now with your own GitHub login: npx github-stars-organizer");
+    expect(userReads).toEqual([HOST]);
+  });
+
+  it("is still sent to a player read before then", async () => {
+    github(withPoints(RESERVE - 1));
+    await getPool(HOST, START);
+    await settled();
+
+    expect((await getPool(HOST, START + MINUTE)).status).toBe(200);
+  });
+
+  it("is read again once the hour resets", async () => {
+    github(withPoints(RESERVE - 1));
+    await getPool(HOST, START);
+    await settled();
+
+    expect((await getPool(GUEST, RESET + MINUTE)).status).toBe(200);
+  });
+
+  // Regression guarded: a read GitHub refused for its rate limit said GitHub didn't answer.
+  it("says busy when GitHub refuses the read for its rate limit", async () => {
+    github(withPoints(0, async () => Response.json({ errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] })));
+
+    const guest = await getPool(GUEST, START);
+
+    expect(guest.status).toBe(503);
+    expect((guest.pool as unknown as { error: string }).error).toContain("Stard is busy");
   });
 });

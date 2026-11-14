@@ -1,6 +1,7 @@
 import { readLook, type Character } from "../../server/character";
 import { RESPONSE_SHAPE } from "../../server/response-shape";
 import { opponentLogin, type RunFighter } from "../../server/run/rules";
+import { APP_MODE } from "./mode";
 import { CARD_ORIGIN } from "./published-list";
 
 // The Play screen's side of a run. The rules live in server/run/rules.ts, which the
@@ -9,6 +10,9 @@ import { CARD_ORIGIN } from "./published-list";
 export * from "../../server/run/rules";
 
 /** `supporter` is there, and true, when the player starred Stard. */
+// The npx app reads runs from its own server, with the player's own token (cli/src/run-reads.ts).
+const RUN_ORIGIN = APP_MODE === "local" ? window.location.origin : CARD_ORIGIN;
+
 export type Player = { login: string; avatarUrl: string | null; supporter?: true; character: Character & { level: number }; team: RunFighter[] };
 
 // One read per account and day for the page, so the first opponent can be read while
@@ -29,7 +33,7 @@ export function fetchPlayer(login: string, forRun?: string): Promise<Player> {
 }
 
 async function readPlayer(login: string, forRun?: string): Promise<Player> {
-  const url = new URL("/api/run/pool", CARD_ORIGIN);
+  const url = new URL("/api/run/pool", RUN_ORIGIN);
   url.searchParams.set("login", login);
   if (forRun) url.searchParams.set("for", forRun);
   url.searchParams.set("_shape", RESPONSE_SHAPE);
@@ -44,7 +48,7 @@ let optedOut: Promise<string[]> | null = null;
 
 // Read once per page: the Worker caches the answer for an hour anyway.
 function opponentsOptedOut(): Promise<string[]> {
-  optedOut ??= fetch(`${CARD_ORIGIN}/api/run/opponents`)
+  optedOut ??= fetch(`${RUN_ORIGIN}/api/run/opponents`)
     .then(async (response) => {
       const body = (await response.json()) as { optedOut?: string[]; error?: string };
       if (!response.ok || !body.optedOut) throw new Error(body.error ?? "The opponents couldn't be read.");

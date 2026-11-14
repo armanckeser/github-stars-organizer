@@ -162,11 +162,12 @@ async function main() {
   }
   if (portState === "taken") throw new CliError(`Port ${port} is in use by something else. Try --port ${port + 1}.`);
 
-  const github = createGitHubClient(await resolveToken());
+  const token = await resolveToken();
+  const github = createGitHubClient(token);
   const login = await signedInAs(github);
   const appDir = fileURLToPath(new URL("./app/", import.meta.url));
   console.log(`Signed in as ${login}. Backing up your stars and Lists before anything else...`);
-  const { app, store, launchBackup } = await launch({ github, login, home: defaultHome(), appDir, port });
+  const { app, store, launchBackup } = await launch({ github, token, login, home: defaultHome(), appDir, port });
   console.log(`Backed up ${launchBackup.stars} stars and ${launchBackup.lists} Lists to ${store.directory}`);
 
   const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port }, () => {

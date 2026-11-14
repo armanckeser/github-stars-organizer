@@ -7,8 +7,8 @@ import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
 import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
+import { askGitHub, busyUntil } from "./github-budget.ts";
 import { pickPopular, type PopularList } from "./popular.ts";
-import type { FactsStore, KeptFacts } from "./repo-facts.ts";
 import { supporterMark, supporters } from "./supporters.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -56,6 +56,15 @@ export type FactsNode = {
   repositoryTopics: { nodes: { topic: { name: string } }[] };
 };
 
+/** A repo's facts and when GitHub gave them (epoch ms). */
+export type KeptFacts = { node: FactsNode; readAt: number };
+
+/** Where repo facts are kept: the D1 table (worker/src/repo-facts.ts), or a Map in tests. */
+export type FactsStore = {
+  read: (names: string[]) => Promise<KeptFacts[]>;
+  keep: (nodes: FactsNode[], readAt: number) => Promise<void>;
+};
+
 // `custom` says the character was written down somewhere, not made from the username.
 type Player = Character & TrainerFacts & { custom: boolean };
 // `facts` is what GitHub said that `team` was worked out from; `evened` cuts `team` only.
@@ -83,11 +92,7 @@ export class NoSuchUser extends Error {}
 // GitHub answers a query that names a missing repo with data and an error side by
 // side, so partial data is fine here; only a reply with no data at all is a failure.
 export async function gql<T>(token: string, query: string): Promise<T> {
-  const response = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json", "User-Agent": "stars-demo-lists" },
-    body: JSON.stringify({ query }),
-  });
+  const response = await askGitHub(token, { query });
   const json = (await response.json().catch(() => ({}))) as { data?: T };
   if (!json.data) throw new Error(`GitHub returned ${response.status}`);
   return json.data;
@@ -139,18 +144,24 @@ async function factsQuery(token: string, names: string[]): Promise<FactsNode[]> 
   return names.flatMap((_, i) => found[`r${i}`] ?? []);
 }
 
-// Facts kept longer than this are read from GitHub again: a card's numbers can be a day old.
-const FACTS_KEPT_FOR = 24 * 3600 * 1000;
+/** The facts of `names` from GitHub, a point of the token's budget per FACTS_PER_QUERY repos; a repo GitHub can't find is left out. */
+export async function readFacts(token: string, names: string[]): Promise<FactsNode[]> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < names.length; i += FACTS_PER_QUERY) chunks.push(names.slice(i, i + FACTS_PER_QUERY));
+  return (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
+}
+
+// Facts kept longer than this are read from GitHub again. A pool stays 7 days at the edge
+// (worker/src/pool.ts), so a card's numbers can be a week old anyway; the fill
+// (scripts/fill-repo-facts.ts) reads the ones players see again before they expire.
+export const FACTS_KEPT_FOR = 7 * 24 * 3600 * 1000;
 
 /** The facts of `names`, in their order: those kept in `store` under a day old, the rest read from GitHub and kept. */
 async function factsFor(token: string, names: string[], now: number, store?: FactsStore): Promise<FactsNode[]> {
   const known = new Map<string, FactsNode>();
   const kept = store ? await store.read(names).catch((error) => (console.error(error), [] as KeptFacts[])) : [];
   for (const { node, readAt } of kept) if (now - readAt < FACTS_KEPT_FOR) known.set(node.nameWithOwner.toLowerCase(), node);
-  const missing = names.filter((name) => !known.has(name.toLowerCase()));
-  const chunks: string[][] = [];
-  for (let i = 0; i < missing.length; i += FACTS_PER_QUERY) chunks.push(missing.slice(i, i + FACTS_PER_QUERY));
-  const read = (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
+  const read = await readFacts(token, names.filter((name) => !known.has(name.toLowerCase())));
   for (const node of read) known.set(node.nameWithOwner.toLowerCase(), node);
   if (store && read.length > 0) await store.keep(read, now).catch((error) => console.error(error));
   return names.flatMap((name) => known.get(name.toLowerCase()) ?? []);
@@ -328,6 +339,8 @@ export function withRunCards(player: Team): RunPool {
 export async function poolResponse(params: URLSearchParams, token: string, popular?: () => Promise<PopularList>, facts?: FactsStore): Promise<Response> {
   const login = params.get("login") ?? "";
   if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
+  const busy = busyUntil(Date.now());
+  if (busy) return busyReply(busy);
   try {
     const player = await teamFor(token, login, Date.now(), POOL_SIZE, popular, facts);
     if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
@@ -335,8 +348,18 @@ export async function poolResponse(params: URLSearchParams, token: string, popul
   } catch (error) {
     if (error instanceof NoSuchUser) return json({ error: `No GitHub user called ${error.message}.` }, 404, CACHE_SECONDS);
     console.error(error);
+    const busy = busyUntil(Date.now());
+    if (busy) return busyReply(busy);
     return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0);
   }
+}
+
+const SERVICE_UNAVAILABLE = 503;
+
+function busyReply(until: number): Response {
+  const minutes = Math.max(1, Math.ceil((until - Date.now()) / 60_000));
+  const when = minutes === 1 ? "a minute" : `${minutes} minutes`;
+  return json({ error: `Stard is busy: GitHub lets it read only so many new players an hour. Try again in ${when}, or play now with your own GitHub login: npx github-stars-organizer` }, SERVICE_UNAVAILABLE, 0);
 }
 
 export async function battleResponse(kind: string, params: URLSearchParams, token: string): Promise<Response> {

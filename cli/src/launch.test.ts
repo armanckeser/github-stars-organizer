@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 function options() {
-  return { github: createGitHubClient("fake-token", fake.url), login: "abed-nadir", home, appDir: home, port: 5185 };
+  return { github: createGitHubClient("fake-token", fake.url), login: "abed-nadir", home, token: "fake-token", appDir: home, port: 5185 };
 }
 
 describe("launch", () => {

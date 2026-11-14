@@ -4,16 +4,7 @@
 // players' pools cost only the read of their own profile. The edge cache can't do this:
 // it keeps a whole pool, per account and per data center.
 
-import type { FactsNode } from "./battle.ts";
-
-/** A repo's facts and when GitHub gave them (epoch ms). */
-export type KeptFacts = { node: FactsNode; readAt: number };
-
-/** Where repo facts are kept: the D1 table in worker/migrations, or a Map in tests. */
-export type FactsStore = {
-  read: (names: string[]) => Promise<KeptFacts[]>;
-  keep: (nodes: FactsNode[], readAt: number) => Promise<void>;
-};
+import type { FactsNode, FactsStore } from "./battle.ts";
 
 /** Keeps one repo's facts: its name in lower case, its facts as JSON, and when GitHub gave them. */
 export const KEEP_FACTS = "INSERT INTO repo_facts (name, facts, read_at) VALUES (?, ?, ?) ON CONFLICT (name) DO UPDATE SET facts = excluded.facts, read_at = excluded.read_at";

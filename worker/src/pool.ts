@@ -1,8 +1,7 @@
 import { OPPONENTS } from "../../server/run/rules.ts";
-import { gql, poolResponse, type RunPool } from "./battle.ts";
+import { gql, poolResponse, type FactsStore, type RunPool } from "./battle.ts";
 import { DAY, HOUR, cacheKeyFor, readThrough, type CacheDeps, type Lifetime } from "./edge-cache.ts";
 import { cachedPopular, type SearchNodes } from "./popular.ts";
-import type { FactsStore } from "./repo-facts.ts";
 import { RunRefused } from "./run.ts";
 
 // An account's pool, as the Play screen (GET /api/run/pool) and a run's referee

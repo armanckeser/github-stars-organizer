@@ -1,4 +1,5 @@
 import { Hono, type MiddlewareHandler } from "hono";
+import { runReads } from "./run-reads.ts";
 import { openBattleThread, parseBattleComment, parseChallenge, postBattleComment } from "../../server/game-github.ts";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { computeHealthScore } from "../../server/health.ts";
@@ -27,7 +28,7 @@ const HEALTH_BATCH_SIZE = 20;
 const HEALTH_BATCH_SPACING_MS = 1000;
 const DAY_MS = 86_400_000;
 
-export type LocalServerOptions = { github: GitHubClient; appDir: string; port: number; store: BackupStore; login: string };
+export type LocalServerOptions = { github: GitHubClient; token: string; appDir: string; port: number; store: BackupStore; login: string };
 
 // The token can unstar and delete Lists, so only this app's own pages may call
 // the API. Checking Host stops DNS rebinding (a hostile name resolving to
@@ -89,7 +90,7 @@ function statusOf(error: Error): number {
   return 500;
 }
 
-export function createLocalServer({ github, appDir, port, store, login }: LocalServerOptions): Hono {
+export function createLocalServer({ github, token, appDir, port, store, login }: LocalServerOptions): Hono {
   const app = new Hono();
   app.use("*", sameOriginOnly(port));
 
@@ -206,6 +207,7 @@ export function createLocalServer({ github, appDir, port, store, login }: LocalS
   });
 
   app.route("/api/local", api);
+  app.route("/api/run", runReads(token));
   app.all("/api/*", (c) => c.json({ error: "Not found." }, 404));
 
   app.use("/*", serveStatic({ root: appDir }));

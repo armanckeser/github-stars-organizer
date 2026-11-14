@@ -9,7 +9,6 @@ import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
 import { askGitHub, busyUntil } from "./github-budget.ts";
 import { pickPopular, type PopularList } from "./popular.ts";
-import type { FactsStore, KeptFacts } from "./repo-facts.ts";
 import { supporterMark, supporters } from "./supporters.ts";
 
 // The instant battle (issue #46): two usernames, each one's team read from GitHub,
@@ -55,6 +54,15 @@ export type FactsNode = {
   closedIssues: { totalCount: number };
   releases: { totalCount: number };
   repositoryTopics: { nodes: { topic: { name: string } }[] };
+};
+
+/** A repo's facts and when GitHub gave them (epoch ms). */
+export type KeptFacts = { node: FactsNode; readAt: number };
+
+/** Where repo facts are kept: the D1 table (worker/src/repo-facts.ts), or a Map in tests. */
+export type FactsStore = {
+  read: (names: string[]) => Promise<KeptFacts[]>;
+  keep: (nodes: FactsNode[], readAt: number) => Promise<void>;
 };
 
 // `custom` says the character was written down somewhere, not made from the username.
@@ -351,7 +359,7 @@ const SERVICE_UNAVAILABLE = 503;
 function busyReply(until: number): Response {
   const minutes = Math.max(1, Math.ceil((until - Date.now()) / 60_000));
   const when = minutes === 1 ? "a minute" : `${minutes} minutes`;
-  return json({ error: `Stard is busy: GitHub lets it read only so many new players an hour. Try again in ${when}.` }, SERVICE_UNAVAILABLE, 0);
+  return json({ error: `Stard is busy: GitHub lets it read only so many new players an hour. Try again in ${when}, or play now with your own GitHub login: npx github-stars-organizer` }, SERVICE_UNAVAILABLE, 0);
 }
 
 export async function battleResponse(kind: string, params: URLSearchParams, token: string): Promise<Response> {

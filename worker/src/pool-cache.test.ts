@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { FactsNode, RunPool } from "./battle.ts";
+import type { FactsNode, FactsStore, KeptFacts, RunPool } from "./battle.ts";
 import { WRITTEN_AT, readThrough } from "./edge-cache.ts";
 import { GUEST, HOST, RIVAL, fakeGitHub, unreachable } from "./fake-github.test-helper.ts";
 import { RESERVE, askGitHub } from "./github-budget.ts";
 import { cachedPool, poolReply, type PoolDeps } from "./pool.ts";
-import type { FactsStore, KeptFacts } from "./repo-facts.ts";
 import { runResponse } from "./run.ts";
 
 // How long the edge keeps an account's pool, through the one way the Worker reads it
@@ -298,7 +297,7 @@ describe("a new player's pool when GitHub's hourly points run low", () => {
     const guest = await getPool(GUEST, START);
 
     expect(guest.status).toBe(503);
-    expect((guest.pool as unknown as { error: string }).error).toContain("Try again in 25 minutes");
+    expect((guest.pool as unknown as { error: string }).error).toContain("Try again in 25 minutes, or play now with your own GitHub login: npx github-stars-organizer");
     expect(userReads).toEqual([HOST]);
   });
 

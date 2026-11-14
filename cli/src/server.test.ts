@@ -26,7 +26,7 @@ beforeEach(async () => {
     ],
   });
   home = await mkdtemp(path.join(tmpdir(), "stars-server-"));
-  ({ app, launchBackup } = await launch({ github: createGitHubClient("fake-token", fake.url), login: LOGIN, home, appDir: home, port: PORT }));
+  ({ app, launchBackup } = await launch({ github: createGitHubClient("fake-token", fake.url), token: "fake-token", login: LOGIN, home, appDir: home, port: PORT }));
 });
 
 afterEach(async () => {

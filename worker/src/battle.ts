@@ -7,6 +7,7 @@ import type { FrozenRepo, SideFacts, TeamSource } from "../../server/game.ts";
 import type { RunFighter } from "../../server/run/rules.ts";
 import { cardFor } from "../../server/run/stats.ts";
 import { avatarData, svg, LOGIN, REPO } from "./cards.ts";
+import { askGitHub, busyUntil } from "./github-budget.ts";
 import { pickPopular, type PopularList } from "./popular.ts";
 import type { FactsStore, KeptFacts } from "./repo-facts.ts";
 import { supporterMark, supporters } from "./supporters.ts";
@@ -83,11 +84,7 @@ export class NoSuchUser extends Error {}
 // GitHub answers a query that names a missing repo with data and an error side by
 // side, so partial data is fine here; only a reply with no data at all is a failure.
 export async function gql<T>(token: string, query: string): Promise<T> {
-  const response = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: { Authorization: `bearer ${token}`, "Content-Type": "application/json", "User-Agent": "stars-demo-lists" },
-    body: JSON.stringify({ query }),
-  });
+  const response = await askGitHub(token, { query });
   const json = (await response.json().catch(() => ({}))) as { data?: T };
   if (!json.data) throw new Error(`GitHub returned ${response.status}`);
   return json.data;
@@ -328,6 +325,8 @@ export function withRunCards(player: Team): RunPool {
 export async function poolResponse(params: URLSearchParams, token: string, popular?: () => Promise<PopularList>, facts?: FactsStore): Promise<Response> {
   const login = params.get("login") ?? "";
   if (!LOGIN.test(login)) return json({ error: "A run needs a GitHub username." }, 400, CACHE_SECONDS);
+  const busy = busyUntil(Date.now());
+  if (busy) return busyReply(busy);
   try {
     const player = await teamFor(token, login, Date.now(), POOL_SIZE, popular, facts);
     if (player.team.length === 0) return json({ error: `${player.login} has no public repos to play with.` }, 404, CACHE_SECONDS);
@@ -335,8 +334,18 @@ export async function poolResponse(params: URLSearchParams, token: string, popul
   } catch (error) {
     if (error instanceof NoSuchUser) return json({ error: `No GitHub user called ${error.message}.` }, 404, CACHE_SECONDS);
     console.error(error);
+    const busy = busyUntil(Date.now());
+    if (busy) return busyReply(busy);
     return json({ error: "GitHub didn't answer. Try again shortly." }, 502, 0);
   }
+}
+
+const SERVICE_UNAVAILABLE = 503;
+
+function busyReply(until: number): Response {
+  const minutes = Math.max(1, Math.ceil((until - Date.now()) / 60_000));
+  const when = minutes === 1 ? "a minute" : `${minutes} minutes`;
+  return json({ error: `Stard is busy: GitHub lets it read only so many new players an hour. Try again in ${when}.` }, SERVICE_UNAVAILABLE, 0);
 }
 
 export async function battleResponse(kind: string, params: URLSearchParams, token: string): Promise<Response> {

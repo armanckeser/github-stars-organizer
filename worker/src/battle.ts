@@ -136,18 +136,24 @@ async function factsQuery(token: string, names: string[]): Promise<FactsNode[]> 
   return names.flatMap((_, i) => found[`r${i}`] ?? []);
 }
 
-// Facts kept longer than this are read from GitHub again: a card's numbers can be a day old.
-const FACTS_KEPT_FOR = 24 * 3600 * 1000;
+/** The facts of `names` from GitHub, a point of the token's budget per FACTS_PER_QUERY repos; a repo GitHub can't find is left out. */
+export async function readFacts(token: string, names: string[]): Promise<FactsNode[]> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < names.length; i += FACTS_PER_QUERY) chunks.push(names.slice(i, i + FACTS_PER_QUERY));
+  return (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
+}
+
+// Facts kept longer than this are read from GitHub again. A pool stays 7 days at the edge
+// (worker/src/pool.ts), so a card's numbers can be a week old anyway; the fill
+// (scripts/fill-repo-facts.ts) reads the ones players see again before they expire.
+export const FACTS_KEPT_FOR = 7 * 24 * 3600 * 1000;
 
 /** The facts of `names`, in their order: those kept in `store` under a day old, the rest read from GitHub and kept. */
 async function factsFor(token: string, names: string[], now: number, store?: FactsStore): Promise<FactsNode[]> {
   const known = new Map<string, FactsNode>();
   const kept = store ? await store.read(names).catch((error) => (console.error(error), [] as KeptFacts[])) : [];
   for (const { node, readAt } of kept) if (now - readAt < FACTS_KEPT_FOR) known.set(node.nameWithOwner.toLowerCase(), node);
-  const missing = names.filter((name) => !known.has(name.toLowerCase()));
-  const chunks: string[][] = [];
-  for (let i = 0; i < missing.length; i += FACTS_PER_QUERY) chunks.push(missing.slice(i, i + FACTS_PER_QUERY));
-  const read = (await Promise.all(chunks.map((chunk) => factsQuery(token, chunk)))).flat();
+  const read = await readFacts(token, names.filter((name) => !known.has(name.toLowerCase())));
   for (const node of read) known.set(node.nameWithOwner.toLowerCase(), node);
   if (store && read.length > 0) await store.keep(read, now).catch((error) => console.error(error));
   return names.flatMap((name) => known.get(name.toLowerCase()) ?? []);

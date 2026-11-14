@@ -239,11 +239,22 @@ describe("repo facts kept for every pool", () => {
     expect(reposAsked).toBe(first);
   });
 
-  it("are asked of GitHub again once a day old", async () => {
+  // A pool stays 7 days at the edge (worker/src/pool.ts), so its cards are up to a week old anyway.
+  it("are not asked of GitHub again when kept 6 days ago", async () => {
+    const kept = new Map<string, KeptFacts>();
+    await readIn(new EdgeCacheFake(), HOST, START, mapStore(kept));
+    const first = reposAsked;
+    for (const [name, entry] of kept) kept.set(name, { ...entry, readAt: START - 6 * DAY });
+    await readIn(new EdgeCacheFake(), HOST, START + HOUR, mapStore(kept));
+
+    expect(reposAsked).toBe(first);
+  });
+
+  it("are asked of GitHub again once a week old", async () => {
     const facts = mapStore();
     await readIn(new EdgeCacheFake(), HOST, START, facts);
     const first = reposAsked;
-    await readIn(new EdgeCacheFake(), HOST, START + DAY + MINUTE, facts);
+    await readIn(new EdgeCacheFake(), HOST, START + 7 * DAY + MINUTE, facts);
 
     expect(reposAsked).toBe(2 * first);
   });

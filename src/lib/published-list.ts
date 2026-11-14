@@ -5,6 +5,7 @@
 
 import { isQuiet } from "./star-waves";
 import { CLASSES, characterParams, defaultCharacter, type Character } from "../../server/character";
+import { SITE_ORIGIN } from "../../server/site";
 
 export type ComposeRepo = {
   id: string;
@@ -61,9 +62,9 @@ export type Composed = {
   counts: Record<string, number>;
 };
 
-export const APP_URL = "https://stars-demo.armanckeser.com/";
+export const APP_URL = `${SITE_ORIGIN}/`;
 export const REPO_URL = "https://github.com/armanckeser/github-stars-organizer";
-export const CARD_ORIGIN: string = (import.meta.env?.VITE_CARD_ORIGIN as string | undefined) ?? "https://stars-demo.armanckeser.com";
+export const CARD_ORIGIN: string = (import.meta.env?.VITE_CARD_ORIGIN as string | undefined) ?? SITE_ORIGIN;
 export const CREDIT_LINE = `Made with [Stard](${APP_URL})`;
 export const DEFAULT_RATING_MIN = 4;
 export const DEFAULT_OPTIONS: Options = { repos: true, notes: true, language: false, stars: false, credit: true };

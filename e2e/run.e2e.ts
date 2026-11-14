@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "@playwright/test";
+import { OPPONENTS } from "../server/run/rules.ts";
 import { APP_URL } from "../src/lib/published-list.ts";
 import type { Player } from "../src/lib/run.ts";
 import { poolFor } from "./pool.ts";
@@ -17,10 +18,46 @@ declare global {
 /** A player's cell as column and row (row 0 in front), and the board cell it is drawn on. */
 const boardCell = (col: number, row: number) => ({ x: col, y: 1 - row });
 
-async function startRun(page: Page, search = "", pool: (login: string) => Player = poolFor) {
-  // No account has opted out, so the tests never read the live Worker's list.
-  await page.route("**/api/run/opponents", (route) => route.fulfill({ json: { optedOut: [] } }));
-  await page.route("**/api/run/pool?*",(route) => route.fulfill({ json: pool(new URL(route.request().url()).searchParams.get("login") ?? "abed") }));
+/** The Worker as the Play screen sees it, answered in the page, and what reached it. */
+type Worker = { optedOut: string[]; poolReads: string[]; teamsSaved: string[] };
+
+const SAVED_TOKEN = "troy-and-abed-in-the-morning";
+
+// Every test answers the Worker in the page: a request that leaves the test server and
+// isn't stubbed is refused and fails the test, so no test reads the live Worker.
+const test = base.extend<{ worker: Worker }>({
+  worker: [
+    async ({ page }, use) => {
+      const worker: Worker = { optedOut: [], poolReads: [], teamsSaved: [] };
+      const unstubbed: string[] = [];
+      // Registered first, so it runs last: Playwright tries the newest route first.
+      await page.route((url) => url.hostname !== "localhost", (route) => {
+        unstubbed.push(route.request().url());
+        return route.abort("blockedbyclient");
+      });
+      await page.route("**/api/run/pool?*", (route) => {
+        const login = new URL(route.request().url()).searchParams.get("login") ?? "abed";
+        worker.poolReads.push(login);
+        return route.fulfill({ json: poolFor(login) });
+      });
+      await page.route("**/api/run/opponents", (route) => route.fulfill({ json: { optedOut: worker.optedOut } }));
+      // A finished run saves its team for the share link; the Worker's replay and signature are tested in worker/.
+      await page.route("**/api/run/team", (route) => {
+        worker.teamsSaved.push((route.request().postDataJSON() as { login: string }).login);
+        return route.fulfill({ json: { token: SAVED_TOKEN } });
+      });
+      // index.html loads the display font from a CDN; the tests check positions and labels, not type.
+      await page.route("https://api.fontshare.com/**", (route) => route.fulfill({ contentType: "text/css", body: "" }));
+      await use(worker);
+      expect(unstubbed, "requests that left the test server without a stub").toEqual([]);
+    },
+    { auto: true },
+  ],
+});
+
+// A test that needs other cards for an account passes its own pool; the newest route wins.
+async function startRun(page: Page, search = "", pool?: (login: string) => Player) {
+  if (pool) await page.route("**/api/run/pool?*", (route) => route.fulfill({ json: pool(new URL(route.request().url()).searchParams.get("login") ?? "abed") }));
   await page.goto(`/run${search}`);
   await page.getByLabel("Your GitHub username").fill("abed");
   await page.getByRole("button", { name: "Start a run" }).click();
@@ -173,6 +210,15 @@ test("a check's hover names the cards on the board that fill it", async ({ page 
   await expect(check.getByRole("tooltip")).toContainText(aceName().split("/")[1]);
 });
 
+test("an opponent who opted out is never the next team", async ({ page, worker }) => {
+  // Regression guarded: the Play screen fighting an account that asked not to be played
+  // against (OPPONENTS.md), when the opt-out list isn't applied to the opponent pick.
+  worker.optedOut = OPPONENTS.filter((login) => login !== "simonw");
+  await startRun(page);
+  await expect(page.getByRole("button", { name: "About simonw" }).locator("visible=true")).toBeVisible();
+  expect(new Set(worker.poolReads)).toEqual(new Set(["abed", "simonw"]));
+});
+
 test("a reroll costs one gold and shows other cards", async ({ page }) => {
   await startRun(page);
   const before = await shopNames(page);
@@ -221,7 +267,7 @@ test("round 2's opponent is read while round 1 is played, so Continue opens roun
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
-test("a whole run plays to its end, with the two boost picks", async ({ page }) => {
+test("a whole run plays to its end, with the two boost picks", async ({ page, worker }) => {
   // Seven rounds of software WebGL: about 40 s on a laptop and over 120 s on CI's runner.
   test.setTimeout(360_000);
   // Each run draws its own opponents, so abed is strong here: the run wins rounds 1 to 5 and meets both boost picks, whatever its seed.
@@ -258,6 +304,9 @@ test("a whole run plays to its end, with the two boost picks", async ({ page }) 
   await expect(page.getByText(/^Run (finished|over)$/)).toBeVisible();
   await expect(page.getByText(/^\d wins?, \d loss(es)?$/)).toBeVisible();
   expect(picks).toBe(2);
+  await expect(page.getByRole("button", { name: "Copy team link" })).toBeVisible();
+  // The dev server's StrictMode runs the save effect twice; each save is the player's team.
+  expect(new Set(worker.teamsSaved)).toEqual(new Set(["abed"]));
 
   // New run deals afresh: its first shop isn't the last run's.
   await page.getByRole("button", { name: "New run" }).click();

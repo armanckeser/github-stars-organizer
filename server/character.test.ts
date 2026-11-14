@@ -148,8 +148,9 @@ describe("a character in an address", () => {
     expect(characterFrom(new URLSearchParams({ class: "wizard" }), "octocat")).toEqual(defaultCharacter("octocat"));
   });
 
-  test("is found in a README by its trainer card, and is null without one", () => {
-    const readme = `Hi\n[![me](https://stars-demo.armanckeser.com/api/card/trainer.svg?user=octocat&amp;class=veteran&look=2.4.5.1.3.2)](x)`;
+  // READMEs written before the move embed the card from the old address and keep it.
+  test.each(["https://stard.armanckeser.com", "https://stars-demo.armanckeser.com"])("is found in a README by its trainer card from %s, and is null without one", (origin) => {
+    const readme = `Hi\n[![me](${origin}/api/card/trainer.svg?user=octocat&amp;class=veteran&look=2.4.5.1.3.2)](x)`;
     expect(characterIn(readme, "octocat")).toEqual({ name: "octocat", klass: "veteran", look, motto: "" });
     expect(characterIn("# Hello", "octocat")).toBeNull();
   });

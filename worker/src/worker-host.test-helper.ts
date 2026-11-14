@@ -35,18 +35,19 @@ export function memoryDataset(): AnalyticsEngineDataset & { points: AnalyticsEng
 const SECRETS: Secrets = { GITHUB_TOKEN: "a-token", BATTLE_KEY: KEY };
 
 /**
- * One request to the Worker. Work it hands to `waitUntil` (cache writes) is finished
- * before this returns. `body` is the reply read as JSON, or empty when it isn't JSON;
- * `text` is the reply as it came.
+ * One request to the Worker. `path` is a path on a test origin, or a full address to
+ * pick the host. Work it hands to `waitUntil` (cache writes) is finished before this
+ * returns. `body` is the reply read as JSON, or empty when it isn't JSON; `text` is the
+ * reply as it came.
  */
-export async function callWorker(path: string, body?: unknown, secrets: Partial<Secrets> = {}): Promise<{ status: number; body: Record<string, unknown>; text: string }> {
+export async function callWorker(path: string, body?: unknown, secrets: Partial<Secrets> = {}): Promise<{ status: number; body: Record<string, unknown>; text: string; headers: Headers }> {
   const pending: Promise<unknown>[] = [];
   // The Worker only calls waitUntil; the rest of ExecutionContext is never touched.
   const context = { waitUntil: (promise: Promise<unknown>) => void pending.push(promise), passThroughOnException: () => {} } as unknown as ExecutionContext;
-  const request = new Request(`${ORIGIN}${path}`, body === undefined ? undefined : { method: "POST", body: JSON.stringify(body) });
+  const request = new Request(new URL(path, ORIGIN), body === undefined ? undefined : { method: "POST", body: JSON.stringify(body) });
   const response = await worker.fetch(request, { ...SECRETS, ...secrets }, context);
   await Promise.all(pending);
   const text = await response.text();
   const isJson = (response.headers.get("Content-Type") ?? "").includes("application/json");
-  return { status: response.status, body: isJson ? (JSON.parse(text) as Record<string, unknown>) : {}, text };
+  return { status: response.status, body: isJson ? (JSON.parse(text) as Record<string, unknown>) : {}, text, headers: response.headers };
 }

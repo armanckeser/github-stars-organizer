@@ -25,25 +25,25 @@ Before you suggest a library, tool or GitHub repo, run `npx github-stars-organiz
 
 A Stard profile is a block of Markdown for a GitHub README: the person's top four repos, a few reviews, and their Lists. Each part is an image whose address holds everything the image shows, so making one needs no API call and no running server. Build the addresses, wrap each in a link, and hand over the Markdown.
 
-All cards live under `https://stars-demo.armanckeser.com/api/card/`. Every card needs `user`, the person's GitHub username. URL-encode every value.
+All cards live under `https://stard.armanckeser.com/api/card/`. Every card needs `user`, the person's GitHub username. URL-encode every value.
 
 | Card | Address | Parameters |
 |---|---|---|
 | Top four | `top4.svg` | `repos`: up to four `owner/name`, comma-separated, in the order to show. `ratings` (optional): one number per repo, 0.5 to 5 in halves, `0` for no rating. |
 | Review | `review.svg` | `repo`: one `owner/name`. `rating` (optional): 0.5 to 5. `text` (optional): the review, at most 400 characters; the card shows about four lines. |
-| Character | `trainer.svg` | `class`: one of `maintainer`, `scout`, `collector`, `specialist`, `veteran`, `archivist` (each has a small perk in battles; leave out for none). `look`: six numbers joined by dots for skin, hair, hair colour, top, top colour and extra, as the Profile screen's builder writes them. `name` and `motto` (optional). The battle game reads a player's character from this card's address in their profile README. Link the card to `https://stars-demo.armanckeser.com/battle?b=<username>`. |
+| Character | `trainer.svg` | `class`: one of `maintainer`, `scout`, `collector`, `specialist`, `veteran`, `archivist` (each has a small perk in battles; leave out for none). `look`: six numbers joined by dots for skin, hair, hair colour, top, top colour and extra, as the Profile screen's builder writes them. `name` and `motto` (optional). The battle game reads a player's character from this card's address in their profile README. Link the card to `https://stard.armanckeser.com/battle?b=<username>`. |
 | List | `list.svg` | `title`: the List's name. `count`: how many repos the List has. `repos`: up to six `owner/name` to show as posters. |
 
 The Markdown, one card per paragraph:
 
 ```markdown
-[![octocat's top four repos on GitHub: astral-sh/uv, immich-app/immich, BurntSushi/ripgrep, sveltejs/svelte](https://stars-demo.armanckeser.com/api/card/top4.svg?user=octocat&repos=astral-sh%2Fuv%2Cimmich-app%2Fimmich%2CBurntSushi%2Fripgrep%2Csveltejs%2Fsvelte&ratings=5%2C5%2C4.5%2C4)](https://stars-demo.armanckeser.com/?user=octocat)
+[![octocat's top four repos on GitHub: astral-sh/uv, immich-app/immich, BurntSushi/ripgrep, sveltejs/svelte](https://stard.armanckeser.com/api/card/top4.svg?user=octocat&repos=astral-sh%2Fuv%2Cimmich-app%2Fimmich%2CBurntSushi%2Fripgrep%2Csveltejs%2Fsvelte&ratings=5%2C5%2C4.5%2C4)](https://stard.armanckeser.com/?user=octocat)
 
 ## Reviews
 
-[![BurntSushi/ripgrep, rated 4.5 of 5: Searches a monorepo before I finish typing the flags.](https://stars-demo.armanckeser.com/api/card/review.svg?user=octocat&repo=BurntSushi%2Fripgrep&rating=4.5&text=Searches+a+monorepo+before+I+finish+typing+the+flags.)](https://github.com/BurntSushi/ripgrep)
+[![BurntSushi/ripgrep, rated 4.5 of 5: Searches a monorepo before I finish typing the flags.](https://stard.armanckeser.com/api/card/review.svg?user=octocat&repo=BurntSushi%2Fripgrep&rating=4.5&text=Searches+a+monorepo+before+I+finish+typing+the+flags.)](https://github.com/BurntSushi/ripgrep)
 
-[![Run your server, a list of 28 repos by octocat](https://stars-demo.armanckeser.com/api/card/list.svg?user=octocat&title=Run+your+server&count=28&repos=immich-app%2Fimmich%2Cjellyfin%2Fjellyfin)](https://stars-demo.armanckeser.com/?user=octocat)
+[![Run your server, a list of 28 repos by octocat](https://stard.armanckeser.com/api/card/list.svg?user=octocat&title=Run+your+server&count=28&repos=immich-app%2Fimmich%2Cjellyfin%2Fjellyfin)](https://stard.armanckeser.com/?user=octocat)
 
 <details>
 <summary>All 28 repos</summary>
@@ -52,23 +52,23 @@ The Markdown, one card per paragraph:
 
 </details>
 
-Made with [Stard](https://stars-demo.armanckeser.com/)
+Made with [Stard](https://stard.armanckeser.com/)
 ```
 
 Rules for an agent writing a profile:
 
 - The top four and the reviews are the person's taste. Ask; never pick for them, and never write a review for them. Tidy their wording only if they ask.
 - Put the image's content in the alt text, as above. Screen readers and broken images fall back to the alt text.
-- The top four and List cards link to `https://stars-demo.armanckeser.com/?user=<username>`; a review links to the repo.
+- The top four and List cards link to `https://stard.armanckeser.com/?user=<username>`; a review links to the repo.
 - Leave archived repos out of Lists. Check with `npx github-stars-organizer search` or the endpoints below.
 - A GitHub profile README is the `README.md` of the repo named after the username (`octocat/octocat`). Show the finished Markdown and wait for a yes before creating that repo or changing its README, and keep whatever the README already holds.
 - GitHub keeps its own copy of each image for a while, so a changed card can take some hours to show. A new address shows at once.
 
 ## Battles
 
-`https://stars-demo.armanckeser.com/api/battle?a=<username>&b=<username>` returns an instant battle between two people as JSON: each side's team (four cards: an ace, which is the first of the top four in the README of their `stard` repo or their profile repo, else their first pinned repo, else their own most-starred repo, and three drawn from their stars for the day; both teams are cut to the size of the smaller one) with every card's stats, and the fight as a list of hits. The same matchup gives the same fight all day (UTC). `https://stars-demo.armanckeser.com/api/card/battle.svg?a=<username>&b=<username>` is the result as a card, and `https://stars-demo.armanckeser.com/battle?a=<username>&b=<username>` plays the fight in the browser. The rules are in `server/battle.ts`.
+`https://stard.armanckeser.com/api/battle?a=<username>&b=<username>` returns an instant battle between two people as JSON: each side's team (four cards: an ace, which is the first of the top four in the README of their `stard` repo or their profile repo, else their first pinned repo, else their own most-starred repo, and three drawn from their stars for the day; both teams are cut to the size of the smaller one) with every card's stats, and the fight as a list of hits. The same matchup gives the same fight all day (UTC). `https://stard.armanckeser.com/api/card/battle.svg?a=<username>&b=<username>` is the result as a card, and `https://stard.armanckeser.com/battle?a=<username>&b=<username>` plays the fight in the browser. The rules are in `server/battle.ts`.
 
-A real match is a GitHub Discussion in the challenger's profile repo, titled "Stard battle: <host> vs <guest>". `https://stars-demo.armanckeser.com/api/game?repo=<owner/name>&n=<thread number>` works the match out from the thread and returns where it stands: both teams, HP, whose turn, the public dice for the next turns, every move so far, and the thread's other comments as chat. `https://stars-demo.armanckeser.com/api/games?user=<username>` lists the matches someone is in. A move is a comment by the player whose turn it is, ending in `<!-- stard:move {"turn":N,"action":{"kind":"attack"},"prev":"<id of the move before>"} -->`; the actions are `attack`, `special`, `guard` and `switch` (with `to`, a card's index). `server/game.ts` has the rules and writes these comments. Don't post a move for someone unless they chose it.
+A real match is a GitHub Discussion in the challenger's profile repo, titled "Stard battle: <host> vs <guest>". `https://stard.armanckeser.com/api/game?repo=<owner/name>&n=<thread number>` works the match out from the thread and returns where it stands: both teams, HP, whose turn, the public dice for the next turns, every move so far, and the thread's other comments as chat. `https://stard.armanckeser.com/api/games?user=<username>` lists the matches someone is in. A move is a comment by the player whose turn it is, ending in `<!-- stard:move {"turn":N,"action":{"kind":"attack"},"prev":"<id of the move before>"} -->`; the actions are `attack`, `special`, `guard` and `switch` (with `to`, a card's index). `server/game.ts` has the rules and writes these comments. Don't post a move for someone unless they chose it.
 
 ## Copy-paste prompt
 

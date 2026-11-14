@@ -1,3 +1,4 @@
+import { OLD_SITE_HOST, SITE_ORIGIN } from "../../server/site.ts";
 import { fetchPublicLists, toPublicList, UserNotFoundError, type GraphQL } from "../../server/github-lists.ts";
 import { newRunSeed } from "../../server/run/rules.ts";
 import { BATTLE_PATH, RUN_POOL_PATH, TRAINER_PATH, battleResponse, trainerResponse } from "./battle.ts";
@@ -29,6 +30,8 @@ const LOGIN = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 // An hour keeps the shared token's 5,000 points/hour far away even when a demo
 // link gets passed around, and Lists rarely change faster than that.
 const CACHE_SECONDS = 3600;
+
+const MOVED_PERMANENTLY = 301;
 
 type GraphQLResponse<T> = { data?: T; errors?: { type?: string; message: string }[] };
 
@@ -104,6 +107,8 @@ async function listsResponse(login: string, env: Env): Promise<Response> {
 export default {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    // Cards embedded in profile READMEs keep loading from the old address; its pages move.
+    if (url.hostname === OLD_SITE_HOST && !url.pathname.startsWith("/api/")) return Response.redirect(`${SITE_ORIGIN}${url.pathname}${url.search}`, MOVED_PERMANENTLY);
     const blocked = blockListOf(env.NO_PLAY);
     const optOuts = withBlockList(cachedOptOuts(url.origin, env, context), blocked);
     const count = counterFor(env.EVENTS, url.host);

@@ -5,15 +5,15 @@
 <p align="center">Every repo you've starred is a card. Build a team and beat other developers. No signup.</p>
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/run"><img src="https://img.shields.io/badge/Play_with_your_username-2f9e7a?style=for-the-badge" alt="Play with your username" height="36"></a>
+  <a href="https://stard.armanckeser.com/run"><img src="https://img.shields.io/badge/Play_with_your_username-2f9e7a?style=for-the-badge" alt="Play with your username" height="36"></a>
 </p>
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/run"><img src="img/run.gif" alt="A round of a run in the demo: a card bought from the shop is dragged onto the board, two teams of creatures fight, then the run finishes with 5 wins and 2 losses and shows the final team" width="480" /></a>
+  <a href="https://stard.armanckeser.com/run"><img src="img/run.gif" alt="A round of a run in the demo: a card bought from the shop is dragged onto the board, two teams of creatures fight, then the run finishes with 5 wins and 2 losses and shows the final team" width="480" /></a>
 </p>
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/compose">Make your profile</a> ·
+  <a href="https://stard.armanckeser.com/compose">Make your profile</a> ·
   <a href="https://www.npmjs.com/package/github-stars-organizer">npm</a> ·
   <a href="AGENT-API.md">Agent API</a> ·
   <a href="#option-b-self-host-with-docker">Self-host</a>
@@ -27,11 +27,11 @@
 ## Profile cards
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/compose"><img src="img/stard-top4.svg" alt="octocat's top four repos on GitHub: astral-sh/uv, immich-app/immich, BurntSushi/ripgrep, sveltejs/svelte" width="880" /></a>
+  <a href="https://stard.armanckeser.com/compose"><img src="img/stard-top4.svg" alt="octocat's top four repos on GitHub: astral-sh/uv, immich-app/immich, BurntSushi/ripgrep, sveltejs/svelte" width="880" /></a>
 </p>
 
 <p align="center">
-  <a href="https://stars-demo.armanckeser.com/compose"><img src="https://img.shields.io/badge/Make_yours-2f9e7a?style=for-the-badge" alt="Make yours" height="36"></a>
+  <a href="https://stard.armanckeser.com/compose"><img src="https://img.shields.io/badge/Make_yours-2f9e7a?style=for-the-badge" alt="Make yours" height="36"></a>
 </p>
 
 <p align="center"><sub>Put in any GitHub username, no sign-in. If you like Stard, a star helps others find the project.</sub></p>
@@ -56,7 +56,7 @@ Your stars say what you actually use, and nobody can see them. Stard turns them 
 
 Three ways to make one:
 
-- **In the browser.** Open the [demo](https://stars-demo.armanckeser.com/compose), type your username, arrange the sections, copy.
+- **In the browser.** Open the [demo](https://stard.armanckeser.com/compose), type your username, arrange the sections, copy.
 - **With your agent.** `npx skills add armanckeser/github-stars-organizer`, then ask Claude Code or Codex to "make my Stard profile". The agent asks which repos are your favorites and why, and writes the README with you. The **Profile** screen has a copy-paste prompt for agents without skills.
 - **On your own machine.** `npx github-stars-organizer` runs the full app on localhost with your [GitHub CLI](https://cli.github.com/) login (`gh auth login`). Ratings and notes you already keep there become your reviews.
 
@@ -132,8 +132,8 @@ Stard started as Stars Organizer, and everything from it is still here. I starre
 | **Tags, ratings, notes** | On top of your stars, searchable and filterable. |
 | **Explore** | Charts of your stars by language, health and last commit, and what kinds of repos you starred over time. |
 | **Profile** | Your top four, your reviews and your Lists as cards for a GitHub README, with archived and quiet repos left out. Copy or download the Markdown. |
-| **Play** | A run in the browser: buy cards drawn from your stars, place them on a board, build sets and pick boosts, and fight other teams, until 5 wins or 3 losses. [Play one](https://stars-demo.armanckeser.com/run). |
-| **Battle** | Two GitHub usernames, and each one's team of four (an ace they pick and three drawn from their stars each day) fights as trading cards in an arena: level from stars, HP from contributors, attack from commits, type from the language. A repo you own is shiny. Build a character on the Profile screen (a figure, a class with a perk, a motto), paste its card into your README, and the game reads your character from there. From your own copy you can challenge someone to a real match: turn by turn, over hours or days, with a GitHub Discussion on your profile repo as the whole record. Every move is a comment, the dice are public, and nothing is stored anywhere else. [Try one](https://stars-demo.armanckeser.com/battle). The plan for the full game, played in GitHub Discussions, is in [#45](https://github.com/armanckeser/github-stars-organizer/issues/45). |
+| **Play** | A run in the browser: buy cards drawn from your stars, place them on a board, build sets and pick boosts, and fight other teams, until 5 wins or 3 losses. [Play one](https://stard.armanckeser.com/run). |
+| **Battle** | Two GitHub usernames, and each one's team of four (an ace they pick and three drawn from their stars each day) fights as trading cards in an arena: level from stars, HP from contributors, attack from commits, type from the language. A repo you own is shiny. Build a character on the Profile screen (a figure, a class with a perk, a motto), paste its card into your README, and the game reads your character from there. From your own copy you can challenge someone to a real match: turn by turn, over hours or days, with a GitHub Discussion on your profile repo as the whole record. Every move is a comment, the dice are public, and nothing is stored anywhere else. [Try one](https://stard.armanckeser.com/battle). The plan for the full game, played in GitHub Discussions, is in [#45](https://github.com/armanckeser/github-stars-organizer/issues/45). |
 | **AI sorting** | Claude Code, Codex or any agent that can run `curl` reads your stars, suggests Lists and sorts repos into them once you agree. The robot icon beside **Import Stars** gives you the prompt, or install the skill with `npx skills add armanckeser/github-stars-organizer`. [AGENT-API.md](AGENT-API.md) has the API. |
 | **Search for your agent** | `npx github-stars-organizer search pdf parser` lists the stars that match, with their Lists and whether each is still alive. To have Claude Code or Codex check your stars before suggesting a library or tool, add this line to your `CLAUDE.md` or `AGENTS.md`: "Before you suggest a library, tool or GitHub repo, run `npx github-stars-organizer search <a few words>` to check what I already starred. If my pick is quiet or hasn't released in a year, say so and name the current alternative." |
 | **Backups** | A backup before every launch, and a restore that only adds back what's missing. |
